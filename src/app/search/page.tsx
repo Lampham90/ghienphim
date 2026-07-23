@@ -95,7 +95,7 @@ function SearchContent() {
         <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
           {actorInfo ? (
             <>
-              {/* Avatar diễn viên - Đổi sang hình vuông bo góc rounded-2xl */}
+              {/* Avatar diễn viên - Hình vuông bo góc rounded-2xl */}
               <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden border-4 border-white/5 shadow-2xl bg-[#121212] shrink-0">
                 <Image
                   loader={imageLoader}

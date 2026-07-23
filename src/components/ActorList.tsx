@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import imageLoader from '@/lib/imageLoader';
@@ -11,7 +11,7 @@ interface ActorListProps {
   tmdbInfo?: { id: string | number; type: string };
 }
 
-export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
+const ActorList = memo(({ movie, tmdbInfo }: ActorListProps) => {
   const [actors, setActors] = useState<Array<{ name: string; avatar?: string }>>([]);
   const [isFetched, setIsFetched] = useState(false);
 
@@ -31,6 +31,9 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
       avatar: typeof a === 'object' ? a?.avatar || '' : '',
     })).filter(item => item.name.trim() !== '' && item.name.toLowerCase() !== 'dang cap nhat');
 
+    // ✅ Hiện ngay dữ liệu thô (có thể đã có avatar từ DB cào sẵn)
+    setActors(initialActors);
+
     const tmdbId = tmdbInfo?.id || movie?.tmdb?.id || movie?.tmdb_id;
     const rawType = tmdbInfo?.type || movie?.tmdb?.type || movie?.type || '';
     const tmdbType = (rawType.includes('series') || rawType.includes('bo') || rawType.includes('tv')) ? 'tv' : 'movie';
@@ -38,7 +41,7 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
     const fetchAllAvatars = async () => {
       let currentActors = [...initialActors];
 
-      // BƯỚC 1: Lấy từ Credit của phim
+      // BƯỚC 1: Lấy từ Credit của phim (Chính xác nhất theo vai diễn)
       if (tmdbId && tmdbId !== '0' && tmdbId !== 0) {
         try {
           const res = await fetch(`/api/actor-credits?tmdb_id=${tmdbId}&type=${tmdbType}`);
@@ -67,9 +70,10 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
 
       setActors([...currentActors]);
 
-      // BƯỚC 2: Global Search cho những người còn thiếu
+      // BƯỚC 2: Global Search cho những người còn thiếu (TMDB Search toàn cầu)
       const stillMissing = currentActors.filter(a => !a.avatar);
       if (stillMissing.length > 0) {
+        // Tối đa quét 20 diễn viên đầu tiên còn thiếu
         const searchPromises = stillMissing.slice(0, 20).map(async (actor) => {
           try {
             const sRes = await fetch(`/api/actor-search?name=${encodeURIComponent(actor.name)}`);
@@ -99,7 +103,9 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
   }, [movie?.slug, movie?.tmdb_id, tmdbInfo?.id]);
 
   const visibleActors = actors.filter(a => a.avatar);
-  if (isFetched && visibleActors.length === 0) return null;
+
+  // ✅ Tránh hiện tiêu đề rỗng khi chưa có ảnh nào
+  if (visibleActors.length === 0) return null;
 
   return (
     <div className="animate-in fade-in duration-700 mt-10">
@@ -114,7 +120,14 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
         {visibleActors.map((actor, idx) => (
           <Link key={idx} href={`/search?keyword=${encodeURIComponent(actor.name)}`} className="group block">
             <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-white/5 group-hover:border-red-600 transition-all duration-500 shadow-2xl bg-[#121212]">
-              <Image loader={imageLoader} src={actor.avatar || ''} alt={actor.name} fill sizes="(max-width: 768px) 33vw, 15vw" className="object-cover group-hover:scale-110 transition-transform duration-500" />
+              <Image
+                loader={imageLoader}
+                src={actor.avatar || ''}
+                alt={actor.name}
+                fill
+                sizes="(max-width: 768px) 33vw, 15vw"
+                className="object-cover group-hover:scale-110 transition-transform duration-500"
+              />
             </div>
             <p className="mt-3 text-[10px] font-black text-white/40 group-hover:text-red-500 transition-colors uppercase italic text-center line-clamp-2 leading-tight px-1">
               {actor.name}
@@ -124,4 +137,7 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
       </div>
     </div>
   );
-}
+});
+
+ActorList.displayName = 'ActorList';
+export default ActorList;

@@ -11,20 +11,28 @@ export default async function HomePage() {
   const first4Cats = HOME_CATEGORIES.slice(0, 4);
 
   try {
-    // 1. Fetch song song 4 danh mục đầu + 1 danh mục Phim Hot/Chiếu Rạp làm Banner
-    // ✅ homeOnly = true -> CHỈ lấy phim năm 2025/2026 cho trang chủ, sắp xếp
-    // theo last_updated DESC (cào cái nào tới trước hiện trước). Phim năm
-    // khác vẫn được cào/lưu D1 bình thường, chỉ không hiện ở trang chủ —
-    // xem đầy đủ ở trang catalog (/danh-sach/...) vì catalog KHÔNG truyền
-    // homeOnly nên không bị lọc năm.
-    const [catResults, heroMovies] = await Promise.all([
+    // 1. Fetch song song các danh mục theo đúng tỉ lệ yêu cầu cho Banner
+    const [
+      catResults,
+      chieuRap,
+      boHan,
+      boTrung,
+      animeMovie
+    ] = await Promise.all([
       Promise.all(first4Cats.map(cat => getMoviesFromD1(cat.slug, 1, 24, true))),
-      // ✅ FIX: đổi 'phim-chieu-rap' (gạch ngang) -> 'phim_chieu_rap' (gạch dưới)
-      // để khớp đúng category_slug được lưu trong D1 (movie_categories) và
-      // khớp với nhánh đặc biệt trong kkphim.ts (categorySlug === 'phim_chieu_rap').
-      // Bản cũ dùng gạch ngang -> JOIN không khớp -> Hero luôn rỗng, phải fallback.
-      getMoviesFromD1('phim_chieu_rap', 1, 8, true) // 🔥 Lấy riêng 8 phim hot làm Hero Banner
+      getMoviesFromD1('phim_chieu_rap', 1, 2, true),
+      getMoviesFromD1('bo_han', 1, 3, true),
+      getMoviesFromD1('bo_trung', 1, 3, true),
+      getMoviesFromD1('anime_movie', 1, 2, true)
     ]);
+
+    // Gộp danh sách Hero theo tỉ lệ: 2 rạp - 3 hàn - 3 trung - 2 anime
+    const heroMovies = [
+      ...(chieuRap || []),
+      ...(boHan || []),
+      ...(boTrung || []),
+      ...(animeMovie || [])
+    ];
 
     first4Cats.forEach((cat, idx) => {
       if (catResults[idx] && catResults[idx].length > 0) {
@@ -37,16 +45,15 @@ export default async function HomePage() {
       }
     });
 
-    // Fallback: Nếu không lấy được phim chiếu rạp làm hero thì mới dùng danh mục đầu tiên
-    const finalHeroMovies = (heroMovies && heroMovies.length > 0)
+    const finalHeroMovies = (heroMovies.length > 0)
       ? heroMovies
-      : (initialSections[0]?.items?.slice(0, 8) || []);
+      : (initialSections[0]?.items?.slice(0, 10) || []);
 
     return (
       <HomeClient
         initialSections={initialSections}
         initialHeroMovies={finalHeroMovies}
-        allCategoriesData={{}} // Giữ cho HTML siêu nhẹ
+        allCategoriesData={{}}
         initialLoadedCount={initialSections.length}
       />
     );
