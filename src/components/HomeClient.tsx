@@ -1,0 +1,510 @@
+"use client";
+
+import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Montserrat } from 'next/font/google';
+import { type KKPhimMovie, getImageUrl } from '@/lib/kkphim';
+import { HOME_CATEGORIES, getCategoryConfig } from '@/lib/categories';
+import MovieBadge from '@/components/MovieBadge';
+import MovieCard from '@/components/MovieCard';
+import InterestedSection from '@/components/InterestedSection';
+import { useMovieStore } from "@/lib/useMovieStore";
+import imageLoader from '@/lib/imageLoader';
+
+const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', '900'] });
+
+interface Movie extends KKPhimMovie {
+  content?: string;
+  thumb_url?: string;
+}
+
+interface SectionData {
+  title: string;
+  type: string;
+  slug: string;
+  items: Movie[];
+}
+
+// ==========================================
+// 0. CLIENT IN-MEMORY CACHE FOR D1
+// ==========================================
+const categoryCache = new Map<string, Movie[]>();
+
+const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
+  if (categoryCache.has(slug)) {
+    return categoryCache.get(slug)!;
+  }
+  try {
+    const res = await fetch(`/api/category-d1?slug=${slug}&page=1&home=1`);
+    if (!res.ok) return [];
+    const movies = await res.json();
+    if (Array.isArray(movies) && movies.length > 0) {
+      categoryCache.set(slug, movies);
+      return movies;
+    }
+  } catch (e) {
+    console.error(`Error fetching category ${slug} from D1:`, e);
+  }
+  return [];
+};
+
+// ==========================================
+// 1. HELPER COMPONENTS
+// ==========================================
+
+const LazyRow = memo(({ children, rootMargin = '800px', placeholderHeight = 500 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    if (!mounted) return;
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) { setVisible(true); observer.disconnect(); }
+    }, { rootMargin, threshold: 0.01 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [mounted, rootMargin]);
+
+  return (
+    <div ref={ref} className="min-h-[200px] transform-gpu will-change-transform">
+      {mounted && visible ? children : <div style={{ height: placeholderHeight }} className="w-full" />}
+    </div>
+  );
+});
+LazyRow.displayName = 'LazyRow';
+
+const ViewAllButton = memo(({ slug }: { slug: string }) => {
+  return (
+    <Link
+      href={`/danh-sach/${slug}`}
+      prefetch={false}
+      className="group inline-flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 rounded-full border border-white/10 bg-white/[0.03] hover:bg-red-600 hover:border-red-600 transition-all duration-300 shrink-0"
+    >
+      <span className="text-[8.5px] font-black uppercase tracking-[0.2em] text-white/45 group-hover:text-white transition-colors">
+        Xem tất cả
+      </span>
+      <svg
+        className="w-3 h-3 text-white/45 group-hover:text-white group-hover:translate-x-0.5 transition-all duration-300"
+        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </Link>
+  );
+});
+ViewAllButton.displayName = 'ViewAllButton';
+
+const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement> }) => {
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(true);
+
+  const updateScrollState = useCallback(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 10);
+    setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+  }, [rowRef]);
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState);
+    return () => el.removeEventListener('scroll', updateScrollState);
+  }, [updateScrollState]);
+
+  const btnClass = "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border border-white/10 backdrop-blur-md bg-white/5 text-white hover:bg-white/20";
+
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <button
+        onClick={() => rowRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
+        className={`${btnClass} ${canLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
+      </button>
+      <button
+        onClick={() => rowRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
+        className={`${btnClass} ${canRight ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
+      </button>
+    </div>
+  );
+});
+ScrollNav.displayName = 'ScrollNav';
+
+const HistoryItem = memo(({ m }: { m: any }) => {
+  const imageUrl = getImageUrl(m.thumb || m.poster);
+  const progress = (m.duration && m.duration > 0) ? Math.min((m.seconds / m.duration) * 100, 100) : 0;
+
+  return (
+    <div className="min-w-[240px] md:min-w-[320px] snap-start group relative flex flex-col transform-gpu">
+      <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(m.poster || m.thumb || '')}&thumb=${encodeURIComponent(m.thumb || m.poster || '')}`} prefetch={false} className="relative aspect-video w-full rounded-2xl md:rounded-[1.5rem] overflow-hidden border border-white/5 bg-[#0a0a0a] transition-[transform,border-color] duration-300 group-hover:border-red-600/50 group-hover:-translate-y-2 shadow-2xl transform-gpu">
+        {imageUrl && (
+          <Image
+            loader={imageLoader}
+            src={imageUrl}
+            alt={m.name}
+            fill
+            sizes="(max-width: 768px) 250px, 400px"
+            quality={80}
+            loading="lazy"
+            decoding="async"
+            className="object-cover opacity-100 group-hover:scale-105 transition-transform duration-500 transform-gpu"
+          />
+        )}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+          <div className="h-full bg-red-600" style={{ width: `${progress}%` }} />
+        </div>
+        <MovieBadge movie={m} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-40" />
+      </Link>
+      <div className="mt-4 px-1"><h3 className="text-[10px] md:text-[11px] font-black uppercase text-white/40 group-hover:text-red-500 transition-colors line-clamp-1 italic">{m.name}</h3></div>
+    </div>
+  );
+});
+HistoryItem.displayName = 'HistoryItem';
+
+// ==========================================
+// 2. MAIN ROW COMPONENTS
+// ==========================================
+
+const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' }: { section: SectionData, isTrending?: boolean, variant?: 'ranked1' | 'ranked2' | 'ranked3' }) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  return (
+    <div className="pl-6 md:pl-20 group/row relative mb-24 transform-gpu">
+      <div className="flex items-end justify-between pr-8 md:pr-24 mb-6 border-b border-white/[0.03] pb-3">
+        <div className="flex items-end gap-4">
+          <div className="flex flex-col text-left"><span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">{isTrending ? "Must Watch" : "Daily Charts"}</span><h2 className="text-lg md:text-2xl font-black uppercase tracking-tighter text-white italic">{section.title}</h2></div>
+          <div className="mb-1"><ViewAllButton slug={section.slug} /></div>
+        </div>
+        <ScrollNav rowRef={rowRef} />
+      </div>
+      <div className="relative">
+        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[300px]">
+          {section.items?.map((movie, index) => movie && <MovieCard key={`${movie.slug}-${index}`} movie={movie} variant={variant} index={index} />)}
+        </div>
+      </div>
+    </div>
+  );
+});
+RankedMovieRow.displayName = 'RankedMovieRow';
+
+const MovieRow = memo(({ section, variant = 'vertical' }: { section: SectionData, variant?: 'vertical' | 'horizontal' }) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  return (
+    <div className="pl-6 md:pl-20 group/row relative mb-14 transform-gpu">
+      <div className="flex items-end justify-between pr-8 md:pr-24 mb-6 border-b border-white/[0.03] pb-3">
+        <div className="flex items-end gap-4">
+          <div className="flex flex-col text-left"><span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">Collection</span><h2 className="text-lg md:text-2xl font-black uppercase tracking-tighter text-white italic leading-none">{section.title}</h2></div>
+          <div className="mb-1"><ViewAllButton slug={section.slug} /></div>
+        </div>
+        <ScrollNav rowRef={rowRef} />
+      </div>
+      <div className="relative">
+        <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[250px]">
+          {section.items?.map((movie, index) => movie && (
+             <MovieCard key={`${movie.slug}-${index}`} movie={movie} variant={variant} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
+MovieRow.displayName = 'MovieRow';
+
+const HistoryRow = memo(() => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const storeHistory = useMovieStore((state) => state.history);
+  const initStore = useMovieStore((state) => state.init);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { initStore(); setMounted(true); }, [initStore]);
+
+  const historyMovies = useMemo(() => {
+    if (!mounted || !storeHistory) return [];
+    return Object.entries(storeHistory)
+      .map(([slug, data]: [string, any]) => ({ slug, ...data }))
+      .filter(item => item && item.name && (item.poster || item.thumb))
+      .sort((a, b) => (b.last_updated || 0) - (a.last_updated || 0))
+      .slice(0, 10);
+  }, [mounted, storeHistory]);
+
+  if (!mounted || historyMovies.length === 0) return null;
+
+  return (
+      <div className="pl-6 md:pl-20 group/row relative mb-20">
+        <div className="flex items-end justify-between pr-8 md:pr-24 mb-8 border-b border-white/[0.03] pb-3">
+          <div className="flex flex-col text-left">
+            <span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">Continue Watching</span>
+            <h2 className="text-lg md:text-2xl font-black uppercase tracking-tighter text-white italic">Tiếp tục xem</h2>
+          </div>
+          <ScrollNav rowRef={rowRef} />
+        </div>
+        <div className="relative">
+          <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth">
+            {historyMovies.map((m, index) => <HistoryItem key={`${m.slug}-${index}`} m={m} />)}
+          </div>
+        </div>
+      </div>
+    );
+  });
+HistoryRow.displayName = 'HistoryRow';
+
+// ==========================================
+// 3. MAIN PAGE COMPONENT
+// ==========================================
+
+interface HomeClientProps {
+  initialSections: SectionData[];
+  initialHeroMovies: Movie[];
+  allCategoriesData?: Record<string, KKPhimMovie[]>;
+  initialLoadedCount: number;
+}
+
+export default function HomeClient({ initialSections, initialHeroMovies, allCategoriesData = {}, initialLoadedCount }: HomeClientProps) {
+  const [sections, setSections] = useState<SectionData[]>(initialSections);
+  const [currentHero, setCurrentHero] = useState(0);
+  const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
+  const isFetching = useRef(false);
+  const loaderRef = useRef<HTMLDivElement>(null);
+
+  // Khởi tạo Cache từ Props
+  useEffect(() => {
+    Object.entries(allCategoriesData).forEach(([slug, movies]) => {
+      if (movies && movies.length > 0) {
+        categoryCache.set(slug, movies as Movie[]);
+      }
+    });
+  }, [allCategoriesData]);
+
+  // --- 1. LOGIC LƯU VỊ TRÍ CUỘN ---
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 100) {
+        sessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // --- 2. KHÔI PHỤC SESSION & SCROLL (FIX LỖI NHÂN ĐÔI) ---
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const savedSlugsStr = sessionStorage.getItem("home_loaded_slugs");
+        const savedScrollPos = sessionStorage.getItem("home_scroll_pos");
+
+        if (savedSlugsStr) {
+          const savedSlugs: string[] = JSON.parse(savedSlugsStr);
+          if (savedSlugs.length > 0) {
+            // Tải dữ liệu song song nhưng xử lý gộp an toàn
+            const fetchPromises = savedSlugs.map(async (slug) => {
+              const cat = HOME_CATEGORIES.find(c => c.slug === slug);
+              if (!cat) return null;
+
+              let movies = categoryCache.get(slug);
+              if (!movies || movies.length === 0) {
+                movies = await fetchCategoryFromD1(slug);
+              }
+              if (!movies || movies.length === 0) return null;
+
+              return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 15) };
+            });
+
+            const results = await Promise.all(fetchPromises);
+            const dynamicSections = results.filter((s): s is SectionData => s !== null);
+
+            // Gộp và lọc trùng tuyệt đối theo Slug
+            setSections(prev => {
+              const combined = [...initialSections, ...dynamicSections];
+              const uniqueMap = new Map();
+              combined.forEach(s => uniqueMap.set(s.slug, s));
+              return Array.from(uniqueMap.values());
+            });
+
+            // Cập nhật index để load tiếp không bị trùng
+            const lastSlug = savedSlugs[savedSlugs.length - 1];
+            const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
+            if (foundIdx !== -1) setLoadedIndex(foundIdx + 1);
+
+            if (savedScrollPos) {
+              requestAnimationFrame(() => {
+                window.scrollTo({ top: parseInt(savedScrollPos), behavior: 'instant' });
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to restore session storage", e);
+      }
+    };
+
+    restoreSession();
+  }, [initialSections]);
+
+  // --- 3. TẢI TỨC THÌ (FIX LỖI TRÙNG KHI CUỘN) ---
+  const loadNextCategory = useCallback(async () => {
+    if (loadedIndex >= HOME_CATEGORIES.length || isFetching.current) return;
+
+    const currentCat = HOME_CATEGORIES[loadedIndex];
+    // Kiểm tra nhanh xem slug này đã có trong state chưa
+    if (sections.some(s => s.slug === currentCat.slug)) {
+      setLoadedIndex(prev => prev + 1);
+      return;
+    }
+
+    isFetching.current = true;
+
+    let movies = categoryCache.get(currentCat.slug);
+    if (!movies || movies.length === 0) {
+      movies = await fetchCategoryFromD1(currentCat.slug);
+    }
+
+    if (movies && movies.length > 0) {
+      setSections(prev => {
+        // Kiểm tra trùng một lần nữa bên trong setState (an toàn tuyệt đối)
+        if (prev.some(s => s.slug === currentCat.slug)) return prev;
+
+        const next = [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
+        const dynamicSlugs = next.filter(s => !initialSections.some(init => init.slug === s.slug)).map(s => s.slug);
+        try { sessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs)); } catch (e) {}
+        return next;
+      });
+    }
+
+    setLoadedIndex(prev => prev + 1);
+    isFetching.current = false;
+
+    // PREFETCH tiếp theo
+    const nextNextIdx = loadedIndex + 1;
+    if (nextNextIdx < HOME_CATEGORIES.length) {
+       const futureCat = HOME_CATEGORIES[nextNextIdx];
+       if (futureCat && !categoryCache.has(futureCat.slug)) {
+         fetchCategoryFromD1(futureCat.slug);
+       }
+    }
+  }, [loadedIndex, initialSections, sections]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadNextCategory();
+    }, { threshold: 0.1, rootMargin: '1200px' });
+    if (loaderRef.current) observer.observe(loaderRef.current);
+    return () => observer.disconnect();
+  }, [loadNextCategory]);
+
+  useEffect(() => {
+    if (initialHeroMovies.length > 0) {
+      const timer = setInterval(() => setCurrentHero(p => (p + 1) % initialHeroMovies.length), 7000);
+      return () => clearInterval(timer);
+    }
+  }, [initialHeroMovies.length]);
+
+  return (
+    <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white overflow-x-hidden selection:bg-red-600`}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .text-shadow-netflix { text-shadow: 2px 2px 4px rgba(0,0,0,0.8), -1px -1px 0 rgba(0,0,0,0.5); }
+        main { overflow-anchor: none; }
+        .snap-x { scroll-snap-type: x mandatory; scroll-behavior: smooth; }
+        .snap-start { scroll-snap-align: start; }
+        .title-embossed {
+          color: rgba(255,255,255,0.94);
+          text-shadow:
+            0 1px 0 rgba(255,255,255,0.12),
+            0 -1px 2px rgba(0,0,0,0.85),
+            0 4px 10px rgba(0,0,0,0.6),
+            0 10px 24px rgba(0,0,0,0.5);
+          mix-blend-mode: overlay;
+        }
+      ` }} />
+
+      {initialHeroMovies.length > 0 && (
+        <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden mb-16 border-b border-white/5 transform-gpu">
+          {initialHeroMovies.map((m, i) => (
+            <div key={`${m.slug}-${i}`} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+              <div className="absolute inset-0 w-full h-full">
+                <div className="block md:hidden relative w-full h-full">
+                  <Image
+                    loader={imageLoader}
+                    src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
+                    alt={m.name}
+                    fill
+                    sizes="100vw"
+                    priority={i === currentHero}
+                    className="w-full h-full object-cover transform-gpu"
+                    style={{ objectPosition: 'center 20%' }}
+                  />
+                </div>
+                <div className="hidden md:block relative w-full h-full">
+                  <Image
+                    loader={imageLoader}
+                    src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
+                    alt={m.name}
+                    fill
+                    sizes="100vw"
+                    priority={i === currentHero}
+                    className="w-full h-full object-cover transform-gpu"
+                    style={{ objectPosition: 'center 20%' }}
+                  />
+                </div>
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-transparent to-black/20 z-10" />
+              <div className="absolute inset-0 z-20 flex flex-col justify-end pb-24 md:pb-32 px-6 md:px-24 text-left">
+                <div className="max-w-4xl space-y-4 md:space-y-7 relative z-20 text-shadow-netflix">
+                  <div className="flex items-center gap-3"><span className="w-8 md:w-12 h-[2px] md:h-[3px] bg-red-600 rounded-full"></span><span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] md:tracking-[0.5em] uppercase italic">Hot Premiere</span></div>
+                  <h1 className="title-embossed text-xl md:text-3xl lg:text-4xl font-black uppercase italic leading-[1.05] md:leading-[0.95] tracking-tight">{m.name}</h1>
+                  <p className="text-white/80 font-medium text-[11px] md:text-sm lg:text-base italic max-w-xl line-clamp-2 md:line-clamp-3 leading-relaxed">
+                    {m.description || `Thưởng thức trọn bộ phim ${m.name} với chất lượng cao và tốc độ mượt mà nhất.`}
+                  </p>
+                  <div className="pt-6 md:pt-10">
+                    <Link href={`/phim/${m.slug}`} prefetch={false} className="inline-flex items-center gap-2 md:gap-3 bg-transparent border-[1.5px] md:border-2 border-white/80 hover:border-red-600 text-white hover:text-red-500 px-6 py-2.5 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] md:tracking-[0.2em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.25)] group hover:scale-105 active:scale-95">
+                      <span className="text-base md:text-xl transition-transform group-hover:scale-110 group-hover:text-red-600">▶</span> <span>Xem Ngay</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <InterestedSection />
+      <HistoryRow />
+
+      <section className="relative z-30 space-y-10 pb-20">
+        {sections.map((s, index) => {
+          if (!s || !s.slug) return null;
+          const config = getCategoryConfig(s.slug);
+          const isRanked = config?.rowType === "ranked";
+          const rowVariant = config?.rowVariant || (isRanked ? "ranked1" : "vertical");
+
+          return (
+            <LazyRow key={`${s.slug}-${index}`} placeholderHeight={isRanked ? 450 : 350}>
+              {isRanked ? (
+                <RankedMovieRow section={s} variant={rowVariant as any} isTrending={s.slug === 'phim-bo'} />
+              ) : (
+                <MovieRow section={s} variant={rowVariant as any} />
+              )}
+            </LazyRow>
+          );
+        })}
+      </section>
+
+      {loadedIndex < HOME_CATEGORIES.length && (
+        <div ref={loaderRef} className="h-60 w-full flex items-center justify-center text-white/10 font-black text-xs tracking-widest uppercase italic animate-pulse">
+          Đang tải thêm nội dung...
+        </div>
+      )}
+    </main>
+  );
+}

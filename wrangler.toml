@@ -1,0 +1,8 @@
+name = "phimkk"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "phim_db"
+database_id = "9e4bdc67-f112-4b9c-b99a-633746e3c531"
