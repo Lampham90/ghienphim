@@ -24,10 +24,8 @@ export default function RootLayout({
   return (
     <html lang="vi" className="scroll-smooth">
       <head>
-        {/* Tối ưu kết nối tới Proxy ảnh để hiện ảnh nhanh nhất */}
-        <link rel="preconnect" href="https://wsrv.nl" />
-        <link rel="dns-prefetch" href="https://wsrv.nl" />
-        <link rel="preconnect" href="https://phimimg.com" />
+        {/* Ảnh giờ đi qua route nội bộ /api/proxy-image (server-side fetch),
+           không còn phụ thuộc wsrv.nl nữa nên bỏ preconnect tới đó */}
       </head>
 
       <body className={`${montserrat.className} antialiased selection:bg-red-600 selection:text-white bg-[#050505] text-white`}>

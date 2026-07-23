@@ -10,13 +10,13 @@
     "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
+    "@cf-wasm/photon": "^0.3.6",
     "axios": "^1.18.1",
     "firebase": "^12.14.0",
     "hls.js": "^1.6.15",
     "next": "15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sharp": "^0.32.0",
     "swr": "^2.4.1",
     "zustand": "^5.0.14"
   },

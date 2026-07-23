@@ -20,7 +20,7 @@ export default async function MovieDetailPage({
 
   return (
     <>
-      {/* 💡 PRELOAD: Tải ảnh banner ngay lập tức với Proxy wsrv.nl */}
+      {/* 💡 PRELOAD: Tải ảnh banner ngay lập tức qua Proxy nội bộ /api/proxy-image */}
       {previewThumb && (
         <link
           rel="preload"
