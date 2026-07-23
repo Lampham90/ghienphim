@@ -78,50 +78,80 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
       avatar: typeof a === 'object' ? a?.avatar || '' : '',
     })).filter(item => item.name.trim() !== '' && item.name.toLowerCase() !== 'dang cap nhat');
 
-    setActors(initialActors);
-
     const tmdbId = tmdbInfo?.id || movie?.tmdb?.id || movie?.tmdb_id;
     const rawType = tmdbInfo?.type || movie?.tmdb?.type || movie?.type || '';
     const tmdbType = (rawType.includes('series') || rawType.includes('bo') || rawType.includes('tv')) ? 'tv' : 'movie';
 
-    if (tmdbId && tmdbId !== '0' && tmdbId !== 0) {
-      const fetchCredits = async () => {
+    const fetchAllAvatars = async () => {
+      let currentActors = [...initialActors];
+
+      // BƯỚC 1: Lấy từ Credit của phim (Chính xác nhất theo phim)
+      if (tmdbId && tmdbId !== '0' && tmdbId !== 0) {
         try {
           const res = await fetch(`/api/actor-credits?tmdb_id=${tmdbId}&type=${tmdbType}`);
-          if (!res.ok) return null;
-          return await res.json();
-        } catch (e) { return null; }
-      };
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.cast) {
+              currentActors = currentActors.map(item => {
+                const found = data.cast.find((c: any) =>
+                  isStrictNameMatch(item.name, c.name) || (c.original_name && isStrictNameMatch(item.name, c.original_name))
+                );
+                if (found) return { ...item, avatar: found.avatar };
 
-      fetchCredits().then((data) => {
-        if (data?.cast && Array.isArray(data.cast)) {
-          setActors(prev => prev.map(item => {
-            // 1. Tìm khớp chính xác hoặc khớp nghiêm ngặt trong Cast TMDB
-            const foundInCast = data.cast.find((c: any) =>
-              isStrictNameMatch(item.name, c.name) ||
-              (c.original_name && isStrictNameMatch(item.name, c.original_name))
-            );
-
-            if (foundInCast) return { ...item, avatar: foundInCast.avatar };
-
-            // 2. Nếu không thấy, kiểm tra qua Alias (nghệ danh)
-            const normalized = normalizeName(item.name);
-            if (actorAlias[normalized]) {
-              const aliasMatch = data.cast.find((c: any) =>
-                actorAlias[normalized].some(alias =>
-                  isStrictNameMatch(alias, c.name) || (c.original_name && isStrictNameMatch(alias, c.original_name))
-                )
-              );
-              if (aliasMatch) return { ...item, avatar: aliasMatch.avatar };
+                const normalized = normalizeName(item.name);
+                if (actorAlias[normalized]) {
+                  const aliasMatch = data.cast.find((c: any) =>
+                    actorAlias[normalized].some(alias => isStrictNameMatch(alias, c.name) || (c.original_name && isStrictNameMatch(alias, c.original_name)))
+                  );
+                  if (aliasMatch) return { ...item, avatar: aliasMatch.avatar };
+                }
+                return item;
+              });
             }
+          }
+        } catch (e) {
+          console.error("Fetch credits error:", e);
+        }
+      }
 
+      // Hiển thị ngay những người tìm thấy từ credits
+      setActors([...currentActors]);
+
+      // BƯỚC 2: Với những người vẫn thiếu ảnh, dùng Global Search (Quét toàn TMDB)
+      const stillMissing = currentActors.filter(a => !a.avatar);
+      if (stillMissing.length > 0) {
+        // Tối đa quét 20 diễn viên đầu tiên còn thiếu để tránh quá tải API
+        const searchPromises = stillMissing.slice(0, 20).map(async (actor) => {
+          try {
+            const sRes = await fetch(`/api/actor-search?name=${encodeURIComponent(actor.name)}`);
+            if (sRes.ok) {
+              const sData = await sRes.json();
+              if (sData.avatar) {
+                return { name: actor.name, avatar: sData.avatar };
+              }
+            }
+          } catch (e) {
+            console.error("Global search error:", e);
+          }
+          return null;
+        });
+
+        const searchResults = await Promise.all(searchPromises);
+        const validResults = searchResults.filter((r): r is { name: string; avatar: string } => r !== null);
+
+        if (validResults.length > 0) {
+          setActors(prev => prev.map(item => {
+            const found = validResults.find(r => r.name === item.name);
+            if (found) return { ...item, avatar: found.avatar };
             return item;
           }));
         }
-      }).finally(() => setIsFetched(true));
-    } else {
+      }
+
       setIsFetched(true);
-    }
+    };
+
+    fetchAllAvatars();
   }, [movie?.slug, movie?.tmdb_id, tmdbInfo?.id]);
 
   // Chỉ hiện những diễn viên có hình ảnh (để tránh các ô trống)

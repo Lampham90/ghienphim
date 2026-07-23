@@ -3,9 +3,6 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 
-// 💡 Route này chạy trên Cloudflare Pages Edge Function (= Worker) - request tới TMDB
-// được thực hiện TỪ SERVER (mạng Cloudflare), không phải từ máy người dùng.
-// Giải quyết việc nhiều nhà mạng Việt Nam chặn thẳng api.themoviedb.org / image.tmdb.org.
 const TMDB_API_KEY = 'b81e7ce8a6c68dbea801f221b220302c';
 
 async function fetchCredits(tmdbId: string, type: string) {
@@ -34,19 +31,20 @@ export async function GET(req: Request) {
   try {
     let data = await fetchCredits(tmdbId, type);
     if (!data?.cast?.length) {
-      // 💡 Thử đổi loại (phòng trường hợp D1 lưu sai movie/tv)
       const fallbackType = type === 'movie' ? 'tv' : 'movie';
       data = await fetchCredits(tmdbId, fallbackType);
     }
 
+    // NÂNG CẤP: Lấy tới 60 diễn viên để đảm bảo bao phủ hết dàn cast phụ
     const cast = (data?.cast || [])
       .filter((c: any) => c.profile_path)
-      .slice(0, 30)
+      .slice(0, 60)
       .map((c: any) => ({
+        id: c.id,
         name: c.name || '',
         original_name: c.original_name || '',
-        // 💡 KHÔNG trả link TMDB trực tiếp - trả về link proxy của chính worker này
-        avatar: `/api/actor-avatar?path=${encodeURIComponent(c.profile_path)}`
+        avatar: `/api/actor-avatar?path=${encodeURIComponent(c.profile_path)}`,
+        order: c.order ?? 999
       }));
 
     return NextResponse.json(
