@@ -95,8 +95,8 @@ function SearchContent() {
         <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
           {actorInfo ? (
             <>
-              {/* Avatar diễn viên */}
-              <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white/5 shadow-2xl bg-[#121212] shrink-0">
+              {/* Avatar diễn viên - Đổi sang hình vuông bo góc rounded-2xl */}
+              <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden border-4 border-white/5 shadow-2xl bg-[#121212] shrink-0">
                 <Image
                   loader={imageLoader}
                   src={actorInfo.avatar || ''}
@@ -108,25 +108,22 @@ function SearchContent() {
               <div className="flex flex-col text-center md:text-left">
                 <span className="text-white/20 text-[10px] font-black uppercase tracking-[0.3em] mb-2 italic">Search for Actor</span>
                 <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-[#F1E5AC] leading-none mb-4">
-                  "{actorInfo.name}"
+                  {actorInfo.name}
                 </h1>
                 <div className="space-y-1">
-                  <p className="text-white/40 text-xs font-bold italic uppercase">
-                    Thông tin diễn viên: <span className="text-white/80">Chuyên nghiệp</span>
-                  </p>
                   {actorInfo.aliases.length > 0 && (
                     <p className="text-white/40 text-xs font-bold italic uppercase">
-                      Tên khác: <span className="text-white/80">{actorInfo.aliases.join(", ")}</span>
+                      Tên gọi khác: <span className="text-white/80">{actorInfo.aliases.join(", ")}</span>
                     </p>
                   )}
                 </div>
               </div>
             </>
           ) : (
-            <div className="flex flex-col">
+            <div className="flex flex-col text-center md:text-left">
               <span className="text-white/20 text-[10px] font-black uppercase tracking-[0.3em] mb-2 italic">Search results</span>
               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white leading-none">
-                "{query}"
+                {query}
               </h1>
             </div>
           )}
