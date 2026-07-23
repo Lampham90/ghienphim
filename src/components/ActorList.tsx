@@ -10,6 +10,7 @@ interface ActorListProps {
   tmdbInfo?: { id: string | number; type: string };
 }
 
+// Chuẩn hóa tên để so sánh (xóa dấu, viết thường)
 const normalizeName = (str: string) => {
   if (!str) return '';
   return str
@@ -19,6 +20,29 @@ const normalizeName = (str: string) => {
     .replace(/[đĐ]/g, 'd')
     .replace(/[^a-z0-9 ]/g, '')
     .trim();
+};
+
+// Hàm kiểm tra khớp tên nghiêm ngặt hơn
+const isStrictNameMatch = (localName: string, tmdbName: string) => {
+  const n1 = normalizeName(localName);
+  const n2 = normalizeName(tmdbName);
+
+  if (!n1 || !n2) return false;
+  if (n1 === n2) return true;
+
+  const words1 = n1.split(/\s+/);
+  const words2 = n2.split(/\s+/);
+
+  // Nếu tên quá ngắn (1 từ), bắt buộc phải khớp 100%
+  if (words1.length <= 1 || words2.length <= 1) return n1 === n2;
+
+  // Đếm số từ trùng lặp
+  const commonWords = words1.filter(w => words2.includes(w));
+
+  // CHỈ KHỚP nếu trùng ít nhất 2 từ quan trọng (tránh khớp mỗi họ "Trương" hay "Lưu")
+  // Và số từ trùng phải chiếm ít nhất 60% độ dài tên
+  const minLength = Math.min(words1.length, words2.length);
+  return commonWords.length >= 2 && commonWords.length >= Math.floor(minLength * 0.6);
 };
 
 const actorAlias: Record<string, string[]> = {
@@ -56,7 +80,6 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
 
     setActors(initialActors);
 
-    // Lấy ID và Type
     const tmdbId = tmdbInfo?.id || movie?.tmdb?.id || movie?.tmdb_id;
     const rawType = tmdbInfo?.type || movie?.tmdb?.type || movie?.type || '';
     const tmdbType = (rawType.includes('series') || rawType.includes('bo') || rawType.includes('tv')) ? 'tv' : 'movie';
@@ -72,37 +95,27 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
 
       fetchCredits().then((data) => {
         if (data?.cast && Array.isArray(data.cast)) {
-          const castMap = new Map<string, string>();
-          data.cast.forEach((c: any) => {
-            if (c.avatar) {
-              castMap.set(normalizeName(c.name), c.avatar);
-              if (c.original_name) castMap.set(normalizeName(c.original_name), c.avatar);
-            }
-          });
-
           setActors(prev => prev.map(item => {
+            // 1. Tìm khớp chính xác hoặc khớp nghiêm ngặt trong Cast TMDB
+            const foundInCast = data.cast.find((c: any) =>
+              isStrictNameMatch(item.name, c.name) ||
+              (c.original_name && isStrictNameMatch(item.name, c.original_name))
+            );
+
+            if (foundInCast) return { ...item, avatar: foundInCast.avatar };
+
+            // 2. Nếu không thấy, kiểm tra qua Alias (nghệ danh)
             const normalized = normalizeName(item.name);
-            let foundAvatar = castMap.get(normalized);
-
-            if (!foundAvatar && actorAlias[normalized]) {
-              for (const alias of actorAlias[normalized]) {
-                if (castMap.has(alias)) {
-                  foundAvatar = castMap.get(alias);
-                  break;
-                }
-              }
+            if (actorAlias[normalized]) {
+              const aliasMatch = data.cast.find((c: any) =>
+                actorAlias[normalized].some(alias =>
+                  isStrictNameMatch(alias, c.name) || (c.original_name && isStrictNameMatch(alias, c.original_name))
+                )
+              );
+              if (aliasMatch) return { ...item, avatar: aliasMatch.avatar };
             }
 
-            if (!foundAvatar) {
-              for (let [key, value] of castMap) {
-                if (key.includes(normalized) || normalized.includes(key)) {
-                  foundAvatar = value;
-                  break;
-                }
-              }
-            }
-
-            return { ...item, avatar: foundAvatar || item.avatar || '' };
+            return item;
           }));
         }
       }).finally(() => setIsFetched(true));
@@ -111,40 +124,38 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
     }
   }, [movie?.slug, movie?.tmdb_id, tmdbInfo?.id]);
 
-  // CHỈ HIỆN DIỄN VIÊN CÓ HÌNH
+  // Chỉ hiện những diễn viên có hình ảnh (để tránh các ô trống)
   const visibleActors = actors.filter(a => a.avatar);
 
   if (isFetched && visibleActors.length === 0) return null;
 
   return (
-    <div className="animate-in fade-in duration-700">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="animate-in fade-in duration-700 mt-10">
+      <div className="flex items-center gap-4 mb-8">
         <h3 className="text-[#F1E5AC] text-[10px] font-black uppercase tracking-[0.4em] italic">
           Dàn diễn viên
         </h3>
         <div className="h-[1px] flex-1 bg-white/5"></div>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6">
         {visibleActors.map((actor, idx) => (
           <Link
             key={idx}
             href={`/search?keyword=${encodeURIComponent(actor.name)}`}
             className="group block"
           >
-            <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-white/5 group-hover:border-red-600 transition-all duration-500 shadow-xl bg-white/5">
-              {actor.avatar && (
-                <Image
-                  loader={imageLoader}
-                  src={actor.avatar}
-                  alt={actor.name}
-                  fill
-                  sizes="(max-width: 768px) 33vw, 15vw"
-                  className="object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-              )}
+            <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-white/5 group-hover:border-red-600 transition-all duration-500 shadow-2xl bg-[#121212]">
+              <Image
+                loader={imageLoader}
+                src={actor.avatar || ''}
+                alt={actor.name}
+                fill
+                sizes="(max-width: 768px) 33vw, 15vw"
+                className="object-cover group-hover:scale-110 transition-transform duration-500"
+              />
             </div>
-            <p className="mt-2 text-[9px] font-black text-white/40 group-hover:text-red-500 transition-colors uppercase italic text-center line-clamp-2">
+            <p className="mt-3 text-[10px] font-black text-white/40 group-hover:text-red-500 transition-colors uppercase italic text-center line-clamp-2 leading-tight px-1">
               {actor.name}
             </p>
           </Link>
