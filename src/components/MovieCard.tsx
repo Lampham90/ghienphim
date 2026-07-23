@@ -1,5 +1,5 @@
 "use client";
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import MovieBadge from '@/components/MovieBadge'; 
@@ -15,6 +15,7 @@ interface MovieCardProps {
 }
 
 const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = false, isDragging = false }: MovieCardProps) => {
+  const [imgError, setImgError] = useState(false);
   const isHorizontal = variant === 'horizontal';
   const isRanked1 = variant === 'ranked1';
   const isRanked3 = variant === 'ranked3';
@@ -22,12 +23,17 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   const floatingEffect = "transition-[transform,box-shadow] duration-300 ease-out transform-gpu group-hover:-translate-y-2 group-hover:shadow-[0_10px_20px_rgba(220,38,38,0.4)] group-hover:z-50";
   const imageZoomEffect = "transition-transform duration-500 ease-out transform-gpu group-hover:scale-105";
 
+  // Chuẩn hóa URL ảnh
   const rawPoster = getImageUrl(movie.poster_url || movie.poster);
   const rawThumb = getImageUrl(movie.thumb_url || movie.thumb);
 
+  // Fallback image khi ảnh gốc bị lỗi
+  const fallbackImg = "https://phimimg.com/upload/poster/dang-cap-nhat.jpg";
+  const finalSrc = isHorizontal ? (rawThumb || rawPoster) : (rawPoster || rawThumb);
+
   const computedPriority = priority && (index ?? 0) < 3;
 
-  // ✅ 1. KIỂU POSTER NGANG (Thumbnail rows)
+  // ✅ 1. KIỂU POSTER NGANG
   if (isHorizontal) {
     return (
       <div className={`min-w-[240px] md:min-w-[320px] snap-start group relative flex flex-col pt-4 ${isDragging ? 'pointer-events-none' : ''}`}>
@@ -35,10 +41,9 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
           className={`relative aspect-video w-full rounded-2xl overflow-hidden border border-white/5 bg-[#121212] ${floatingEffect}`} draggable={false}>
           <Image 
             loader={imageLoader}
-            src={rawThumb}
+            src={imgError ? fallbackImg : (rawThumb || fallbackImg)}
             alt={movie.name} 
             fill 
-            // Tối ưu sizes: Mobile chỉ cần ~250px, PC cần ~320px
             sizes="(max-width: 768px) 250px, 320px"
             quality={45}
             decoding="async"
@@ -46,6 +51,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
             className={`object-cover ${imageZoomEffect}`} 
             priority={computedPriority}
             draggable={false} 
+            onError={() => setImgError(true)}
           />
           <MovieBadge movie={movie} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
@@ -55,7 +61,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
     );
   }
 
-  // ✅ 2. KIỂU RANKED & DỌC (Poster rows)
+  // ✅ 2. KIỂU RANKED & DỌC
   const isSpecial = isRanked1 || isRanked3;
   const isRanked3Variant = variant === 'ranked3';
   const isEven = index % 2 === 0;
@@ -70,10 +76,9 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
         draggable={false}>
         <Image 
           loader={imageLoader}
-          src={rawPoster}
+          src={imgError ? fallbackImg : (rawPoster || fallbackImg)}
           alt={movie.name} 
           fill 
-          // Tối ưu sizes cực mạnh: Mobile poster chỉ 180px, PC tối đa 300px
           sizes="(max-width: 768px) 180px, 300px"
           quality={45}
           decoding="async"
@@ -81,6 +86,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
           className={`object-cover ${imageZoomEffect}`} 
           priority={computedPriority}
           draggable={false}
+          onError={() => setImgError(true)}
         />
         <MovieBadge movie={movie} variant={variant} />
       </Link>

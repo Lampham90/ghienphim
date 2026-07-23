@@ -1,8 +1,9 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import imageLoader from '@/lib/imageLoader';
 
 interface ActorListProps {
   movie: any;
@@ -61,9 +62,6 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
     const tmdbType = (rawType.includes('series') || rawType.includes('bo') || rawType.includes('tv')) ? 'tv' : 'movie';
 
     if (tmdbId && tmdbId !== '0' && tmdbId !== 0) {
-      // 💡 Gọi qua worker của chính mình (/api/actor-credits) - KHÔNG gọi thẳng TMDB nữa,
-      // vì api.themoviedb.org / image.tmdb.org bị nhiều nhà mạng Việt Nam chặn.
-      // Worker (Cloudflare Edge Function) sẽ thay ta gọi TMDB và trả sẵn avatar đã proxy.
       const fetchCredits = async () => {
         try {
           const res = await fetch(`/api/actor-credits?tmdb_id=${tmdbId}&type=${tmdbType}`);
@@ -113,7 +111,7 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
     }
   }, [movie?.slug, movie?.tmdb_id, tmdbInfo?.id]);
 
-  // 💡 CHỈ HIỆN DIỄN VIÊN CÓ HÌNH
+  // CHỈ HIỆN DIỄN VIÊN CÓ HÌNH
   const visibleActors = actors.filter(a => a.avatar);
 
   if (isFetched && visibleActors.length === 0) return null;
@@ -135,14 +133,16 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
             className="group block"
           >
             <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-white/5 group-hover:border-red-600 transition-all duration-500 shadow-xl bg-white/5">
-              <img
-                src={actor.avatar}
-                alt={actor.name}
-                loading="lazy"
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                // 💡 Dự phòng nếu ảnh bị lỗi link
-                onError={(e) => (e.currentTarget.style.display = 'none')}
-              />
+              {actor.avatar && (
+                <Image
+                  loader={imageLoader}
+                  src={actor.avatar}
+                  alt={actor.name}
+                  fill
+                  sizes="(max-width: 768px) 33vw, 15vw"
+                  className="object-cover group-hover:scale-110 transition-transform duration-500"
+                />
+              )}
             </div>
             <p className="mt-2 text-[9px] font-black text-white/40 group-hover:text-red-500 transition-colors uppercase italic text-center line-clamp-2">
               {actor.name}
