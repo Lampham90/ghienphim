@@ -17,7 +17,7 @@ export default function imageLoader({ src, width, quality }: { src: string; widt
   // &q=70: Giảm chất lượng xuống 70 (Mắt thường ko nhận ra nhưng dung lượng giảm 50%)
   // &il: Hiện ảnh kiểu mờ dần (Progressive), tạo cảm giác load nhanh hơn 2x
   // &af: Tự động lọc nhiễu
-  return `https://wsrv.nl/?url=${encodeURIComponent(cleanSrc)}&w=${optimizedWidth}&q=${quality || 70}&output=webp&il&af`;
+   return `https://i0.wp.com/${cleanUrl}?w=${width}&quality=${quality || 70}&strip=all&fmt=webp`;
 }
 
 export function getOptimizedImageUrl(src: string, width: number = 1920, quality: number = 70) {
