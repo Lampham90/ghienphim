@@ -464,7 +464,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   <div className="flex items-center gap-3"><span className="w-8 md:w-12 h-[2px] md:h-[3px] bg-red-600 rounded-full"></span><span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] md:tracking-[0.5em] uppercase italic">Hot Premiere</span></div>
                   <h1 className="title-embossed text-xl md:text-3xl lg:text-4xl font-black uppercase italic leading-[1.05] md:leading-[0.95] tracking-tight">{m.name}</h1>
                   <p className="text-white/80 font-medium text-[11px] md:text-sm lg:text-base italic max-w-xl line-clamp-2 md:line-clamp-3 leading-relaxed">
-                    {m.description || `Thưởng thức trọn bộ phim ${m.name} với chất lượng cao và tốc độ mượt mà nhất.`}
+                    {(m.content || m.description || "").replace(/<[^>]*>?/gm, '') }
                   </p>
                   <div className="pt-6 md:pt-10">
                     <Link href={`/phim/${m.slug}`} prefetch={false} className="inline-flex items-center gap-2 md:gap-3 bg-transparent border-[1.5px] md:border-2 border-white/80 hover:border-red-600 text-white hover:text-red-500 px-6 py-2.5 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] md:tracking-[0.2em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.25)] group hover:scale-105 active:scale-95">
