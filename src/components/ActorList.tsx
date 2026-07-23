@@ -4,59 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import imageLoader from '@/lib/imageLoader';
+import { actorAlias, normalizeName, isStrictNameMatch } from '@/lib/actor-utils';
 
 interface ActorListProps {
   movie: any;
   tmdbInfo?: { id: string | number; type: string };
 }
-
-// Chuẩn hóa tên để so sánh (xóa dấu, viết thường)
-const normalizeName = (str: string) => {
-  if (!str) return '';
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[đĐ]/g, 'd')
-    .replace(/[^a-z0-9 ]/g, '')
-    .trim();
-};
-
-// Hàm kiểm tra khớp tên nghiêm ngặt hơn
-const isStrictNameMatch = (localName: string, tmdbName: string) => {
-  const n1 = normalizeName(localName);
-  const n2 = normalizeName(tmdbName);
-
-  if (!n1 || !n2) return false;
-  if (n1 === n2) return true;
-
-  const words1 = n1.split(/\s+/);
-  const words2 = n2.split(/\s+/);
-
-  // Nếu tên quá ngắn (1 từ), bắt buộc phải khớp 100%
-  if (words1.length <= 1 || words2.length <= 1) return n1 === n2;
-
-  // Đếm số từ trùng lặp
-  const commonWords = words1.filter(w => words2.includes(w));
-
-  // CHỈ KHỚP nếu trùng ít nhất 2 từ quan trọng (tránh khớp mỗi họ "Trương" hay "Lưu")
-  // Và số từ trùng phải chiếm ít nhất 60% độ dài tên
-  const minLength = Math.min(words1.length, words2.length);
-  return commonWords.length >= 2 && commonWords.length >= Math.floor(minLength * 0.6);
-};
-
-const actorAlias: Record<string, string[]> = {
-  "ly lien kiet": ["jet li"],
-  "thanh long": ["jackie chan"],
-  "chau tinh tri": ["stephen chow"],
-  "don tu dan": ["donnie yen"],
-  "ngo kinh": ["wu jing"],
-  "luu duc hoa": ["andy lau"],
-  "co thien lac": ["louis koo"],
-  "truong gia huy": ["nick cheung"],
-  "ta dinh phong": ["nicholas tse"],
-  "duong tu quynh": ["michelle yeoh"]
-};
 
 export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
   const [actors, setActors] = useState<Array<{ name: string; avatar?: string }>>([]);
@@ -85,7 +38,7 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
     const fetchAllAvatars = async () => {
       let currentActors = [...initialActors];
 
-      // BƯỚC 1: Lấy từ Credit của phim (Chính xác nhất theo phim)
+      // BƯỚC 1: Lấy từ Credit của phim
       if (tmdbId && tmdbId !== '0' && tmdbId !== 0) {
         try {
           const res = await fetch(`/api/actor-credits?tmdb_id=${tmdbId}&type=${tmdbType}`);
@@ -109,30 +62,22 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
               });
             }
           }
-        } catch (e) {
-          console.error("Fetch credits error:", e);
-        }
+        } catch (e) {}
       }
 
-      // Hiển thị ngay những người tìm thấy từ credits
       setActors([...currentActors]);
 
-      // BƯỚC 2: Với những người vẫn thiếu ảnh, dùng Global Search (Quét toàn TMDB)
+      // BƯỚC 2: Global Search cho những người còn thiếu
       const stillMissing = currentActors.filter(a => !a.avatar);
       if (stillMissing.length > 0) {
-        // Tối đa quét 20 diễn viên đầu tiên còn thiếu để tránh quá tải API
         const searchPromises = stillMissing.slice(0, 20).map(async (actor) => {
           try {
             const sRes = await fetch(`/api/actor-search?name=${encodeURIComponent(actor.name)}`);
             if (sRes.ok) {
               const sData = await sRes.json();
-              if (sData.avatar) {
-                return { name: actor.name, avatar: sData.avatar };
-              }
+              if (sData.avatar) return { name: actor.name, avatar: sData.avatar };
             }
-          } catch (e) {
-            console.error("Global search error:", e);
-          }
+          } catch (e) {}
           return null;
         });
 
@@ -147,16 +92,13 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
           }));
         }
       }
-
       setIsFetched(true);
     };
 
     fetchAllAvatars();
   }, [movie?.slug, movie?.tmdb_id, tmdbInfo?.id]);
 
-  // Chỉ hiện những diễn viên có hình ảnh (để tránh các ô trống)
   const visibleActors = actors.filter(a => a.avatar);
-
   if (isFetched && visibleActors.length === 0) return null;
 
   return (
@@ -170,20 +112,9 @@ export default function ActorList({ movie, tmdbInfo }: ActorListProps) {
 
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6">
         {visibleActors.map((actor, idx) => (
-          <Link
-            key={idx}
-            href={`/search?keyword=${encodeURIComponent(actor.name)}`}
-            className="group block"
-          >
+          <Link key={idx} href={`/search?keyword=${encodeURIComponent(actor.name)}`} className="group block">
             <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-white/5 group-hover:border-red-600 transition-all duration-500 shadow-2xl bg-[#121212]">
-              <Image
-                loader={imageLoader}
-                src={actor.avatar || ''}
-                alt={actor.name}
-                fill
-                sizes="(max-width: 768px) 33vw, 15vw"
-                className="object-cover group-hover:scale-110 transition-transform duration-500"
-              />
+              <Image loader={imageLoader} src={actor.avatar || ''} alt={actor.name} fill sizes="(max-width: 768px) 33vw, 15vw" className="object-cover group-hover:scale-110 transition-transform duration-500" />
             </div>
             <p className="mt-3 text-[10px] font-black text-white/40 group-hover:text-red-500 transition-colors uppercase italic text-center line-clamp-2 leading-tight px-1">
               {actor.name}
