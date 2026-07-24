@@ -64,7 +64,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
 
   // Tăng min-w cực mạnh cho các hàng Ranked (isSpecial)
   const containerClass = isSpecial
-    ? 'min-w-[220px] md:min-w-[calc(100%/5.2)]' // To hơn nữa theo yêu cầu
+    ? 'min-w-[240px] md:min-w-[calc(100%/4.2)]' // To hơn nữa theo yêu cầu
     : 'min-w-[160px] md:min-w-[calc(100%/7)]';
 
   const maskPath = !isEven ? `M 0,40 Q 0,25 15,25 L 190,0 Q 200,0 200,10 L 200,300 Q 200,310 190,310 L 10,310 Q 0,310 0,300 Z` : `M 10,0 Q 0,0 0,10 L 0,300 Q 0,310 10,310 L 190,310 Q 200,310 200,300 L 200,40 Q 200,25 185,25 L 10,0 Z`;
@@ -81,7 +81,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
           src={imgError ? fallbackImg : (rawPoster || fallbackImg)}
           alt={movie.name} 
           fill 
-          sizes="(max-width: 768px) 220px, 450px"
+          sizes="(max-width: 768px) 240px, 450px"
           quality={50}
           decoding="async"
           referrerPolicy="no-referrer"
