@@ -648,73 +648,74 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                  )}
 
                  {/* 3. NỘI DUNG TAB AUDIO (DROPDOWN TAILWIND) */}
-                 {activeTab === 'audio' && (
-                   <div className="animate-in fade-in duration-300 min-h-[220px]">
-                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                       <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
-                         Audio / Thuyết minh:
-                       </span>
+{activeTab === 'audio' && (
+  <div className="animate-in fade-in duration-300 min-h-[220px]">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
+        Audio / Thuyết minh:
+      </span>
 
-                       <div className="relative inline-block text-left min-w-[240px]">
-                         {/* Nút bấm mở Dropdown */}
-                         <button
-                           type="button"
-                           onClick={() => {
-                             setOpenAudio(!openAudio);
-                             setOpenSeason(false);
-                           }}
-                           className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
-                         >
-                           <span className="truncate pr-2">
-                             {cleanServerName(servers[activeServer]?.server_name || "Audio")}
-                           </span>
-                           <svg
-                             className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openAudio ? 'rotate-180 text-red-500' : ''}`}
-                             fill="none"
-                             viewBox="0 0 24 24"
-                             stroke="currentColor"
-                           >
-                             <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
-                           </svg>
-                         </button>
+      <div className="relative inline-block text-left min-w-[240px]">
+        {/* Nút bấm mở Dropdown */}
+        <button
+          type="button"
+          onClick={() => {
+            setOpenAudio(!openAudio);
+            setOpenSeason(false);
+          }}
+          className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
+        >
+          <span className="truncate pr-2">
+            {cleanServerName(servers[activeServer]?.server_name || "Audio")}
+          </span>
+          <svg
+            className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openAudio ? 'rotate-180 text-red-500' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
+          </svg>
+        </button>
 
-                         {/* Menu Xổ Xuống */}
-                         {openAudio && (
-                           <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                             {servers.map((s: any, i: number) => {
-                               const isActive = activeServer === i;
-                               return (
-                                 <button
-                                   key={i}
-                                   onClick={() => {
-                                     setActiveServer(i);
-                                     setOpenAudio(false);
-                                   }}
-                                   className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
-                                     isActive
-                                       ? "bg-red-600/20 text-red-500 font-bold"
-                                       : "text-white/70 hover:bg-white/5 hover:text-white"
-                                   }`}
-                                 >
-                                   <span>{cleanServerName(s.server_name)}</span>
-                                   {isActive && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
-                                 </button>
-                               );
-                             })}
-                           </div>
-                         )}
-                       </div>
-                     </div>
+        {/* Menu Xổ Xuống */}
+        {openAudio && (
+          <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+            {servers.map((s: any, i: number) => {
+              const isActive = activeServer === i;
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setActiveServer(i);
+                    setOpenAudio(false);
+                    setActiveTab('episodes'); // <-- Thêm dòng này để tự động chuyển về tab Tập phim
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
+                    isActive
+                      ? "bg-red-600/20 text-red-500 font-bold"
+                      : "text-white/70 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <span>{cleanServerName(s.server_name)}</span>
+                  {isActive && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
 
-                     {/* Backdrop click ra ngoài để đóng */}
-                     {openAudio && (
-                       <div
-                         className="fixed inset-0 z-40"
-                         onClick={() => setOpenAudio(false)}
-                       />
-                     )}
-                   </div>
-                 )}
+    {/* Backdrop click ra ngoài để đóng */}
+    {openAudio && (
+      <div
+        className="fixed inset-0 z-40"
+        onClick={() => setOpenAudio(false)}
+      />
+    )}
+  </div>
+)}
 
          {/* 4. NỘI DUNG TAB DIỄN VIÊN */}
                   {activeTab === 'actors' && (
