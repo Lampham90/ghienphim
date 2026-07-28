@@ -9,7 +9,7 @@ const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700'] 
 
 export default function Footer() {
   return (
-    <footer className={`${montserrat.className} bg-[#050505] border-t border-white/5 pt-16 pb-8`}>
+    <footer className={`${montserrat.className} bg-[#120a10] border-t border-white/5 pt-16 pb-8`}>
       <div className="max-w-[1920px] mx-auto px-6 md:px-20">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           

@@ -87,7 +87,7 @@ function SearchContent() {
   }, [query]);
 
   return (
-    <main className="min-h-screen w-full bg-[#050505] text-white pt-32 pb-20 px-6 md:px-20">
+    <main className="min-h-screen w-full bg-[#120a10] text-white pt-32 pb-20 px-6 md:px-20">
       {loading && <div className="fixed top-0 left-0 right-0 h-[2px] z-[110] bg-red-600 animate-pulse" />}
 
       {/* GIAO DIỆN HEADER SEARCH THEO HÌNH MẪU */}
