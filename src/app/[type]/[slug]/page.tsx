@@ -61,7 +61,7 @@ export default function CategoryPage({ params }: { params: Promise<{ type: strin
   if (!mounted) return <div className="min-h-screen bg-black" />;
 
   return (
-    <main className="min-h-screen w-full bg-[#120a10] text-white pt-32 px-6 md:px-16">
+    <main className="min-h-screen w-full bg-[#050505] text-white pt-32 px-6 md:px-16">
       <Header />
       <div className="mb-10">
          <h1 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter">{categoryTitle}</h1>
