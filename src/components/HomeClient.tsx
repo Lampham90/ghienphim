@@ -409,7 +409,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   }, [initialHeroMovies.length]);
 
   return (
-    <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white overflow-x-hidden selection:bg-red-600`}>
+    <main className={`${montserrat.className} min-h-screen bg-[#09090b] text-white overflow-x-hidden selection:bg-red-600`}>
       <style dangerouslySetInnerHTML={{ __html: `
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .text-shadow-netflix { text-shadow: 2px 2px 4px rgba(0,0,0,0.8), -1px -1px 0 rgba(0,0,0,0.5); }
