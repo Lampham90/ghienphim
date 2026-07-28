@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #120f0e; /* Nâu cafe đậm */
-  --foreground: #e7e5e4; /* Xám nhạt ấm */
-  --accent: #ea580c;     /* Cam cháy sang trọng */
+  --background: #0f1117; /* Đen xanh đá phiến cực sâu */
+  --foreground: #f1f5f9; /* Chữ trắng bạc */
+  --accent: #f59e0b;     /* Vàng Champagne / Hổ phách */
+  --card-bg: #1a1d26;    /* Màu nền cho thẻ/box */
 }
 
 body {
