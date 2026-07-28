@@ -1,11 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f1117; /* Đen xanh đá phiến cực sâu */
-  --foreground: #f1f5f9; /* Chữ trắng bạc */
-  --accent: #f59e0b;     /* Vàng Champagne / Hổ phách */
-  --card-bg: #1a1d26;    /* Màu nền cho thẻ/box */
+  --background: #050505;
+  --foreground: #ffffff;
 }
+
 
 body {
   background: var(--background);
@@ -14,35 +13,26 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  /* Giúp cuộn mượt hơn trên mobile */
-  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom Scrollbar - Tối giản và sang trọng */
+/* Custom Scrollbar Neon chuẩn bài */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #050505;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262626;
+  background: #1a1a1a;
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+  background: #dc2626;
 }
 
-/* Lớp phủ z-index để không đè lên tương tác */
+/* Lớp này để đảm bảo không có gì đè lên các nút bấm */
 .clickable-area {
   position: relative;
   z-index: 10;
   pointer-events: auto;
-}
-
-/* Hiệu ứng mờ ảo cho các thành phần nổi */
-.glass-effect {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
 }
