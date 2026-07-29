@@ -406,30 +406,45 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                  {movie?.name || "..."}
                </h1>
 
-               <div className="flex flex-wrap items-center gap-4 mb-6">
-                 <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-                   {movie?.quality || 'FHD'}
-                 </span>
-                 <span className="text-[12px] font-black text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]/70 italic uppercase tracking-wider">
-                   {movie?.year}
-                 </span>
-                 <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                 <span className="text-[12px] font-black text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]/70 italic uppercase tracking-wider">
-                   {movie?.lang}
-                 </span>
+               <<div className="flex flex-wrap items-center gap-4 mb-6">
+                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                    {movie?.quality || 'FHD'}
+                  </span>
+                  <span className="text-[12px] font-black text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]/70 italic uppercase tracking-wider">
+                    {movie?.year}
+                  </span>
 
-                 {movie?.episode_total && (
-                   <>
-                     <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                     <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                       {(() => {
-                         const currentEpsCount = servers[activeServer]?.episodes?.length || 0;
-                         const totalStr = movie.episode_total.toString().replace(/[^0-9]/g, '');
-                         return totalStr ? `${currentEpsCount}/${totalStr} Tập` : `${currentEpsCount} Tập`;
-                       })()}
-                     </span>
-                   </>
-                 )}
+                  {/* Hiển thị toàn bộ danh sách Audio/Server kèm số tập tương ứng */}
+                  {servers && servers.length > 0 ? (
+                    servers.map((s: any, idx: number) => {
+                      const n = (s.server_name || "").toLowerCase();
+                      let label = "P.Đề";
+                      if (n.includes("lồng tiếng") || n.includes("lt")) label = "L.Tiếng";
+                      else if (n.includes("thuyết minh") || n.includes("tm")) label = "T.Minh";
+
+                      const currentEpsCount = s.episodes?.length || 0;
+                      const totalStr = movie?.episode_total ? movie.episode_total.toString().replace(/[^0-9]/g, '') : '';
+                      const epDisplay = totalStr ? `${currentEpsCount}/${totalStr} Tập` : `${currentEpsCount} Tập`;
+
+                      return (
+                        <div key={idx} className="flex items-center gap-4">
+                          <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                          <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                            {label} {epDisplay}
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    movie?.lang && (
+                      <div className="flex items-center gap-4">
+                        <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                        <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                          {movie.lang}
+                        </span>
+                      </div>
+                    )
+                  )}
 
                  {movie?.imdb_score && movie.imdb_score !== "N/A" && (
                    <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
