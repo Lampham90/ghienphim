@@ -406,7 +406,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                  {movie?.name || "..."}
                </h1>
 
-               <<div className="flex flex-wrap items-center gap-4 mb-6">
+               <div className="flex flex-wrap items-center gap-4 mb-6">
                   <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                     {movie?.quality || 'FHD'}
                   </span>
