@@ -475,12 +475,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
             
             {/* Trên PC: Giao diện chi tiết đè lên banner */}
-            <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
-              <div className="max-w-2xl space-y-4 relative z-20">
-                <div className="flex items-center gap-3">
-                  <span className="w-12 h-[3px] bg-red-600 rounded-full"></span>
-                  <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
-                </div>
+            <div className="flex items-center gap-3">
+  <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+  <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
+  <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+</div>
                 
                 <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
                   {m.name || "..."}
@@ -528,11 +527,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           </div>
 
           {/* 2. Trên Mobile: Nằm ở khoảng trống giữa ảnh và catalog */}
-          <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
-            <div className="flex items-center justify-center gap-2">
-              <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-              <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
-            </div>
+          <div className="flex items-center justify-center gap-2">
+  <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
+  <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
+  <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
+</div>
 
             <h1 className="text-[24px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
               {m.name || "..."}
@@ -558,6 +557,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   {year}
                 </span>
               )}
+              {Array.isArray(m.category) && m.category.length > 0 && (
+                    <span className="text-white/70 text-[11px] italic">
+                      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                    </span>
+                  )}
+                
             </div>
 
             <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">

@@ -473,14 +473,14 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                    </svg>
                  </button>
-                 </div>
-{Array.isArray(m.category) && m.category.length > 0 && (
+                 {Array.isArray(m.category) && m.category.length > 0 && (
                     <span className="text-white/70 text-[11px] italic">
                       {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
                     </span>
                   )}
                 </div>
-                
+
+
                {description && (
                  <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
                )}
