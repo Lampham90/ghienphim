@@ -115,8 +115,8 @@ export async function getMoviesFromD1(
       ${homeOnly ? "AND m.year >= 2025" : ""}
     `;
 
-    // ĐỒNG BỘ: Năm giảm dần trước, sau đó mới đến phim vừa cào mới nhất (timestamp lớn hơn)
-    const orderClause = "COALESCE(m.year, 0) DESC, m.last_updated DESC";
+    // ✅ ĐÃ SỬA: Lấy theo phim vừa cào/cập nhật mới nhất lên đầu tiên (không phân biệt năm)
+    const orderClause = "m.last_updated DESC";
 
     if (categorySlug === 'phim_chieu_rap') {
       queryStr = `SELECT m.* FROM movies m WHERE m.chieurap = 1 AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
