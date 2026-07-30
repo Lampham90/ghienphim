@@ -476,7 +476,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
       </button>
     </div>
 
-    {/* Hiển thị Thể loại phim (Đã sửa từ m.category thành movie.category) */}
+    {/* Hiển thị Thể loại phim */}
     {Array.isArray(movie?.category) && movie.category.length > 0 && (
       <div className="flex items-center gap-2 mb-4">
         <span className="text-white/70 text-[12px] italic">
