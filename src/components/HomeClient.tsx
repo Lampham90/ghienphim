@@ -427,10 +427,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         }
       ` }} />
 
-      {initialHeroMovies.length > 0 && (
+     {initialHeroMovies.length > 0 && (
   <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
     {initialHeroMovies.map((m, i) => {
-      // 🌟 Đồng bộ cách lấy thông số y hệt trang chi tiết của bạn
       const quality = m.quality || m.sub_type || 'FHD';
       const year = m.year;
       const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
@@ -487,38 +486,32 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   {m.name || "..."}
                 </h1>
 
-                {/* Khối thông số chuẩn trang chi tiết */}
-                <div className="flex flex-wrap items-center gap-4">
+                {/* Khối thông số PC */}
+                <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
                   <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                     {quality}
                   </span>
-                  {/* 🏷️ Hiển thị chất lượng, năm, thể loại và điểm (Đã bọc an toàn tránh lỗi type) */}
-<div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[11px] md:text-sm font-semibold">
-  {m.sub_type && (
-    <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
-      {m.sub_type}
-    </span>
-  )}
-
-  {/* Dùng ép kiểu (m as any) để tránh bị TypeScript gạch đỏ nếu type chưa có */}
-  {((m as any).imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average) && (
-    <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1">
-      ⭐ {(m as any).imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average}
-    </span>
-  )}
-
-  {m.year && (
-    <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] md:text-xs backdrop-blur-sm">
-      {m.year}
-    </span>
-  )}
-  
-  {Array.isArray(m.category) && m.category.length > 0 && (
-    <span className="text-white/70 text-[11px] italic hidden md:inline-block">
-      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-    </span>
-  )}
-</div>
+                  {m.sub_type && (
+                    <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-xs">
+                      {m.sub_type}
+                    </span>
+                  )}
+                  {rating && (
+                    <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-xs flex items-center gap-1">
+                      ⭐ {rating}
+                    </span>
+                  )}
+                  {year && (
+                    <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-xs backdrop-blur-sm">
+                      {year}
+                    </span>
+                  )}
+                  {Array.isArray(m.category) && m.category.length > 0 && (
+                    <span className="text-white/70 text-[11px] italic">
+                      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                    </span>
+                  )}
+                </div>
 
                 <p className="text-white/70 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic">
                   {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
@@ -534,7 +527,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             </div>
           </div>
 
-          {/* 2. Trên Mobile: Nằm ở khoảng trống giữa ảnh và catalog (Chuẩn màu sắc & thông số trang chi tiết) */}
+          {/* 2. Trên Mobile: Nằm ở khoảng trống giữa ảnh và catalog */}
           <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
             <div className="flex items-center justify-center gap-2">
               <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
@@ -545,38 +538,28 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
               {m.name || "..."}
             </h1>
 
-            {/* Thông số Mobile chuẩn */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
+            {/* Thông số Mobile */}
+            <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold">
               <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
                 {quality}
               </span>
-              {/* 🏷️ Hiển thị chất lượng, năm, thể loại và điểm (Đã bọc an toàn tránh lỗi type) */}
-<div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[11px] md:text-sm font-semibold">
-  {m.sub_type && (
-    <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
-      {m.sub_type}
-    </span>
-  )}
+              {m.sub_type && (
+                <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px]">
+                  {m.sub_type}
+                </span>
+              )}
+              {rating && (
+                <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] flex items-center gap-1">
+                  ⭐ {rating}
+                </span>
+              )}
+              {year && (
+                <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] backdrop-blur-sm">
+                  {year}
+                </span>
+              )}
+            </div>
 
-  {/* Dùng ép kiểu (m as any) để tránh bị TypeScript gạch đỏ nếu type chưa có */}
-  {((m as any).imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average) && (
-    <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1">
-      ⭐ {(m as any).imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average}
-    </span>
-  )}
-
-  {m.year && (
-    <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] md:text-xs backdrop-blur-sm">
-      {m.year}
-    </span>
-  )}
-  
-  {Array.isArray(m.category) && m.category.length > 0 && (
-    <span className="text-white/70 text-[11px] italic hidden md:inline-block">
-      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-    </span>
-  )}
-</div>
             <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
               {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
             </p>
