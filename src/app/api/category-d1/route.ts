@@ -9,14 +9,18 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const slug = searchParams.get('slug') || '';
     const page = parseInt(searchParams.get('page') || '1');
-    // ✅ FIX: thêm cờ home=1 để phân biệt gọi từ TRANG CHỦ (chỉ phim 2025/2026,
-    // sort theo last_updated) hay từ CATALOG (giữ nguyên, không lọc năm).
-    // HomeClient.tsx (load thêm khi cuộn) phải gọi kèm &home=1.
-    // Trang catalog /danh-sach/... KHÔNG truyền tham số này -> hành vi cũ.
+    
+    // Kiểm tra xem có phải gọi từ Trang chủ không
     const homeOnly = searchParams.get('home') === '1';
+    
     if (!slug) return NextResponse.json([]);
 
-    const results = await getMoviesFromD1(slug, page, 24, homeOnly);
+    // 🎯 PHÂN BIỆT TẠI ĐÂY:
+    // - Nếu là Trang chủ (homeOnly = true) -> homeOnly = true, sortByYear = false (giữ cào mới nhất)
+    // - Nếu là Catalog (homeOnly = false) -> homeOnly = false, sortByYear = true (sắp xếp năm giảm dần)
+    const sortByYear = !homeOnly; 
+
+    const results = await getMoviesFromD1(slug, page, 24, homeOnly, sortByYear);
     return NextResponse.json(results || []);
   } catch (e) {
     return NextResponse.json([]);

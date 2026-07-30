@@ -156,11 +156,13 @@ export async function getMoviesFromD1(
       params = [`%${country}%`, limitCount, offset];
     }
     else if (categorySlug === 'anime_nhat') {
-      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.country_name LIKE '%Nhật Bản%' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      // Giữ like Nhật Bản, thêm điều kiện loại trừ phim lẻ/movie (ví dụ type không phải phimle/single hoặc không phải episode_current = Full)
+      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.country_name LIKE '%Nhật Bản%' AND m.episode_current != 'Full' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'hh_trung_quoc') {
-      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.country_name LIKE '%Trung Quốc%' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      // Giữ like Trung Quốc, thêm điều kiện loại trừ phim lẻ/movie tương tự
+      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.country_name LIKE '%Trung Quốc%' AND m.episode_current != 'Full' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug) {
