@@ -178,7 +178,7 @@ HistoryItem.displayName = 'HistoryItem';
 const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' }: { section: SectionData, isTrending?: boolean, variant?: 'ranked1' | 'ranked2' | 'ranked3' }) => {
   const rowRef = useRef<HTMLDivElement>(null);
   return (
-    <div className="pl-6 md:pl-20 group/row relative mb-24 transform-gpu">
+    <div className="pl-6 md:pl-20 group/row relative mb-18 transform-gpu">
       <div className="flex items-end justify-between pr-8 md:pr-24 mb-6 border-b border-white/[0.03] pb-3">
         <div className="flex items-end gap-4">
           <div className="flex flex-col text-left"><span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">{isTrending ? "Must Watch" : "Daily Charts"}</span><h2 className="text-lg md:text-2xl font-black uppercase tracking-tighter text-white italic">{section.title}</h2></div>
@@ -581,7 +581,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       <InterestedSection />
       <HistoryRow />
 
-      <section className="relative z-30 space-y-10 pb-20">
+      <section className="relative z-30 space-y-8 pb-20">
         {sections.map((s, index) => {
           if (!s || !s.slug) return null;
           const config = getCategoryConfig(s.slug);

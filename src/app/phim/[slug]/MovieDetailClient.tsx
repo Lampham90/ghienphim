@@ -474,7 +474,13 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                    </svg>
                  </button>
                  </div>
-
+{Array.isArray(m.category) && m.category.length > 0 && (
+                    <span className="text-white/70 text-[11px] italic">
+                      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                    </span>
+                  )}
+                </div>
+                
                {description && (
                  <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
                )}
