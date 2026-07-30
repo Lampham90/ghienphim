@@ -434,51 +434,53 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         key={`${m.slug}-${i}`} 
         className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
       >
-        {/* Ảnh nền và poster */}
         <div className="absolute inset-0 w-full h-full">
-          <div className="absolute inset-0 overflow-hidden">
+          {/* Mobile Image Logic */}
+          <div className="block md:hidden relative w-full h-full">
             <Image
               loader={imageLoader}
               src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
-              alt=""
+              alt={m.name}
               fill
               sizes="100vw"
               priority={i === currentHero}
-              className="w-full h-full object-cover filter blur-xl scale-110 opacity-30"
+              className="w-full h-full object-cover transform-gpu"
+              style={{ objectPosition: 'center 20%' }}
             />
           </div>
-          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 h-full relative">
+          {/* PC Image Logic */}
+          <div className="hidden md:block relative w-full h-full">
             <Image
               loader={imageLoader}
               src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
               alt={m.name}
               fill
-              sizes="(max-width: 768px) 100vw, 60vw"
+              sizes="100vw"
               priority={i === currentHero}
-              className="w-full h-full object-cover md:object-contain md:object-right transform-gpu"
+              className="w-full h-full object-cover transform-gpu"
+              style={{ objectPosition: 'center 20%' }}
             />
           </div>
         </div>
 
-        {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 md:via-black/60 to-transparent z-10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
-
-        {/* Nội dung Banner - Đã thu gọn khoảng cách trên mobile */}
-        <div className="absolute inset-0 z-20 flex flex-col justify-end pb-16 md:pb-32 px-5 md:px-24 text-left">
-          <div className="max-w-4xl space-y-2 md:space-y-4 relative z-20 text-shadow-netflix">
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-transparent to-black/20 z-10" />
+        
+        {/* Nội dung Banner: Kéo sát đáy trên mobile, căn giữa toàn bộ nội dung mobile */}
+        <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 md:pb-32 px-5 md:px-24 text-center md:text-left items-center md:items-start">
+          <div className="max-w-4xl space-y-2 md:space-y-4 relative z-20 text-shadow-netflix flex flex-col items-center md:items-start">
             
-            {/* Nhãn Hot Premiere */}
-            <div className="flex items-center gap-2 md:gap-3">
+            {/* Hot Premiere */}
+            <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
               <span className="w-6 md:w-12 h-[2px] md:h-[3px] bg-red-600 rounded-full"></span>
-              <span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
+              <span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] md:tracking-[0.5em] uppercase italic">Hot Premiere</span>
             </div>
 
             {/* Tên phim */}
-            <h1 className="title-embossed text-xl md:text-4xl lg:text-5xl font-black uppercase italic leading-[1.05] tracking-tight">{m.name}</h1>
+            <h1 className="title-embossed text-xl md:text-3xl lg:text-4xl font-black uppercase italic leading-[1.05] md:leading-[0.95] tracking-tight">{m.name}</h1>
 
-            {/* Các nhãn thông tin: Chất lượng, IMDb, Năm, Thể loại */}
-            <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
+            {/* 🏷️ Thêm các nhãn: Chất lượng, IMDb, Năm, Thể loại */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[11px] md:text-sm font-semibold">
               {m.sub_type && (
                 <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
                   {m.sub_type}
@@ -501,19 +503,19 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
               )}
             </div>
 
-            {/* Mô tả ngắn (Thu gọn dòng trên mobile để tiết kiệm diện tích) */}
-            <p className="text-white/80 font-medium text-[11px] md:text-sm lg:text-base italic max-w-xl line-clamp-2 leading-snug md:leading-relaxed">
+            {/* Mô tả */}
+            <p className="text-white/80 font-medium text-[11px] md:text-sm lg:text-base italic max-w-xl line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed text-center md:text-left">
               {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
             </p>
 
-            {/* Nút Xem Ngay (Giảm padding-top trên mobile) */}
+            {/* Nút Xem Ngay chuẩn kiểu của bạn */}
             <div className="pt-2 md:pt-6">
               <Link 
                 href={`/phim/${m.slug}`} 
                 prefetch={false} 
-                className="inline-flex items-center gap-2 md:gap-3 bg-red-600 hover:bg-red-700 text-white px-5 py-2 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.5)] group hover:scale-105 active:scale-95"
+                className="inline-flex items-center gap-2 md:gap-3 bg-transparent border-[1.5px] md:border-2 border-white/80 hover:border-red-600 text-white hover:text-red-500 px-6 py-2.5 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] md:tracking-[0.2em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.25)] group hover:scale-105 active:scale-95"
               >
-                <span className="text-sm md:text-xl transition-transform group-hover:scale-110">▶</span> 
+                <span className="text-base md:text-xl transition-transform group-hover:scale-110 group-hover:text-red-600">▶</span> 
                 <span>Xem Ngay</span>
               </Link>
             </div>
