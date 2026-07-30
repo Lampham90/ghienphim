@@ -428,42 +428,36 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       ` }} />
 
       {initialHeroMovies.length > 0 && (
-  <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden mb-16 border-b border-white/5 transform-gpu">
-    {initialHeroMovies.map((m, i) => (
-      <div 
-        key={`${m.slug}-${i}`} 
-        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
-      >
-        {/* 🖼️ XỬ LÝ ẢNH BANNER: Lớp nền mờ + Lớp ảnh chính */}
-        <div className="absolute inset-0 w-full h-full">
-          {/* Lớp nền blur lấp đầy màn hình ngang */}
-          <div className="absolute inset-0 overflow-hidden">
-            <Image
-              loader={imageLoader}
-              src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
-              alt=""
-              fill
-              sizes="100vw"
-              priority={i === currentHero}
-              className="w-full h-full object-cover filter blur-xl scale-110 opacity-30"
-            />
-          </div>
-
-          {/* Lớp hiển thị ảnh chính (Căn phải cho đẹp phong cách Netflix hoặc căn giữa) */}
-          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 h-full relative">
-            <Image
-              loader={imageLoader}
-              src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
-              alt={m.name}
-              fill
-              sizes="(max-width: 768px) 100vw, 60vw"
-              priority={i === currentHero}
-              className="w-full h-full object-cover md:object-contain md:object-right transform-gpu"
-            />
-          </div>
-        </div>
-
-        {/* Các lớp Gradient phủ để làm nổi bật chữ */}
+        <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden mb-16 border-b border-white/5 transform-gpu">
+          {initialHeroMovies.map((m, i) => (
+            <div key={`${m.slug}-${i}`} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+              <div className="absolute inset-0 w-full h-full">
+                <div className="block md:hidden relative w-full h-full">
+                  <Image
+                    loader={imageLoader}
+                    src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
+                    alt={m.name}
+                    fill
+                    sizes="100vw"
+                    priority={i === currentHero}
+                    className="w-full h-full object-cover transform-gpu"
+                    style={{ objectPosition: 'center 20%' }}
+                  />
+                </div>
+                <div className="hidden md:block relative w-full h-full">
+                  <Image
+                    loader={imageLoader}
+                    src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
+                    alt={m.name}
+                    fill
+                    sizes="100vw"
+                    priority={i === currentHero}
+                    className="w-full h-full object-cover transform-gpu"
+                    style={{ objectPosition: 'center 20%' }}
+                  />
+                </div>
+              </div>
+              {/* Các lớp Gradient phủ để làm nổi bật chữ */}
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 md:via-black/60 to-transparent z-10" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
 
@@ -515,25 +509,17 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             <p className="text-white/80 font-medium text-xs md:text-sm lg:text-base italic max-w-xl line-clamp-2 leading-relaxed">
               {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
             </p>
-
-            {/* Nút Xem Ngay */}
-            <div className="pt-4 md:pt-6">
-              <Link 
-                href={`/phim/${m.slug}`} 
-                prefetch={false} 
-                className="inline-flex items-center gap-2 md:gap-3 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.5)] group hover:scale-105 active:scale-95"
-              >
-                <span className="text-base md:text-xl transition-transform group-hover:scale-110">▶</span> 
-                <span>Xem Ngay</span>
-              </Link>
+                  <div className="pt-6 md:pt-10">
+                    <Link href={`/phim/${m.slug}`} prefetch={false} className="inline-flex items-center gap-2 md:gap-3 bg-transparent border-[1.5px] md:border-2 border-white/80 hover:border-red-600 text-white hover:text-red-500 px-6 py-2.5 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] md:tracking-[0.2em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.25)] group hover:scale-105 active:scale-95">
+                      <span className="text-base md:text-xl transition-transform group-hover:scale-110 group-hover:text-red-600">▶</span> <span>Xem Ngay</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
             </div>
-
-          </div>
-        </div>
-      </div>
-    ))}
-  </section>
-)}
+          ))}
+        </section>
+      )}
 
       <InterestedSection />
       <HistoryRow />
