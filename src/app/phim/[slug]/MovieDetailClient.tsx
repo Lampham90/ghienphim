@@ -486,285 +486,265 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
             </div>
 
              {/* NÚT XEM NGAY */}
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
+              <button
+                disabled={!isHistoryLoaded || !currentLink}
+                onClick={() => setIsPlaying(true)}
+                className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>
+                  {!mounted || !lastWatchedEpNum
+                    ? "Xem ngay"
+                    : String(lastWatchedEpNum).toUpperCase() === "FULL"
+                      ? "Xem tiếp"
+                      : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
 
-<div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
-
-  <button
-
-    disabled={!isHistoryLoaded || !currentLink}
-
-    onClick={() => setIsPlaying(true)}
-
-    className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
-
-  >
-
-    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-
-      <path d="M8 5v14l11-7z" />
-
-    </svg>
-
-    <span>
-
-      {!mounted || !lastWatchedEpNum
-
-        ? "Xem ngay"
-
-        : String(lastWatchedEpNum).toUpperCase() === "FULL"
-
-          ? "Xem tiếp"
-
-          : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
-
-    </span>
-
-  </button>
-
-</div> 
-
-
-           </div>
-         </div>
-       )}
-     </section>
-
-     {/* SECTIONS BÊN DƯỚI (QUY HOẠCH 4 TABS + DROPDOWN BÊN TRONG) */}
-     {mounted && (
-       <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-16">
-         {/* THANH TAB NAVIGATION (4 TABS) */}
-         <div className="flex items-center gap-3 sm:gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
-           {/* TAB 1: TẬP PHIM */}
-           <button
-             onClick={() => setActiveTab('episodes')}
-             className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-               activeTab === 'episodes' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-             }`}
-           >
-             Tập phim
-             {activeTab === 'episodes' && (
-               <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-             )}
-           </button>
-
-           {/* TAB 2: PHẦN PHIM (Dropdown cũ) */}
-           {relatedSeasons && relatedSeasons.length > 1 && (
-             <button
-               onClick={() => setActiveTab('seasons')}
-               className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-                 activeTab === 'seasons' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-               }`}
-             >
-               Phần phim
-               {activeTab === 'seasons' && (
-                 <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-               )}
-             </button>
-           )}
-
-           {/* TAB 3: AUDIO (Dropdown cũ) */}
-           <button
-             onClick={() => setActiveTab('audio')}
-             className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-               activeTab === 'audio' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-             }`}
-           >
-             Audio
-             {activeTab === 'audio' && (
-               <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-             )}
-           </button>
-
-           {/* TAB 4: DIỄN VIÊN */}
-           <button
-             onClick={() => setActiveTab('actors')}
-             className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-               activeTab === 'actors' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-             }`}
-           >
-             Diễn viên
-             {activeTab === 'actors' && (
-               <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-             )}
-           </button>
-         </div>
-
-         {/* NỘI DUNG TỪNG TAB */}
-
-         {/* 1. NỘI DUNG TAB TẬP PHIM */}
-         {activeTab === 'episodes' && (
-           <div className="animate-in fade-in duration-300">
-             <div className="flex items-center gap-4 mb-6">
-               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">
-                 Chọn tập phim
-               </h2>
-               <div className="h-[1px] flex-1 bg-white/5"></div>
-             </div>
-             <div className="ep-grid">
-               {servers[activeServer]?.episodes?.map((ep: any, i: number) => (
-                 <button
-                   key={i}
-                   onClick={() => handleNextEpisode(i)}
-                   className={`w-11 h-11 flex items-center justify-center rounded-full text-[11px] font-black border transition-all duration-300 ${
-                     currentEpIndex === i
-                       ? "bg-red-600 border-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] scale-110"
-                       : "bg-[#0f0f0f] border-white/5 text-white/30 hover:border-red-600/40 hover:text-white"
-                   }`}
-                 >
-                   {getOnlyNumber(ep.episode_num)}
-                 </button>
-               ))}
-             </div>
-           </div>
-         )}
-
-         {/* 2. NỘI DUNG TAB PHẦN PHIM (DROPDOWN TAILWIND) */}
-                 {activeTab === 'seasons' && relatedSeasons && relatedSeasons.length > 1 && (
-                   <div className="animate-in fade-in duration-300 min-h-[220px]">
-                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                       <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
-                         Chọn phần phim:
-                       </span>
-
-                       <div className="relative inline-block text-left min-w-[240px]">
-                         {/* Nút bấm mở Dropdown */}
-                         <button
-                           type="button"
-                           onClick={() => {
-                             setOpenSeason(!openSeason);
-                             setOpenAudio(false);
-                           }}
-                           className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
-                         >
-                           <span className="truncate pr-2">
-                             {relatedSeasons.find((s: any) => s.slug === slug)?.name || "Chọn phần"}
-                           </span>
-                           <svg
-                             className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openSeason ? 'rotate-180 text-red-500' : ''}`}
-                             fill="none"
-                             viewBox="0 0 24 24"
-                             stroke="currentColor"
-                           >
-                             <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
-                           </svg>
-                         </button>
-
-                         {/* Menu Xổ Xuống */}
-                         {openSeason && (
-                           <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                             {relatedSeasons.map((s: any, i: number) => {
-                               const isCurrent = s.slug === slug;
-                               return (
-                                 <button
-                                   key={i}
-                                   onClick={() => {
-                                     setOpenSeason(false);
-                                     if (!isCurrent) router.push(`/phim/${s.slug}`);
-                                   }}
-                                   className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
-                                     isCurrent
-                                       ? "bg-red-600/20 text-red-500 font-bold"
-                                       : "text-white/70 hover:bg-white/5 hover:text-white"
-                                   }`}
-                                 >
-                                   <span>{s.name}</span>
-                                   {isCurrent && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded uppercase">Đang xem</span>}
-                                 </button>
-                               );
-                             })}
-                           </div>
-                         )}
-                       </div>
-                     </div>
-
-                     {/* Backdrop click ra ngoài để đóng */}
-                     {openSeason && (
-                       <div
-                         className="fixed inset-0 z-40"
-                         onClick={() => setOpenSeason(false)}
-                       />
-                     )}
-                   </div>
-                 )}
-
-                 {/* 3. NỘI DUNG TAB AUDIO (DROPDOWN TAILWIND) */}
-{activeTab === 'audio' && (
-  <div className="animate-in fade-in duration-300 min-h-[220px]">
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
-        Audio / Thuyết minh:
-      </span>
-
-      <div className="relative inline-block text-left min-w-[240px]">
-        {/* Nút bấm mở Dropdown */}
-        <button
-          type="button"
-          onClick={() => {
-            setOpenAudio(!openAudio);
-            setOpenSeason(false);
-          }}
-          className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
-        >
-          <span className="truncate pr-2">
-            {cleanServerName(servers[activeServer]?.server_name || "Audio")}
-          </span>
-          <svg
-            className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openAudio ? 'rotate-180 text-red-500' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+    {/* SECTIONS BÊN DƯỚI (QUY HOẠCH 4 TABS + DROPDOWN BÊN TRONG) */}
+    {mounted && (
+      <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-16">
+        {/* THANH TAB NAVIGATION (4 TABS) */}
+        <div className="flex items-center gap-3 sm:gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
+          {/* TAB 1: TẬP PHIM */}
+          <button
+            onClick={() => setActiveTab('episodes')}
+            className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+              activeTab === 'episodes' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+            }`}
           >
-            <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
-          </svg>
-        </button>
+            Tập phim
+            {activeTab === 'episodes' && (
+              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+            )}
+          </button>
 
-        {/* Menu Xổ Xuống */}
-        {openAudio && (
-          <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-            {servers.map((s: any, i: number) => {
-              const isActive = activeServer === i;
-              return (
+          {/* TAB 2: PHẦN PHIM (Dropdown cũ) */}
+          {relatedSeasons && relatedSeasons.length > 1 && (
+            <button
+              onClick={() => setActiveTab('seasons')}
+              className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+                activeTab === 'seasons' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+              }`}
+            >
+              Phần phim
+              {activeTab === 'seasons' && (
+                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+              )}
+            </button>
+          )}
+
+          {/* TAB 3: AUDIO (Dropdown cũ) */}
+          <button
+            onClick={() => setActiveTab('audio')}
+            className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+              activeTab === 'audio' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+            }`}
+          >
+            Audio
+            {activeTab === 'audio' && (
+              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+            )}
+          </button>
+
+          {/* TAB 4: DIỄN VIÊN */}
+          <button
+            onClick={() => setActiveTab('actors')}
+            className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+              activeTab === 'actors' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+            }`}
+          >
+            Diễn viên
+            {activeTab === 'actors' && (
+              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+            )}
+          </button>
+        </div>
+
+        {/* NỘI DUNG TỪNG TAB */}
+
+        {/* 1. NỘI DUNG TAB TẬP PHIM */}
+        {activeTab === 'episodes' && (
+          <div className="animate-in fade-in duration-300">
+            <div className="flex items-center gap-4 mb-6">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">
+                Chọn tập phim
+              </h2>
+              <div className="h-[1px] flex-1 bg-white/5"></div>
+            </div>
+            <div className="ep-grid">
+              {servers[activeServer]?.episodes?.map((ep: any, i: number) => (
                 <button
                   key={i}
-                  onClick={() => {
-                    setActiveServer(i);
-                    setOpenAudio(false);
-                    setActiveTab('episodes'); // <-- Thêm dòng này để tự động chuyển về tab Tập phim
-                  }}
-                  className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
-                    isActive
-                      ? "bg-red-600/20 text-red-500 font-bold"
-                      : "text-white/70 hover:bg-white/5 hover:text-white"
+                  onClick={() => handleNextEpisode(i)}
+                  className={`w-11 h-11 flex items-center justify-center rounded-full text-[11px] font-black border transition-all duration-300 ${
+                    currentEpIndex === i
+                      ? "bg-red-600 border-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] scale-110"
+                      : "bg-[#0f0f0f] border-white/5 text-white/30 hover:border-red-600/40 hover:text-white"
                   }`}
                 >
-                  <span>{cleanServerName(s.server_name)}</span>
-                  {isActive && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
+                  {getOnlyNumber(ep.episode_num)}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 2. NỘI DUNG TAB PHẦN PHIM (DROPDOWN TAILWIND) */}
+        {activeTab === 'seasons' && relatedSeasons && relatedSeasons.length > 1 && (
+          <div className="animate-in fade-in duration-300 min-h-[220px]">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
+                Chọn phần phim:
+              </span>
+
+              <div className="relative inline-block text-left min-w-[240px]">
+                {/* Nút bấm mở Dropdown */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSeason(!openSeason);
+                    setOpenAudio(false);
+                  }}
+                  className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
+                >
+                  <span className="truncate pr-2">
+                    {relatedSeasons.find((s: any) => s.slug === slug)?.name || "Chọn phần"}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openSeason ? 'rotate-180 text-red-500' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
+                  </svg>
+                </button>
+
+                {/* Menu Xổ Xuống */}
+                {openSeason && (
+                  <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                    {relatedSeasons.map((s: any, i: number) => {
+                      const isCurrent = s.slug === slug;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setOpenSeason(false);
+                            if (!isCurrent) router.push(`/phim/${s.slug}`);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
+                            isCurrent
+                              ? "bg-red-600/20 text-red-500 font-bold"
+                              : "text-white/70 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <span>{s.name}</span>
+                          {isCurrent && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded uppercase">Đang xem</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Backdrop click ra ngoài để đóng */}
+            {openSeason && (
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setOpenSeason(false)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* 3. NỘI DUNG TAB AUDIO (DROPDOWN TAILWIND) */}
+        {activeTab === 'audio' && (
+          <div className="animate-in fade-in duration-300 min-h-[220px]">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
+                Audio / Thuyết minh:
+              </span>
+
+              <div className="relative inline-block text-left min-w-[240px]">
+                {/* Nút bấm mở Dropdown */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenAudio(!openAudio);
+                    setOpenSeason(false);
+                  }}
+                  className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
+                >
+                  <span className="truncate pr-2">
+                    {cleanServerName(servers[activeServer]?.server_name || "Audio")}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openAudio ? 'rotate-180 text-red-500' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
+                  </svg>
+                </button>
+
+                {/* Menu Xổ Xuống */}
+                {openAudio && (
+                  <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                    {servers.map((s: any, i: number) => {
+                      const isActive = activeServer === i;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setActiveServer(i);
+                            setOpenAudio(false);
+                            setActiveTab('episodes');
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
+                            isActive
+                              ? "bg-red-600/20 text-red-500 font-bold"
+                              : "text-white/70 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <span>{cleanServerName(s.server_name)}</span>
+                          {isActive && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Backdrop click ra ngoài để đóng */}
+            {openAudio && (
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setOpenAudio(false)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* 4. NỘI DUNG TAB DIỄN VIÊN */}
+        {activeTab === 'actors' && (
+          <div className="animate-in fade-in duration-300">
+            <ActorList movie={movie} tmdbInfo={tmdbInfo} />
           </div>
         )}
       </div>
-    </div>
-
-    {/* Backdrop click ra ngoài để đóng */}
-    {openAudio && (
-      <div
-        className="fixed inset-0 z-40"
-        onClick={() => setOpenAudio(false)}
-      />
     )}
-  </div>
-)}
-
-         {/* 4. NỘI DUNG TAB DIỄN VIÊN */}
-                  {activeTab === 'actors' && (
-                    <div className="animate-in fade-in duration-300">
-                      <ActorList movie={movie} tmdbInfo={movie?.tmdb} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </main>
-          );
-         }
+  </main>
+);
+}
