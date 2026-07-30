@@ -480,29 +480,25 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                )}
              </div>
 
-             {/* NÚT XEM NGAY */}
-             <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
-               <button
-                 disabled={!isHistoryLoaded || !currentLink}
-                 onClick={() => setIsPlaying(true)}
-                 className={`bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 relative z-20 ${(!isHistoryLoaded || !currentLink) ? 'opacity-50 cursor-wait' : ''}`}
-               >
-                 <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                 <span>
-                   {!mounted
-                     ? "Xem ngay"
-                     : !lastWatchedEpNum
-                       ? "Xem ngay"
-                       : lastWatchedEpNum.toUpperCase() === "FULL"
-                         ? "Xem tiếp"
-                         : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
-                 </span>
-               </button>
-             </div>
-           </div>
-         </div>
-       )}
-     </section>
+            {/* NÚT XEM NGAY */}
+<div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
+  <button
+    disabled={!isHistoryLoaded || !currentLink}
+    onClick={() => setIsPlaying(true)}
+    className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
+  >
+    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+    <span>
+      {!mounted || !lastWatchedEpNum
+        ? "Xem ngay"
+        : String(lastWatchedEpNum).toUpperCase() === "FULL"
+          ? "Xem tiếp"
+          : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
+    </span>
+  </button>
+</div>
 
      {/* SECTIONS BÊN DƯỚI (QUY HOẠCH 4 TABS + DROPDOWN BÊN TRONG) */}
      {mounted && (
