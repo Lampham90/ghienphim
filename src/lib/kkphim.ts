@@ -92,7 +92,8 @@ export async function getMoviesFromD1(
   categorySlug?: string,
   page: number = 1,
   limitCount: number = 24,
-  homeOnly: boolean = false
+  homeOnly: boolean = false,
+  sortByYear: boolean = false // 🆕 Thêm tham số này để điều khiển sắp xếp theo năm
 ): Promise<KKPhimMovie[]> {
   const db = (process.env as any).DB;
   if (!db) return [];
@@ -115,8 +116,12 @@ export async function getMoviesFromD1(
       ${homeOnly ? "AND m.year >= 2025" : ""}
     `;
 
-    // ✅ ĐÃ SỬA: Lấy theo phim vừa cào/cập nhật mới nhất lên đầu tiên (không phân biệt năm)
-    const orderClause = "m.last_updated DESC";
+    // 🔄 PHÂN TÁC LOGIC SẮP XẾP:
+    // Nếu sortByYear = true (dùng cho Catalog) -> Ưu tiên Năm giảm dần, sau đó mới đến last_updated
+    // Ngược lại (dùng cho Trang chủ) -> Giữ nguyên logic cào mới nhất lên đầu
+    const orderClause = sortByYear 
+      ? "COALESCE(m.year, 0) DESC, m.last_updated DESC" 
+      : "m.last_updated DESC";
 
     if (categorySlug === 'phim_chieu_rap') {
       queryStr = `SELECT m.* FROM movies m WHERE m.chieurap = 1 AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
