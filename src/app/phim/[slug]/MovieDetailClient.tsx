@@ -398,93 +398,98 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
            )}
 
            <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-black/20 to-transparent" />
+{/* THÔNG TIN PHIM */}
+<div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20">
+  <div className="max-w-2xl">
+    <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+      {movie?.name || "..."}
+    </h1>
 
-           {/* THÔNG TIN PHIM */}
-           <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20">
-             <div className="max-w-2xl">
-               <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
-                 {movie?.name || "..."}
-               </h1>
+    <div className="flex flex-wrap items-center gap-4 mb-4">
+      <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+        {movie?.quality || 'FHD'}
+      </span>
+      <span className="text-[12px] font-black text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]/70 italic uppercase tracking-wider">
+        {movie?.year}
+      </span>
 
-               <div className="flex flex-wrap items-center gap-4 mb-6">
-                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-                    {movie?.quality || 'FHD'}
-                  </span>
-                  <span className="text-[12px] font-black text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]/70 italic uppercase tracking-wider">
-                    {movie?.year}
-                  </span>
+      {/* Hiển thị danh sách Audio/Server kèm số tập */}
+      {servers && servers.length > 0 ? (
+        servers.map((s: any, idx: number) => {
+          const n = (s.server_name || "").toLowerCase();
+          let label = "P.Đề";
+          if (n.includes("lồng tiếng") || n.includes("lt")) label = "L.Tiếng";
+          else if (n.includes("thuyết minh") || n.includes("tm")) label = "T.Minh";
 
-                  {/* Hiển thị toàn bộ danh sách Audio/Server kèm số tập tương ứng */}
-                  {servers && servers.length > 0 ? (
-                    servers.map((s: any, idx: number) => {
-                      const n = (s.server_name || "").toLowerCase();
-                      let label = "P.Đề";
-                      if (n.includes("lồng tiếng") || n.includes("lt")) label = "L.Tiếng";
-                      else if (n.includes("thuyết minh") || n.includes("tm")) label = "T.Minh";
+          const currentEpsCount = s.episodes?.length || 0;
+          const totalStr = movie?.episode_total ? movie.episode_total.toString().replace(/[^0-9]/g, '') : '';
+          const epDisplay = totalStr ? `${currentEpsCount}/${totalStr} Tập` : `${currentEpsCount} Tập`;
 
-                      const currentEpsCount = s.episodes?.length || 0;
-                      const totalStr = movie?.episode_total ? movie.episode_total.toString().replace(/[^0-9]/g, '') : '';
-                      const epDisplay = totalStr ? `${currentEpsCount}/${totalStr} Tập` : `${currentEpsCount} Tập`;
+          return (
+            <div key={idx} className="flex items-center gap-4">
+              <span className="w-1 h-1 rounded-full bg-white/20"></span>
+              <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                {label} {epDisplay}
+              </span>
+            </div>
+          );
+        })
+      ) : (
+        movie?.lang && (
+          <div className="flex items-center gap-4">
+            <span className="w-1 h-1 rounded-full bg-white/20"></span>
+            <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+              {movie.lang}
+            </span>
+          </div>
+        )
+      )}
 
-                      return (
-                        <div key={idx} className="flex items-center gap-4">
-                          <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                          <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                            {label} {epDisplay}
-                          </span>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    movie?.lang && (
-                      <div className="flex items-center gap-4">
-                        <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                        <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                          {movie.lang}
-                        </span>
-                      </div>
-                    )
-                  )}
+      {/* Điểm IMDb */}
+      {movie?.imdb_score && movie.imdb_score !== "N/A" && (
+        <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
+          <svg className="w-3.5 h-3.5 text-yellow-500 fill-current" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
+        </div>
+      )}
 
-                 {movie?.imdb_score && movie.imdb_score !== "N/A" && (
-                   <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
-                     <svg className="w-3.5 h-3.5 text-yellow-500 fill-current" viewBox="0 0 20 20">
-                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                     </svg>
-                     <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
-                   </div>
-                 )}
+      {/* Nút Yêu thích */}
+      <button
+        onClick={toggleFavorite}
+        title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
+        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 relative group ${
+          isFavorite
+            ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.2)]"
+            : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:border-white/35 hover:text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
+        }`}
+      >
+        <svg
+          className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isFavorite ? 'fill-current filter drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'fill-none'}`}
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={isFavorite ? 0 : 2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        </svg>
+      </button>
+    </div>
 
-                 <button
-                   onClick={toggleFavorite}
-                   title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
-                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 relative group ${
-                     isFavorite
-                       ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.2)]"
-                       : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:border-white/35 hover:text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
-                   }`}
-                 >
-                   <svg
-                     className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isFavorite ? 'fill-current filter drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'fill-none'}`}
-                     viewBox="0 0 24 24"
-                     stroke="currentColor"
-                     strokeWidth={isFavorite ? 0 : 2}
-                   >
-                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                   </svg>
-                 </button>
-                 {Array.isArray(m.category) && m.category.length > 0 && (
-                    <span className="text-white/70 text-[11px] italic">
-                      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-                    </span>
-                  )}
-                </div>
+    {/* Hiển thị Thể loại phim (Đã sửa từ m.category thành movie.category) */}
+    {Array.isArray(movie?.category) && movie.category.length > 0 && (
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-white/70 text-[12px] italic">
+          {movie.category.map((c: any) => c.name || c.slug).join(" • ")}
+        </span>
+      </div>
+    )}
 
-
-               {description && (
-                 <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
-               )}
-             </div>
+    {description && (
+      <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
+    )}
+  </div>
+</div>
 
              {/* NÚT XEM NGAY */}
 
