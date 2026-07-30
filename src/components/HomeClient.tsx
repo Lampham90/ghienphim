@@ -506,7 +506,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             </div>
 
             {/* Mô tả ngắn */}
-            <p className="text-white/80 font-medium text-xs md:text-sm lg:text-base italic max-w-xl line-clamp-2 leading-relaxed">
+            <p className="text-white/80 font-medium text-xs md:text-sm lg:text-base italic max-w-xl line-clamp-3 leading-relaxed">
               {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
             </p>
                   <div className="pt-6 md:pt-10">
