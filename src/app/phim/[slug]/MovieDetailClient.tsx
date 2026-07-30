@@ -71,6 +71,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
   const previewPoster = searchParams.get('poster') || "";
   const previewThumb = searchParams.get('thumb') || "";
 
+  // Tính toán URL ảnh ngay lập tức để tránh bị trễ 1 nhịp render
   const initialBanner = useMemo(() => {
     return previewThumb || (initialMovie ? getImageUrl((initialMovie as any).thumb_url || initialMovie.thumb) : "");
   }, [previewThumb, initialMovie]);
@@ -128,8 +129,8 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
           } catch (e) {
             console.error("Lỗi parse cache:", e);
           }
-        }
-      }, 30);
+        } // Đóng if (cached)
+      }, 30); // Đóng setTimeout
 
       return () => clearTimeout(timer);
     }, [slug, previewThumb, previewPoster, initialMovie]);
@@ -138,23 +139,28 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
     setIsHistoryLoaded(false);
   }, [activeServer]);
 
+    // 1. Lấy dữ liệu phim bằng Hook SWR (Tự động cache, chống lag)
     const { detail: swrMovie } = useKKPhimDetail(initialMovie ? null : slug);
 
+    // 2. Effect này chỉ làm nhiệm vụ: Khi có dữ liệu mới từ SWR thì cập nhật vào giao diện
     useEffect(() => {
       if (swrMovie) {
         setMovie(swrMovie);
         setServers(sortServersByPriority(swrMovie.servers || []));
         setIsLoading(false);
 
+        // Cập nhật ảnh nếu không có preview từ trang chủ truyền sang
         if (!previewThumb) setBannerSrc(getImageUrl(swrMovie.thumb_url || swrMovie.thumb));
         if (!previewPoster) setPosterSrc(getImageUrl(swrMovie.poster));
 
+        // Lưu cache local để lần sau vào lại "phút mốt"
         try {
           localStorage.setItem(`kkphim_${slug}`, JSON.stringify({ ...swrMovie, cached_at: Date.now() }));
         } catch (e) { console.error("Lỗi lưu cache phim:", e); }
       }
     }, [swrMovie, slug, previewThumb, previewPoster]);
 
+    // 3. Effect này chỉ làm nhiệm vụ: Tìm các phần liên quan (Seasons/Parts)
     useEffect(() => {
       if (!movie?.name) return;
 
@@ -164,6 +170,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
         const currentCountry = movie.country || "";
 
         try {
+          // Gọi hàm searchMovies có sẵn của ní
           const searchRes = await searchMovies(baseName);
 
           let filtered = searchRes
@@ -180,6 +187,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
             .map((i: any) => ({ name: i.name, slug: i.slug, country: i.country }))
             .filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.slug === v.slug) === i);
 
+          // Trộn với cache cũ nếu có
           const cachedSeasons = localStorage.getItem(`seasons_${baseSlug}_${currentCountry}`);
           if (cachedSeasons) {
             try {
@@ -191,6 +199,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
             } catch (e) {}
           }
 
+          // Đảm bảo tập hiện tại luôn có trong list
           if (!filtered.some((s: any) => s.slug === slug)) {
             filtered.push({ name: movie.name, slug: slug, country: currentCountry });
           }
@@ -199,6 +208,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
 
           setRelatedSeasons(finalSorted);
 
+          // Lưu cache seasons 24h
           localStorage.setItem(`seasons_${baseSlug}_${currentCountry}`, JSON.stringify({
             expires: Date.now() + 24 * 60 * 60 * 1000,
             data: finalSorted
@@ -210,7 +220,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
       };
 
       handleRelatedSeasons();
-    }, [movie?.name, slug]);
+    }, [movie?.name, slug]); // Chỉ chạy lại khi tên phim hoặc slug thay đổi
 
   const isFavorite = favorites.some((item: any) => item.slug === slug);
 
@@ -336,67 +346,67 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
   }, [currentEpIndex, servers, activeServer, saveProgress, history, slug]);
 
   const description = movie?.content || (movie as any)?.description || "";
-  const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
+const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
 
-  return (
-    <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white pb-32`}>
-      <style dangerouslySetInnerHTML={{ __html: `
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 10px; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-      ` }} />
+ return (
+   <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white pb-32`}>
+     <style dangerouslySetInnerHTML={{ __html: `
+       .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+       .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 10px; }
+       .scrollbar-hide::-webkit-scrollbar { display: none; }
+     ` }} />
 
-      {/* HERO SECTION */}
-      <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden">
-        {isPlaying && currentLink ? (
-          <VideoPlayer
-            key={currentLink}
-            slug={slug}
-            movieName={movie?.name || ""}
-            videoUrl={currentLink}
-            initialTime={initialTime}
-            currentEpIndex={currentEpIndex}
-            totalEpisodes={servers[activeServer]?.episodes?.length || 0}
-            onClose={() => setIsPlaying(false)}
-            onEnded={handleNextEpisode}
-            saveProgress={saveProgress}
-          />
-        ) : (
-          <div className="relative w-full h-full">
-            <button
-              onClick={() => router.back()}
-              className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
-            >
-              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
+     {/* HERO SECTION */}
+     <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden">
+       {isPlaying && currentLink ? (
+         <VideoPlayer
+           key={currentLink}
+           slug={slug}
+           movieName={movie?.name || ""}
+           videoUrl={currentLink}
+           initialTime={initialTime}
+           currentEpIndex={currentEpIndex}
+           totalEpisodes={servers[activeServer]?.episodes?.length || 0}
+           onClose={() => setIsPlaying(false)}
+           onEnded={handleNextEpisode}
+           saveProgress={saveProgress}
+         />
+       ) : (
+         <div className="relative w-full h-full">
+           <button
+             onClick={() => router.back()}
+             className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
+           >
+             <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+               <path d="M15.75 19.5L8.25 12l7.5-7.5" />
+             </svg>
+           </button>
 
-            {(bannerSrc || posterSrc) && (
-              <div className="absolute inset-0 w-full h-full">
-                {posterSrc && (
-                  <div className="block md:hidden relative w-full h-full">
-                    <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
-                  </div>
-                )}
-                {bannerSrc && (
-                  <div className="hidden md:block relative w-full h-full">
-                    <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
-                  </div>
-                )}
-              </div>
-            )}
+           {(bannerSrc || posterSrc) && (
+             <div className="absolute inset-0 w-full h-full">
+               {posterSrc && (
+                 <div className="block md:hidden relative w-full h-full">
+                   <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
+                 </div>
+               )}
+               {bannerSrc && (
+                 <div className="hidden md:block relative w-full h-full">
+                   <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
+                 </div>
+               )}
+             </div>
+           )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-black/20 to-transparent" />
+           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-black/20 to-transparent" />
 
-            {/* THÔNG TIN PHIM */}
-            <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20">
-              <div className="max-w-2xl">
-                <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
-                  {movie?.name || "..."}
-                </h1>
+           {/* THÔNG TIN PHIM */}
+           <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20">
+             <div className="max-w-2xl">
+               <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                 {movie?.name || "..."}
+               </h1>
 
-                <div className="flex flex-wrap items-center gap-4 mb-4">
+               <div className="flex flex-wrap items-center gap-4 mb-6">
                   <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                     {movie?.quality || 'FHD'}
                   </span>
@@ -404,6 +414,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
                     {movie?.year}
                   </span>
 
+                  {/* Hiển thị toàn bộ danh sách Audio/Server kèm số tập tương ứng */}
                   {servers && servers.length > 0 ? (
                     servers.map((s: any, idx: number) => {
                       const n = (s.server_name || "").toLowerCase();
@@ -435,316 +446,320 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
                     )
                   )}
 
-                  {movie?.imdb_score && movie.imdb_score !== "N/A" && (
-                    <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
-                      <svg className="w-3.5 h-3.5 text-yellow-500 fill-current" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
-                    </div>
-                  )}
+                 {movie?.imdb_score && movie.imdb_score !== "N/A" && (
+                   <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
+                     <svg className="w-3.5 h-3.5 text-yellow-500 fill-current" viewBox="0 0 20 20">
+                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                     </svg>
+                     <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
+                   </div>
+                 )}
 
-                  <button
-                    onClick={toggleFavorite}
-                    title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 relative group ${
-                      isFavorite
-                        ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.2)]"
-                        : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:border-white/35 hover:text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
-                    }`}
-                  >
-                    <svg
-                      className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isFavorite ? 'fill-current filter drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'fill-none'}`}
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={isFavorite ? 0 : 2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                  </button>
-                </div>
+                 <button
+                   onClick={toggleFavorite}
+                   title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
+                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 relative group ${
+                     isFavorite
+                       ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.2)]"
+                       : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:border-white/35 hover:text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
+                   }`}
+                 >
+                   <svg
+                     className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isFavorite ? 'fill-current filter drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'fill-none'}`}
+                     viewBox="0 0 24 24"
+                     stroke="currentColor"
+                     strokeWidth={isFavorite ? 0 : 2}
+                   >
+                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                   </svg>
+                 </button>
+                 </div>
 
-                {/* HIỂN THỊ THỂ LOẠI (CATEGORIES) NẰM PHÍA TRÊN MÔ TẢ */}
-                {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    {movie.category.map((cat: any, idx: number) => (
-                      <Link
-                        key={idx}
-                        href={`/danh-sach/${cat.slug || toSlug(cat.name)}`}
-                        className="px-2.5 py-1 bg-white/10 hover:bg-red-600 text-white/80 hover:text-white text-[10px] font-bold uppercase rounded-md tracking-wider transition-all border border-white/5 backdrop-blur-sm"
-                      >
-                        {cat.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-
-                {description && (
-                  <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
-                )}
-              </div>
-            </div>
+               {description && (
+                 <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
+               )}
+             </div>
 
              {/* NÚT XEM NGAY */}
-            <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
-              <button
-                disabled={!isHistoryLoaded || !currentLink}
-                onClick={() => setIsPlaying(true)}
-                className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
-              >
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <span>
-                  {!mounted || !lastWatchedEpNum
-                    ? "Xem ngay"
-                    : String(lastWatchedEpNum).toUpperCase() === "FULL"
-                      ? "Xem tiếp"
-                      : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
 
-    {/* SECTIONS BÊN DƯỚI (QUY HOẠCH 4 TABS + DROPDOWN BÊN TRONG) */}
-    {mounted && (
-      <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-16">
-        {/* THANH TAB NAVIGATION (4 TABS) */}
-        <div className="flex items-center gap-3 sm:gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
-          {/* TAB 1: TẬP PHIM */}
-          <button
-            onClick={() => setActiveTab('episodes')}
-            className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-              activeTab === 'episodes' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-            }`}
+<div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
+
+  <button
+
+    disabled={!isHistoryLoaded || !currentLink}
+
+    onClick={() => setIsPlaying(true)}
+
+    className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
+
+  >
+
+    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+
+      <path d="M8 5v14l11-7z" />
+
+    </svg>
+
+    <span>
+
+      {!mounted || !lastWatchedEpNum
+
+        ? "Xem ngay"
+
+        : String(lastWatchedEpNum).toUpperCase() === "FULL"
+
+          ? "Xem tiếp"
+
+          : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
+
+    </span>
+
+  </button>
+
+</div> 
+
+
+           </div>
+         </div>
+       )}
+     </section>
+
+     {/* SECTIONS BÊN DƯỚI (QUY HOẠCH 4 TABS + DROPDOWN BÊN TRONG) */}
+     {mounted && (
+       <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-16">
+         {/* THANH TAB NAVIGATION (4 TABS) */}
+         <div className="flex items-center gap-3 sm:gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
+           {/* TAB 1: TẬP PHIM */}
+           <button
+             onClick={() => setActiveTab('episodes')}
+             className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+               activeTab === 'episodes' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+             }`}
+           >
+             Tập phim
+             {activeTab === 'episodes' && (
+               <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+             )}
+           </button>
+
+           {/* TAB 2: PHẦN PHIM (Dropdown cũ) */}
+           {relatedSeasons && relatedSeasons.length > 1 && (
+             <button
+               onClick={() => setActiveTab('seasons')}
+               className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+                 activeTab === 'seasons' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+               }`}
+             >
+               Phần phim
+               {activeTab === 'seasons' && (
+                 <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+               )}
+             </button>
+           )}
+
+           {/* TAB 3: AUDIO (Dropdown cũ) */}
+           <button
+             onClick={() => setActiveTab('audio')}
+             className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+               activeTab === 'audio' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+             }`}
+           >
+             Audio
+             {activeTab === 'audio' && (
+               <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+             )}
+           </button>
+
+           {/* TAB 4: DIỄN VIÊN */}
+           <button
+             onClick={() => setActiveTab('actors')}
+             className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
+               activeTab === 'actors' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
+             }`}
+           >
+             Diễn viên
+             {activeTab === 'actors' && (
+               <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+             )}
+           </button>
+         </div>
+
+         {/* NỘI DUNG TỪNG TAB */}
+
+         {/* 1. NỘI DUNG TAB TẬP PHIM */}
+         {activeTab === 'episodes' && (
+           <div className="animate-in fade-in duration-300">
+             <div className="flex items-center gap-4 mb-6">
+               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">
+                 Chọn tập phim
+               </h2>
+               <div className="h-[1px] flex-1 bg-white/5"></div>
+             </div>
+             <div className="ep-grid">
+               {servers[activeServer]?.episodes?.map((ep: any, i: number) => (
+                 <button
+                   key={i}
+                   onClick={() => handleNextEpisode(i)}
+                   className={`w-11 h-11 flex items-center justify-center rounded-full text-[11px] font-black border transition-all duration-300 ${
+                     currentEpIndex === i
+                       ? "bg-red-600 border-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] scale-110"
+                       : "bg-[#0f0f0f] border-white/5 text-white/30 hover:border-red-600/40 hover:text-white"
+                   }`}
+                 >
+                   {getOnlyNumber(ep.episode_num)}
+                 </button>
+               ))}
+             </div>
+           </div>
+         )}
+
+         {/* 2. NỘI DUNG TAB PHẦN PHIM (DROPDOWN TAILWIND) */}
+                 {activeTab === 'seasons' && relatedSeasons && relatedSeasons.length > 1 && (
+                   <div className="animate-in fade-in duration-300 min-h-[220px]">
+                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                       <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
+                         Chọn phần phim:
+                       </span>
+
+                       <div className="relative inline-block text-left min-w-[240px]">
+                         {/* Nút bấm mở Dropdown */}
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setOpenSeason(!openSeason);
+                             setOpenAudio(false);
+                           }}
+                           className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
+                         >
+                           <span className="truncate pr-2">
+                             {relatedSeasons.find((s: any) => s.slug === slug)?.name || "Chọn phần"}
+                           </span>
+                           <svg
+                             className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openSeason ? 'rotate-180 text-red-500' : ''}`}
+                             fill="none"
+                             viewBox="0 0 24 24"
+                             stroke="currentColor"
+                           >
+                             <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
+                           </svg>
+                         </button>
+
+                         {/* Menu Xổ Xuống */}
+                         {openSeason && (
+                           <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                             {relatedSeasons.map((s: any, i: number) => {
+                               const isCurrent = s.slug === slug;
+                               return (
+                                 <button
+                                   key={i}
+                                   onClick={() => {
+                                     setOpenSeason(false);
+                                     if (!isCurrent) router.push(`/phim/${s.slug}`);
+                                   }}
+                                   className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
+                                     isCurrent
+                                       ? "bg-red-600/20 text-red-500 font-bold"
+                                       : "text-white/70 hover:bg-white/5 hover:text-white"
+                                   }`}
+                                 >
+                                   <span>{s.name}</span>
+                                   {isCurrent && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded uppercase">Đang xem</span>}
+                                 </button>
+                               );
+                             })}
+                           </div>
+                         )}
+                       </div>
+                     </div>
+
+                     {/* Backdrop click ra ngoài để đóng */}
+                     {openSeason && (
+                       <div
+                         className="fixed inset-0 z-40"
+                         onClick={() => setOpenSeason(false)}
+                       />
+                     )}
+                   </div>
+                 )}
+
+                 {/* 3. NỘI DUNG TAB AUDIO (DROPDOWN TAILWIND) */}
+{activeTab === 'audio' && (
+  <div className="animate-in fade-in duration-300 min-h-[220px]">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
+        Audio / Thuyết minh:
+      </span>
+
+      <div className="relative inline-block text-left min-w-[240px]">
+        {/* Nút bấm mở Dropdown */}
+        <button
+          type="button"
+          onClick={() => {
+            setOpenAudio(!openAudio);
+            setOpenSeason(false);
+          }}
+          className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
+        >
+          <span className="truncate pr-2">
+            {cleanServerName(servers[activeServer]?.server_name || "Audio")}
+          </span>
+          <svg
+            className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openAudio ? 'rotate-180 text-red-500' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            Tập phim
-            {activeTab === 'episodes' && (
-              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-            )}
-          </button>
+            <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
+          </svg>
+        </button>
 
-          {/* TAB 2: PHẦN PHIM (Dropdown cũ) */}
-          {relatedSeasons && relatedSeasons.length > 1 && (
-            <button
-              onClick={() => setActiveTab('seasons')}
-              className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-                activeTab === 'seasons' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-              }`}
-            >
-              Phần phim
-              {activeTab === 'seasons' && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-              )}
-            </button>
-          )}
-
-          {/* TAB 3: AUDIO (Dropdown cũ) */}
-          <button
-            onClick={() => setActiveTab('audio')}
-            className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-              activeTab === 'audio' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-            }`}
-          >
-            Audio
-            {activeTab === 'audio' && (
-              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-            )}
-          </button>
-
-          {/* TAB 4: DIỄN VIÊN */}
-          <button
-            onClick={() => setActiveTab('actors')}
-            className={`pb-3 px-2 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] italic transition-all duration-300 relative whitespace-nowrap ${
-              activeTab === 'actors' ? 'text-[#F1E5AC]' : 'text-white/40 hover:text-white/80'
-            }`}
-          >
-            Diễn viên
-            {activeTab === 'actors' && (
-              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
-            )}
-          </button>
-        </div>
-
-        {/* NỘI DUNG TỪNG TAB */}
-
-        {/* 1. NỘI DUNG TAB TẬP PHIM */}
-        {activeTab === 'episodes' && (
-          <div className="animate-in fade-in duration-300">
-            <div className="flex items-center gap-4 mb-6">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">
-                Chọn tập phim
-              </h2>
-              <div className="h-[1px] flex-1 bg-white/5"></div>
-            </div>
-            <div className="ep-grid">
-              {servers[activeServer]?.episodes?.map((ep: any, i: number) => (
+        {/* Menu Xổ Xuống */}
+        {openAudio && (
+          <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+            {servers.map((s: any, i: number) => {
+              const isActive = activeServer === i;
+              return (
                 <button
                   key={i}
-                  onClick={() => handleNextEpisode(i)}
-                  className={`w-11 h-11 flex items-center justify-center rounded-full text-[11px] font-black border transition-all duration-300 ${
-                    currentEpIndex === i
-                      ? "bg-red-600 border-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] scale-110"
-                      : "bg-[#0f0f0f] border-white/5 text-white/30 hover:border-red-600/40 hover:text-white"
+                  onClick={() => {
+                    setActiveServer(i);
+                    setOpenAudio(false);
+                    setActiveTab('episodes'); // <-- Thêm dòng này để tự động chuyển về tab Tập phim
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
+                    isActive
+                      ? "bg-red-600/20 text-red-500 font-bold"
+                      : "text-white/70 hover:bg-white/5 hover:text-white"
                   }`}
                 >
-                  {getOnlyNumber(ep.episode_num)}
+                  <span>{cleanServerName(s.server_name)}</span>
+                  {isActive && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
                 </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 2. NỘI DUNG TAB PHẦN PHIM (DROPDOWN TAILWIND) */}
-        {activeTab === 'seasons' && relatedSeasons && relatedSeasons.length > 1 && (
-          <div className="animate-in fade-in duration-300 min-h-[220px]">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
-                Chọn phần phim:
-              </span>
-
-              <div className="relative inline-block text-left min-w-[240px]">
-                {/* Nút bấm mở Dropdown */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenSeason(!openSeason);
-                    setOpenAudio(false);
-                  }}
-                  className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
-                >
-                  <span className="truncate pr-2">
-                    {relatedSeasons.find((s: any) => s.slug === slug)?.name || "Chọn phần"}
-                  </span>
-                  <svg
-                    className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openSeason ? 'rotate-180 text-red-500' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
-                  </svg>
-                </button>
-
-                {/* Menu Xổ Xuống */}
-                {openSeason && (
-                  <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                    {relatedSeasons.map((s: any, i: number) => {
-                      const isCurrent = s.slug === slug;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => {
-                            setOpenSeason(false);
-                            if (!isCurrent) router.push(`/phim/${s.slug}`);
-                          }}
-                          className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
-                            isCurrent
-                              ? "bg-red-600/20 text-red-500 font-bold"
-                              : "text-white/70 hover:bg-white/5 hover:text-white"
-                          }`}
-                        >
-                          <span>{s.name}</span>
-                          {isCurrent && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded uppercase">Đang xem</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Backdrop click ra ngoài để đóng */}
-            {openSeason && (
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setOpenSeason(false)}
-              />
-            )}
-          </div>
-        )}
-
-        {/* 3. NỘI DUNG TAB AUDIO (DROPDOWN TAILWIND) */}
-        {activeTab === 'audio' && (
-          <div className="animate-in fade-in duration-300 min-h-[220px]">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="text-[10px] font-black uppercase text-[#F1E5AC] italic tracking-widest">
-                Audio / Thuyết minh:
-              </span>
-
-              <div className="relative inline-block text-left min-w-[240px]">
-                {/* Nút bấm mở Dropdown */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenAudio(!openAudio);
-                    setOpenSeason(false);
-                  }}
-                  className="w-full bg-[#121212] border border-white/10 hover:border-red-600/50 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 shadow-lg"
-                >
-                  <span className="truncate pr-2">
-                    {cleanServerName(servers[activeServer]?.server_name || "Audio")}
-                  </span>
-                  <svg
-                    className={`w-4 h-4 text-white/50 transition-transform duration-300 shrink-0 ${openAudio ? 'rotate-180 text-red-500' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
-                  </svg>
-                </button>
-
-                {/* Menu Xổ Xuống */}
-                {openAudio && (
-                  <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                    {servers.map((s: any, i: number) => {
-                      const isActive = activeServer === i;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => {
-                            setActiveServer(i);
-                            setOpenAudio(false);
-                            setActiveTab('episodes');
-                          }}
-                          className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-all flex items-center justify-between ${
-                            isActive
-                              ? "bg-red-600/20 text-red-500 font-bold"
-                              : "text-white/70 hover:bg-white/5 hover:text-white"
-                          }`}
-                        >
-                          <span>{cleanServerName(s.server_name)}</span>
-                          {isActive && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Backdrop click ra ngoài để đóng */}
-            {openAudio && (
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setOpenAudio(false)}
-              />
-            )}
-          </div>
-        )}
-
-        {/* 4. NỘI DUNG TAB DIỄN VIÊN */}
-        {activeTab === 'actors' && (
-          <div className="animate-in fade-in duration-300">
-            <ActorList movie={movie} tmdbInfo={tmdbInfo} />
+              );
+            })}
           </div>
         )}
       </div>
+    </div>
+
+    {/* Backdrop click ra ngoài để đóng */}
+    {openAudio && (
+      <div
+        className="fixed inset-0 z-40"
+        onClick={() => setOpenAudio(false)}
+      />
     )}
-  </main>
-);
-}
+  </div>
+)}
+
+         {/* 4. NỘI DUNG TAB DIỄN VIÊN */}
+                  {activeTab === 'actors' && (
+                    <div className="animate-in fade-in duration-300">
+                      <ActorList movie={movie} tmdbInfo={movie?.tmdb} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </main>
+          );
+         }
