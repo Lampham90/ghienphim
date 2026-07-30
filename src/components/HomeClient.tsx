@@ -453,7 +453,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                     sizes="100vw"
                     priority={i === currentHero}
                     className="w-full h-full object-cover transform-gpu"
-                    style={{ objectPosition: 'center 20%' }}
+                    style={{ objectPosition: 'center 100%' }}
                   />
                 </div>
               </div>
