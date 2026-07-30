@@ -557,14 +557,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   {year}
                 </span>
               )}
-              {Array.isArray(m.category) && m.category.length > 0 && (
-                    <span className="text-white/70 text-[11px] italic">
-                      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-                    </span>
-                  )}
-                
-            </div>
-
+              
             <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
               {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
             </p>
