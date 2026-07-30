@@ -447,7 +447,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                 <div className="hidden md:block relative w-full h-full">
                   <Image
                     loader={imageLoader}
-                    src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
+                    src={getImageUrl(m.poster || m.thumb || m.poster)}
                     alt={m.name}
                     fill
                     sizes="100vw"

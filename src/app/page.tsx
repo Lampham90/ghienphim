@@ -17,13 +17,13 @@ export default async function HomePage() {
       chieuRap,
       boHan,
       boTrung,
-      animeMovie
+      animeNhat
     ] = await Promise.all([
       Promise.all(first4Cats.map(cat => getMoviesFromD1(cat.slug, 1, 24, true))),
       getMoviesFromD1('phim_chieu_rap', 1, 2, true),
       getMoviesFromD1('bo_han', 1, 3, true),
       getMoviesFromD1('bo_trung', 1, 3, true),
-      getMoviesFromD1('anime_movie', 1, 2, true)
+      getMoviesFromD1('anime_nhat', 1, 2, true)
     ]);
 
     // Gộp danh sách Hero theo tỉ lệ: 2 rạp - 3 hàn - 3 trung - 2 anime
@@ -31,7 +31,7 @@ export default async function HomePage() {
       ...(chieuRap || []),
       ...(boHan || []),
       ...(boTrung || []),
-      ...(animeMovie || [])
+      ...(animeNhat || [])
     ];
 
     first4Cats.forEach((cat, idx) => {
