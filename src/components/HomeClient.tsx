@@ -99,7 +99,7 @@ const ViewAllButton = memo(({ slug }: { slug: string }) => {
 });
 ViewAllButton.displayName = 'ViewAllButton';
 
-const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement> }) => {
+const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | null> }) => {
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(true);
 
@@ -116,7 +116,7 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement> })
     updateScrollState();
     el.addEventListener('scroll', updateScrollState);
     return () => el.removeEventListener('scroll', updateScrollState);
-  }, [updateScrollState]);
+  }, [updateScrollState, rowRef]);
 
   const btnClass = "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border border-white/10 backdrop-blur-md bg-white/5 text-white hover:bg-white/20";
 
@@ -295,7 +295,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // --- 2. KHÔI PHỤC SESSION & SCROLL (FIX LỖI NHÂN ĐÔI) ---
+  // --- 2. KHÔI PHỤC SESSION & SCROLL ---
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -305,7 +305,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         if (savedSlugsStr) {
           const savedSlugs: string[] = JSON.parse(savedSlugsStr);
           if (savedSlugs.length > 0) {
-            // Tải dữ liệu song song nhưng xử lý gộp an toàn
             const fetchPromises = savedSlugs.map(async (slug) => {
               const cat = HOME_CATEGORIES.find(c => c.slug === slug);
               if (!cat) return null;
@@ -322,7 +321,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             const results = await Promise.all(fetchPromises);
             const dynamicSections = results.filter((s): s is SectionData => s !== null);
 
-            // Gộp và lọc trùng tuyệt đối theo Slug
             setSections(prev => {
               const combined = [...initialSections, ...dynamicSections];
               const uniqueMap = new Map();
@@ -330,7 +328,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
               return Array.from(uniqueMap.values());
             });
 
-            // Cập nhật index để load tiếp không bị trùng
             const lastSlug = savedSlugs[savedSlugs.length - 1];
             const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
             if (foundIdx !== -1) setLoadedIndex(foundIdx + 1);
@@ -350,12 +347,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     restoreSession();
   }, [initialSections]);
 
-  // --- 3. TẢI TỨC THÌ (FIX LỖI TRÙNG KHI CUỘN) ---
+  // --- 3. TẢI TỨC THÌ ---
   const loadNextCategory = useCallback(async () => {
     if (loadedIndex >= HOME_CATEGORIES.length || isFetching.current) return;
 
     const currentCat = HOME_CATEGORIES[loadedIndex];
-    // Kiểm tra nhanh xem slug này đã có trong state chưa
     if (sections.some(s => s.slug === currentCat.slug)) {
       setLoadedIndex(prev => prev + 1);
       return;
@@ -370,7 +366,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
     if (movies && movies.length > 0) {
       setSections(prev => {
-        // Kiểm tra trùng một lần nữa bên trong setState (an toàn tuyệt đối)
         if (prev.some(s => s.slug === currentCat.slug)) return prev;
 
         const next = [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
@@ -383,7 +378,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     setLoadedIndex(prev => prev + 1);
     isFetching.current = false;
 
-    // PREFETCH tiếp theo
     const nextNextIdx = loadedIndex + 1;
     if (nextNextIdx < HOME_CATEGORIES.length) {
        const futureCat = HOME_CATEGORIES[nextNextIdx];
@@ -416,94 +410,130 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         main { overflow-anchor: none; }
         .snap-x { scroll-snap-type: x mandatory; scroll-behavior: smooth; }
         .snap-start { scroll-snap-align: start; }
-        .title-embossed {
-          color: rgba(255,255,255,0.94);
-          text-shadow:
-            0 1px 0 rgba(255,255,255,0.12),
-            0 -1px 2px rgba(0,0,0,0.85),
-            0 4px 10px rgba(0,0,0,0.6),
-            0 10px 24px rgba(0,0,0,0.5);
-          mix-blend-mode: overlay;
-        }
       ` }} />
 
     {initialHeroMovies.length > 0 && (
-  <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
-    {initialHeroMovies.map((m, i) => {
-      const quality = m.quality || m.sub_type || 'FHD';
-      const year = m.year;
-      const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
-      const langOrType = m.lang;
+      <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
+        {initialHeroMovies.map((m, i) => {
+          const quality = m.quality || m.sub_type || 'FHD';
+          const year = m.year;
+          const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
 
-      return (
-        <div 
-          key={`${m.slug}-${i}`} 
-          className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
-        >
-          {/* 1. Phần hình ảnh banner */}
-          <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
-            <div className="absolute inset-0 w-full h-full">
-              {/* Mobile Image */}
-              <div className="block md:hidden relative w-full h-full">
-                <Image
-                  loader={imageLoader}
-                  src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
-                  alt={m.name}
-                  fill
-                  sizes="100vw"
-                  priority={i === currentHero}
-                  className="w-full h-full object-cover transform-gpu"
-                  style={{ objectPosition: 'center 20%' }}
-                />
-              </div>
-              {/* PC Image */}
-              <div className="hidden md:block relative w-full h-full">
-                <Image
-                  loader={imageLoader}
-                  src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
-                  alt={m.name}
-                  fill
-                  sizes="100vw"
-                  priority={i === currentHero}
-                  className="w-full h-full object-cover transform-gpu"
-                  style={{ objectPosition: 'center 20%' }}
-                />
-              </div>
-            </div>
-
-            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
-            
-            {/* Trên PC: Giao diện chi tiết đè lên banner */}
-            <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
-              <div className="max-w-2xl space-y-4 relative z-20">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
-                  <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
-                  <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+          return (
+            <div 
+              key={`${m.slug}-${i}`} 
+              className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
+            >
+              <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
+                <div className="absolute inset-0 w-full h-full">
+                  <div className="block md:hidden relative w-full h-full">
+                    <Image
+                      loader={imageLoader}
+                      src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
+                      alt={m.name}
+                      fill
+                      sizes="100vw"
+                      priority={i === currentHero}
+                      className="w-full h-full object-cover transform-gpu"
+                      style={{ objectPosition: 'center 20%' }}
+                    />
+                  </div>
+                  <div className="hidden md:block relative w-full h-full">
+                    <Image
+                      loader={imageLoader}
+                      src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
+                      alt={m.name}
+                      fill
+                      sizes="100vw"
+                      priority={i === currentHero}
+                      className="w-full h-full object-cover transform-gpu"
+                      style={{ objectPosition: 'center 20%' }}
+                    />
+                  </div>
                 </div>
+
+                <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
                 
-                <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
+                  <div className="max-w-2xl space-y-4 relative z-20">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+                      <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
+                      <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+                    </div>
+                    
+                    <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                      {m.name || "..."}
+                    </h1>
+
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
+                      <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                        {quality}
+                      </span>
+                      {m.sub_type && (
+                        <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-xs">
+                          {m.sub_type}
+                        </span>
+                      )}
+                      {rating && (
+                        <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-xs flex items-center gap-1">
+                          ⭐ {rating}
+                        </span>
+                      )}
+                      {year && (
+                        <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-xs backdrop-blur-sm">
+                          {year}
+                        </span>
+                      )}
+                      {Array.isArray(m.category) && m.category.length > 0 && (
+                        <span className="text-white/70 text-[11px] italic">
+                          {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-white/70 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic">
+                      {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
+                    </p>
+
+                    <div className="pt-2">
+                      <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 hover:bg-red-600 hover:text-white">
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                        <span>Xem ngay</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
+                  <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
+                  <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
+                </div>
+
+                <h1 className="text-[24px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
                   {m.name || "..."}
                 </h1>
 
-                {/* Khối thông số PC */}
-                <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
-                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold">
+                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
                     {quality}
                   </span>
                   {m.sub_type && (
-                    <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-xs">
+                    <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px]">
                       {m.sub_type}
                     </span>
                   )}
                   {rating && (
-                    <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-xs flex items-center gap-1">
+                    <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] flex items-center gap-1">
                       ⭐ {rating}
                     </span>
                   )}
                   {year && (
-                    <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-xs backdrop-blur-sm">
+                    <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] backdrop-blur-sm">
                       {year}
                     </span>
                   )}
@@ -514,76 +544,22 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   )}
                 </div>
 
-                <p className="text-white/70 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic">
+                <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
                   {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
                 </p>
 
-                <div className="pt-2">
-                  <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 hover:bg-red-600 hover:text-white">
-                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <div className="pt-1">
+                  <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-7 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 hover:bg-red-600 hover:text-white">
+                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     <span>Xem ngay</span>
                   </Link>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* 2. Trên Mobile: Nằm ở khoảng trống giữa ảnh và catalog */}
-          <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
-            <div className="flex items-center justify-center gap-2">
-              <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-              <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
-              <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-            </div>
-
-            <h1 className="text-[24px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
-              {m.name || "..."}
-            </h1>
-
-            {/* Thông số Mobile */}
-            <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold">
-              <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
-                {quality}
-              </span>
-              {m.sub_type && (
-                <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px]">
-                  {m.sub_type}
-                </span>
-              )}
-              {rating && (
-                <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] flex items-center gap-1">
-                  ⭐ {rating}
-                </span>
-              )}
-              {year && (
-                <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] backdrop-blur-sm">
-                  {year}
-                </span>
-              )}
-              {Array.isArray(m.category) && m.category.length > 0 && (
-                <span className="text-white/70 text-[11px] italic">
-                  {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-                </span>
-              )}
-            </div>
-
-            <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
-              {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
-            </p>
-
-            <div className="pt-1">
-              <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-7 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 hover:bg-red-600 hover:text-white">
-                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                <span>Xem ngay</span>
-              </Link>
-            </div>
-          </div>
-
-        </div>
-      );
-    })}
-  </section>
-)}
+          );
+        })}
+      </section>
+    )}
       <InterestedSection />
       <HistoryRow />
 
