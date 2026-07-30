@@ -428,98 +428,102 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       ` }} />
 
       {initialHeroMovies.length > 0 && (
-        <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden mb-16 border-b border-white/5 transform-gpu">
-          {initialHeroMovies.map((m, i) => (
-            <div key={`${m.slug}-${i}`} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-              <div className="absolute inset-0 w-full h-full">
-                <div className="block md:hidden relative w-full h-full">
-                  <Image
-                    loader={imageLoader}
-                    src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
-                    alt={m.name}
-                    fill
-                    sizes="100vw"
-                    priority={i === currentHero}
-                    className="w-full h-full object-cover transform-gpu"
-                    style={{ objectPosition: 'center 20%' }}
-                  />
-                </div>
-                <div className="hidden md:block relative w-full h-full">
-                  <Image
-                    loader={imageLoader}
-                    src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
-                    alt={m.name}
-                    fill
-                    sizes="100vw"
-                    priority={i === currentHero}
-                    className="w-full h-full object-cover transform-gpu"
-                    style={{ objectPosition: 'center 20%' }}
-                  />
-                </div>
-              </div>
-              {/* Các lớp Gradient phủ để làm nổi bật chữ */}
+  <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden mb-16 border-b border-white/5 transform-gpu">
+    {initialHeroMovies.map((m, i) => (
+      <div 
+        key={`${m.slug}-${i}`} 
+        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+      >
+        {/* Ảnh nền và poster */}
+        <div className="absolute inset-0 w-full h-full">
+          <div className="absolute inset-0 overflow-hidden">
+            <Image
+              loader={imageLoader}
+              src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
+              alt=""
+              fill
+              sizes="100vw"
+              priority={i === currentHero}
+              className="w-full h-full object-cover filter blur-xl scale-110 opacity-30"
+            />
+          </div>
+          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 h-full relative">
+            <Image
+              loader={imageLoader}
+              src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
+              alt={m.name}
+              fill
+              sizes="(max-width: 768px) 100vw, 60vw"
+              priority={i === currentHero}
+              className="w-full h-full object-cover md:object-contain md:object-right transform-gpu"
+            />
+          </div>
+        </div>
+
+        {/* Gradient overlays */}
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 md:via-black/60 to-transparent z-10" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
 
-        {/* Nội dung thông tin phim */}
-        <div className="absolute inset-0 z-20 flex flex-col justify-end pb-24 md:pb-32 px-6 md:px-24 text-left">
-          <div className="max-w-4xl space-y-3 md:space-y-4 relative z-20 text-shadow-netflix">
+        {/* Nội dung Banner - Đã thu gọn khoảng cách trên mobile */}
+        <div className="absolute inset-0 z-20 flex flex-col justify-end pb-16 md:pb-32 px-5 md:px-24 text-left">
+          <div className="max-w-4xl space-y-2 md:space-y-4 relative z-20 text-shadow-netflix">
             
             {/* Nhãn Hot Premiere */}
-            <div className="flex items-center gap-3">
-              <span className="w-8 md:w-12 h-[2px] md:h-[3px] bg-red-600 rounded-full"></span>
+            <div className="flex items-center gap-2 md:gap-3">
+              <span className="w-6 md:w-12 h-[2px] md:h-[3px] bg-red-600 rounded-full"></span>
               <span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
             </div>
 
             {/* Tên phim */}
-            <h1 className="title-embossed text-2xl md:text-4xl lg:text-5xl font-black uppercase italic leading-[1.05] tracking-tight">{m.name}</h1>
+            <h1 className="title-embossed text-xl md:text-4xl lg:text-5xl font-black uppercase italic leading-[1.05] tracking-tight">{m.name}</h1>
 
-            {/* 🏷️ BỔ SUNG: Chất lượng, IMDb, Năm, Thể loại */}
-            <div className="flex flex-wrap items-center gap-2.5 text-xs md:text-sm font-semibold">
-              {/* Chất lượng (Vietsub / Thuyết minh / HD / FHD...) */}
+            {/* Các nhãn thông tin: Chất lượng, IMDb, Năm, Thể loại */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
               {m.sub_type && (
-                <span className="px-2 py-0.5 bg-red-600/80 text-white rounded font-bold text-[10px] md:text-xs">
+                <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
                   {m.sub_type}
                 </span>
               )}
-
-              {/* Điểm IMDb / TMDB */}
               {(m.imdb_score || m.tmdb?.vote_average) && (
-                <span className="px-2 py-0.5 bg-amber-500/90 text-black rounded font-black text-[10px] md:text-xs flex items-center gap-1">
+                <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1">
                   ⭐ {m.imdb_score || m.tmdb?.vote_average}
                 </span>
               )}
-
-              {/* Năm phát hành */}
               {m.year && (
-                <span className="px-2 py-0.5 bg-white/20 text-white rounded text-[10px] md:text-xs backdrop-blur-sm">
+                <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] md:text-xs backdrop-blur-sm">
                   {m.year}
                 </span>
               )}
-
-              {/* Danh sách thể loại (Lấy tối đa 2 thể loại đầu tiên) */}
               {Array.isArray(m.category) && m.category.length > 0 && (
-                <span className="text-white/70 text-xs italic hidden md:inline-block">
+                <span className="text-white/70 text-[11px] italic hidden md:inline-block">
                   {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
                 </span>
               )}
             </div>
 
-            {/* Mô tả ngắn */}
-            <p className="text-white/80 font-medium text-xs md:text-sm lg:text-base italic max-w-xl line-clamp-3 leading-relaxed">
+            {/* Mô tả ngắn (Thu gọn dòng trên mobile để tiết kiệm diện tích) */}
+            <p className="text-white/80 font-medium text-[11px] md:text-sm lg:text-base italic max-w-xl line-clamp-2 leading-snug md:leading-relaxed">
               {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
             </p>
-                  <div className="pt-6 md:pt-10">
-                    <Link href={`/phim/${m.slug}`} prefetch={false} className="inline-flex items-center gap-2 md:gap-3 bg-transparent border-[1.5px] md:border-2 border-white/80 hover:border-red-600 text-white hover:text-red-500 px-6 py-2.5 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] md:tracking-[0.2em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.25)] group hover:scale-105 active:scale-95">
-                      <span className="text-base md:text-xl transition-transform group-hover:scale-110 group-hover:text-red-600">▶</span> <span>Xem Ngay</span>
-                    </Link>
-                  </div>
-                </div>
-              </div>
+
+            {/* Nút Xem Ngay (Giảm padding-top trên mobile) */}
+            <div className="pt-2 md:pt-6">
+              <Link 
+                href={`/phim/${m.slug}`} 
+                prefetch={false} 
+                className="inline-flex items-center gap-2 md:gap-3 bg-red-600 hover:bg-red-700 text-white px-5 py-2 md:px-10 md:py-3.5 rounded-full font-black text-[10px] md:text-[13px] tracking-[0.1em] uppercase transition-all duration-300 shadow-lg hover:shadow-[0_0_30px_rgba(220,38,38,0.5)] group hover:scale-105 active:scale-95"
+              >
+                <span className="text-sm md:text-xl transition-transform group-hover:scale-110">▶</span> 
+                <span>Xem Ngay</span>
+              </Link>
             </div>
-          ))}
-        </section>
-      )}
+
+          </div>
+        </div>
+      </div>
+    ))}
+  </section>
+)}
 
       <InterestedSection />
       <HistoryRow />
