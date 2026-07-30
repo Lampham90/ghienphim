@@ -71,7 +71,6 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
   const previewPoster = searchParams.get('poster') || "";
   const previewThumb = searchParams.get('thumb') || "";
 
-  // Tính toán URL ảnh ngay lập tức để tránh bị trễ 1 nhịp render
   const initialBanner = useMemo(() => {
     return previewThumb || (initialMovie ? getImageUrl((initialMovie as any).thumb_url || initialMovie.thumb) : "");
   }, [previewThumb, initialMovie]);
@@ -129,8 +128,8 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
           } catch (e) {
             console.error("Lỗi parse cache:", e);
           }
-        } // Đóng if (cached)
-      }, 30); // Đóng setTimeout
+        }
+      }, 30);
 
       return () => clearTimeout(timer);
     }, [slug, previewThumb, previewPoster, initialMovie]);
@@ -139,28 +138,23 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
     setIsHistoryLoaded(false);
   }, [activeServer]);
 
-    // 1. Lấy dữ liệu phim bằng Hook SWR (Tự động cache, chống lag)
     const { detail: swrMovie } = useKKPhimDetail(initialMovie ? null : slug);
 
-    // 2. Effect này chỉ làm nhiệm vụ: Khi có dữ liệu mới từ SWR thì cập nhật vào giao diện
     useEffect(() => {
       if (swrMovie) {
         setMovie(swrMovie);
         setServers(sortServersByPriority(swrMovie.servers || []));
         setIsLoading(false);
 
-        // Cập nhật ảnh nếu không có preview từ trang chủ truyền sang
         if (!previewThumb) setBannerSrc(getImageUrl(swrMovie.thumb_url || swrMovie.thumb));
         if (!previewPoster) setPosterSrc(getImageUrl(swrMovie.poster));
 
-        // Lưu cache local để lần sau vào lại "phút mốt"
         try {
           localStorage.setItem(`kkphim_${slug}`, JSON.stringify({ ...swrMovie, cached_at: Date.now() }));
         } catch (e) { console.error("Lỗi lưu cache phim:", e); }
       }
     }, [swrMovie, slug, previewThumb, previewPoster]);
 
-    // 3. Effect này chỉ làm nhiệm vụ: Tìm các phần liên quan (Seasons/Parts)
     useEffect(() => {
       if (!movie?.name) return;
 
@@ -170,7 +164,6 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
         const currentCountry = movie.country || "";
 
         try {
-          // Gọi hàm searchMovies có sẵn của ní
           const searchRes = await searchMovies(baseName);
 
           let filtered = searchRes
@@ -187,7 +180,6 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
             .map((i: any) => ({ name: i.name, slug: i.slug, country: i.country }))
             .filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.slug === v.slug) === i);
 
-          // Trộn với cache cũ nếu có
           const cachedSeasons = localStorage.getItem(`seasons_${baseSlug}_${currentCountry}`);
           if (cachedSeasons) {
             try {
@@ -199,7 +191,6 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
             } catch (e) {}
           }
 
-          // Đảm bảo tập hiện tại luôn có trong list
           if (!filtered.some((s: any) => s.slug === slug)) {
             filtered.push({ name: movie.name, slug: slug, country: currentCountry });
           }
@@ -208,7 +199,6 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
 
           setRelatedSeasons(finalSorted);
 
-          // Lưu cache seasons 24h
           localStorage.setItem(`seasons_${baseSlug}_${currentCountry}`, JSON.stringify({
             expires: Date.now() + 24 * 60 * 60 * 1000,
             data: finalSorted
@@ -220,7 +210,7 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
       };
 
       handleRelatedSeasons();
-    }, [movie?.name, slug]); // Chỉ chạy lại khi tên phim hoặc slug thay đổi
+    }, [movie?.name, slug]);
 
   const isFavorite = favorites.some((item: any) => item.slug === slug);
 
@@ -346,67 +336,67 @@ export default function MovieDetailClient({ initialMovie, slug }: { initialMovie
   }, [currentEpIndex, servers, activeServer, saveProgress, history, slug]);
 
   const description = movie?.content || (movie as any)?.description || "";
-const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
+  const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
 
- return (
-   <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white pb-32`}>
-     <style dangerouslySetInnerHTML={{ __html: `
-       .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-       .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 10px; }
-       .scrollbar-hide::-webkit-scrollbar { display: none; }
-     ` }} />
+  return (
+    <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white pb-32`}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 10px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+      ` }} />
 
-     {/* HERO SECTION */}
-     <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden">
-       {isPlaying && currentLink ? (
-         <VideoPlayer
-           key={currentLink}
-           slug={slug}
-           movieName={movie?.name || ""}
-           videoUrl={currentLink}
-           initialTime={initialTime}
-           currentEpIndex={currentEpIndex}
-           totalEpisodes={servers[activeServer]?.episodes?.length || 0}
-           onClose={() => setIsPlaying(false)}
-           onEnded={handleNextEpisode}
-           saveProgress={saveProgress}
-         />
-       ) : (
-         <div className="relative w-full h-full">
-           <button
-             onClick={() => router.back()}
-             className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
-           >
-             <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-               <path d="M15.75 19.5L8.25 12l7.5-7.5" />
-             </svg>
-           </button>
+      {/* HERO SECTION */}
+      <section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden">
+        {isPlaying && currentLink ? (
+          <VideoPlayer
+            key={currentLink}
+            slug={slug}
+            movieName={movie?.name || ""}
+            videoUrl={currentLink}
+            initialTime={initialTime}
+            currentEpIndex={currentEpIndex}
+            totalEpisodes={servers[activeServer]?.episodes?.length || 0}
+            onClose={() => setIsPlaying(false)}
+            onEnded={handleNextEpisode}
+            saveProgress={saveProgress}
+          />
+        ) : (
+          <div className="relative w-full h-full">
+            <button
+              onClick={() => router.back()}
+              className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
+            >
+              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
 
-           {(bannerSrc || posterSrc) && (
-             <div className="absolute inset-0 w-full h-full">
-               {posterSrc && (
-                 <div className="block md:hidden relative w-full h-full">
-                   <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
-                 </div>
-               )}
-               {bannerSrc && (
-                 <div className="hidden md:block relative w-full h-full">
-                   <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
-                 </div>
-               )}
-             </div>
-           )}
+            {(bannerSrc || posterSrc) && (
+              <div className="absolute inset-0 w-full h-full">
+                {posterSrc && (
+                  <div className="block md:hidden relative w-full h-full">
+                    <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
+                  </div>
+                )}
+                {bannerSrc && (
+                  <div className="hidden md:block relative w-full h-full">
+                    <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
+                  </div>
+                )}
+              </div>
+            )}
 
-           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-black/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-black/20 to-transparent" />
 
-           {/* THÔNG TIN PHIM */}
-           <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20">
-             <div className="max-w-2xl">
-               <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
-                 {movie?.name || "..."}
-               </h1>
+            {/* THÔNG TIN PHIM */}
+            <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20">
+              <div className="max-w-2xl">
+                <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                  {movie?.name || "..."}
+                </h1>
 
-               <div className="flex flex-wrap items-center gap-4 mb-6">
+                <div className="flex flex-wrap items-center gap-4 mb-4">
                   <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                     {movie?.quality || 'FHD'}
                   </span>
@@ -414,7 +404,6 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                     {movie?.year}
                   </span>
 
-                  {/* Hiển thị toàn bộ danh sách Audio/Server kèm số tập tương ứng */}
                   {servers && servers.length > 0 ? (
                     servers.map((s: any, idx: number) => {
                       const n = (s.server_name || "").toLowerCase();
@@ -446,39 +435,55 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                     )
                   )}
 
-                 {movie?.imdb_score && movie.imdb_score !== "N/A" && (
-                   <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
-                     <svg className="w-3.5 h-3.5 text-yellow-500 fill-current" viewBox="0 0 20 20">
-                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                     </svg>
-                     <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
-                   </div>
-                 )}
+                  {movie?.imdb_score && movie.imdb_score !== "N/A" && (
+                    <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
+                      <svg className="w-3.5 h-3.5 text-yellow-500 fill-current" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                      <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
+                    </div>
+                  )}
 
-                 <button
-                   onClick={toggleFavorite}
-                   title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
-                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 relative group ${
-                     isFavorite
-                       ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.2)]"
-                       : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:border-white/35 hover:text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
-                   }`}
-                 >
-                   <svg
-                     className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isFavorite ? 'fill-current filter drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'fill-none'}`}
-                     viewBox="0 0 24 24"
-                     stroke="currentColor"
-                     strokeWidth={isFavorite ? 0 : 2}
-                   >
-                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                   </svg>
-                 </button>
-                 </div>
+                  <button
+                    onClick={toggleFavorite}
+                    title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 relative group ${
+                      isFavorite
+                        ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.2)]"
+                        : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:border-white/35 hover:text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
+                    }`}
+                  >
+                    <svg
+                      className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isFavorite ? 'fill-current filter drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'fill-none'}`}
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={isFavorite ? 0 : 2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </button>
+                </div>
 
-               {description && (
-                 <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
-               )}
-             </div>
+                {/* HIỂN THỊ THỂ LOẠI (CATEGORIES) NẰM PHÍA TRÊN MÔ TẢ */}
+                {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    {movie.category.map((cat: any, idx: number) => (
+                      <Link
+                        key={idx}
+                        href={`/danh-sach/${cat.slug || toSlug(cat.name)}`}
+                        className="px-2.5 py-1 bg-white/10 hover:bg-red-600 text-white/80 hover:text-white text-[10px] font-bold uppercase rounded-md tracking-wider transition-all border border-white/5 backdrop-blur-sm"
+                      >
+                        {cat.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {description && (
+                  <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
+                )}
+              </div>
+            </div>
 
              {/* NÚT XEM NGAY */}
 
