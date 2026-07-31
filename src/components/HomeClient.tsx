@@ -315,7 +315,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
               }
               if (!movies || movies.length === 0) return null;
 
-              return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 15) };
+              return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 24) };
             });
 
             const results = await Promise.all(fetchPromises);
