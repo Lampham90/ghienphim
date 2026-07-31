@@ -385,7 +385,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
         </svg>
       </button>
 
-      {/* BANNER ẢNH (Hiển thị sạch sẽ không bị đè chữ) */}
+      {/* BANNER ẢNH */}
       <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
         {(bannerSrc || posterSrc) && (
           <div className="absolute inset-0 w-full h-full">
@@ -404,16 +404,14 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
       </div>
 
-      {/* KHỐI THÔNG TIN BÊN DƯỚI BANNER (Áp dụng layout tách biệt giống trang Home) */}
-      
-      {/* Desktop Info */}
-      <div className="hidden md:flex absolute bottom-12 left-20 z-20 flex-col justify-end text-left items-start pointer-events-auto">
-        <div className="max-w-2xl space-y-4">
+      {/* KHỐI THÔNG TIN BÊN DƯỚI BANNER - DESKTOP (Đã canh giữa toàn bộ cụm) */}
+      <div className="hidden md:flex absolute bottom-12 left-0 right-0 z-20 flex-col justify-end items-center text-center pointer-events-auto px-6">
+        <div className="max-w-2xl w-full flex flex-col items-center space-y-4">
           <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
             {movie?.name || "..."}
           </h1>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
              <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                {movie?.quality || 'FHD'}
              </span>
@@ -481,6 +479,13 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
             </button>
           </div>
 
+          {/* HÀNG THỂ LOẠI RIÊNG BIỆT (LẤY 2 THỂ LOẠI CHÍNH) */}
+          {Array.isArray(movie?.category) && movie.category.length > 0 && (
+            <div className="text-[#F1E5AC]/80 text-xs font-bold italic tracking-wide uppercase">
+              {movie.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+            </div>
+          )}
+
           {description && (
             <div className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
           )}
@@ -506,7 +511,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
         </div>
       </div>
 
-      {/* Mobile Info (Tách biệt hoàn toàn bên dưới banner, căn giữa chuẩn chỉnh) */}
+      {/* KHỐI THÔNG TIN BÊN DƯỚI BANNER - MOBILE */}
       <div className="flex md:hidden flex-col items-center text-center px-6 py-6 bg-black space-y-4">
         <h1 className="text-[28px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
           {movie?.name || "..."}
@@ -579,6 +584,13 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
             </svg>
           </button>
         </div>
+
+        {/* HÀNG THỂ LOẠI RIÊNG BIỆT - MOBILE */}
+        {Array.isArray(movie?.category) && movie.category.length > 0 && (
+          <div className="text-[#F1E5AC]/80 text-[11px] font-bold italic tracking-wide uppercase">
+            {movie.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+          </div>
+        )}
 
         {description && (
           <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-xl">
