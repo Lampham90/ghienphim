@@ -385,7 +385,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
         </svg>
       </button>
 
-      {/* BANNER ẢNH (Hiển thị sạch sẽ không bị đè chữ) */}
+      {/* BANNER ẢNH */}
       <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
         {(bannerSrc || posterSrc) && (
           <div className="absolute inset-0 w-full h-full">
@@ -404,7 +404,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
       </div>
 
-      {/* KHỐI THÔNG TIN BÊN DƯỚI BANNER (Áp dụng layout tách biệt giống trang Home) */}
+      {/* KHỐI THÔNG TIN BÊN DƯỚI BANNER */}
       
       {/* Desktop Info */}
       <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
@@ -479,35 +479,42 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
             </button>
-
-            {/* Nút Xem ngay được dịch lên đây và canh giữa trực diện theo yêu cầu */}
-            <div className="ml-4 flex items-center">
-              <button
-                disabled={!isHistoryLoaded || !currentLink}
-                onClick={() => setIsPlaying(true)}
-                className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
-              >
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <span>
-                  {!mounted || !lastWatchedEpNum
-                    ? "Xem ngay"
-                    : String(lastWatchedEpNum).toUpperCase() === "FULL"
-                      ? "Xem tiếp"
-                      : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
-                </span>
-              </button>
-            </div>
           </div>
+
+          {/* HÀNG THỂ LOẠI */}
+          {Array.isArray(movie?.category) && movie.category.length > 0 && (
+            <div className="text-[#F1E5AC]/80 text-xs font-bold italic tracking-wide uppercase">
+              {movie.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+            </div>
+          )}
 
           {description && (
             <div className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
           )}
+
+          {/* NÚT XEM NGAY NẰM DƯỚI DESCRIPT VÀ CANH GIỮA DƯỚI KHỐI DESCRIPT */}
+          <div className="pt-2 w-full max-w-xl flex justify-center">
+            <button
+              disabled={!isHistoryLoaded || !currentLink}
+              onClick={() => setIsPlaying(true)}
+              className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
+            >
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span>
+                {!mounted || !lastWatchedEpNum
+                  ? "Xem ngay"
+                  : String(lastWatchedEpNum).toUpperCase() === "FULL"
+                    ? "Xem tiếp"
+                    : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile Info (Tách biệt hoàn toàn bên dưới banner, căn giữa chuẩn chỉnh) */}
+      {/* Mobile Info */}
       <div className="flex md:hidden flex-col items-center text-center px-6 py-6 bg-black space-y-4">
         <h1 className="text-[28px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
           {movie?.name || "..."}
@@ -580,6 +587,13 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
             </svg>
           </button>
         </div>
+
+        {/* HÀNG THỂ LOẠI - MOBILE */}
+        {Array.isArray(movie?.category) && movie.category.length > 0 && (
+          <div className="text-[#F1E5AC]/80 text-[11px] font-bold italic tracking-wide uppercase">
+            {movie.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+          </div>
+        )}
 
         {description && (
           <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-xl">
