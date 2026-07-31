@@ -418,6 +418,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           const quality = m.quality || m.sub_type || 'FHD';
           const year = m.year;
           const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
+          
 
           return (
             <div 
