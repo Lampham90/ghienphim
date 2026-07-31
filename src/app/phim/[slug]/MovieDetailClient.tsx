@@ -357,22 +357,25 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
      ` }} />
 
      {/* HERO SECTION */}
-<section className="relative w-full h-[75vh] md:h-screen bg-black overflow-hidden">
+<section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
   {isPlaying && currentLink ? (
-    <VideoPlayer
-      key={currentLink}
-      slug={slug}
-      movieName={movie?.name || ""}
-      videoUrl={currentLink}
-      initialTime={initialTime}
-      currentEpIndex={currentEpIndex}
-      totalEpisodes={servers[activeServer]?.episodes?.length || 0}
-      onClose={() => setIsPlaying(false)}
-      onEnded={handleNextEpisode}
-      saveProgress={saveProgress}
-    />
+    <div className="relative w-full h-[75vh] md:h-screen">
+      <VideoPlayer
+        key={currentLink}
+        slug={slug}
+        movieName={movie?.name || ""}
+        videoUrl={currentLink}
+        initialTime={initialTime}
+        currentEpIndex={currentEpIndex}
+        totalEpisodes={servers[activeServer]?.episodes?.length || 0}
+        onClose={() => setIsPlaying(false)}
+        onEnded={handleNextEpisode}
+        saveProgress={saveProgress}
+      />
+    </div>
   ) : (
-    <div className="relative w-full h-full">
+    <div className="relative w-full">
+      {/* Nút quay lại */}
       <button
         onClick={() => router.back()}
         className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
@@ -382,31 +385,35 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
         </svg>
       </button>
 
-      {(bannerSrc || posterSrc) && (
-        <div className="absolute inset-0 w-full h-full">
-          {posterSrc && (
-            <div className="block md:hidden relative w-full h-full">
-              <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
-            </div>
-          )}
-          {bannerSrc && (
-            <div className="hidden md:block relative w-full h-full">
-              <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
-            </div>
-          )}
-        </div>
-      )}
+      {/* BANNER ẢNH (Hiển thị sạch sẽ không bị đè chữ) */}
+      <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
+        {(bannerSrc || posterSrc) && (
+          <div className="absolute inset-0 w-full h-full">
+            {posterSrc && (
+              <div className="block md:hidden relative w-full h-full">
+                <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
+              </div>
+            )}
+            {bannerSrc && (
+              <div className="hidden md:block relative w-full h-full">
+                <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: 'center 20%' }} />
+              </div>
+            )}
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
+      </div>
 
-      <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 via-black/20 to-transparent" />
-
-      {/* THÔNG TIN PHIM */}
-      <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-32 px-6 md:px-20 items-center md:items-start text-center md:text-left">
-        <div className="max-w-2xl w-full flex flex-col items-center md:items-start">
-          <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] mb-4 text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+      {/* KHỐI THÔNG TIN BÊN DƯỚI BANNER (Áp dụng layout tách biệt giống trang Home) */}
+      
+      {/* Desktop Info */}
+      <div className="hidden md:flex absolute bottom-12 left-20 z-20 flex-col justify-end text-left items-start pointer-events-auto">
+        <div className="max-w-2xl space-y-4">
+          <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
             {movie?.name || "..."}
           </h1>
 
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4">
              <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                {movie?.quality || 'FHD'}
              </span>
@@ -414,7 +421,6 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
                {movie?.year}
              </span>
 
-             {/* Hiển thị toàn bộ danh sách Audio/Server kèm số tập tương ứng */}
              {servers && servers.length > 0 ? (
                servers.map((s: any, idx: number) => {
                  const n = (s.server_name || "").toLowerCase();
@@ -476,16 +482,115 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
           </div>
 
           {description && (
-            <div className="text-white/60 text-[13px] md:text-[14px] font-medium mb-8 line-clamp-3 leading-relaxed max-w-xl italic text-center md:text-left" dangerouslySetInnerHTML={{ __html: description }} />
+            <div className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic" dangerouslySetInnerHTML={{ __html: description }} />
           )}
+
+          <div className="pt-2">
+            <button
+              disabled={!isHistoryLoaded || !currentLink}
+              onClick={() => setIsPlaying(true)}
+              className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
+            >
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span>
+                {!mounted || !lastWatchedEpNum
+                  ? "Xem ngay"
+                  : String(lastWatchedEpNum).toUpperCase() === "FULL"
+                    ? "Xem tiếp"
+                    : `Tiếp tục tập ${getOnlyNumber(lastWatchedEpNum)}`}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Info (Tách biệt hoàn toàn bên dưới banner, căn giữa chuẩn chỉnh) */}
+      <div className="flex md:hidden flex-col items-center text-center px-6 py-6 bg-black space-y-4">
+        <h1 className="text-[28px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
+          {movie?.name || "..."}
+        </h1>
+
+        <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] font-semibold">
+          <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
+            {movie?.quality || 'FHD'}
+          </span>
+          <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+            {movie?.year}
+          </span>
+
+          {servers && servers.length > 0 ? (
+            servers.map((s: any, idx: number) => {
+              const n = (s.server_name || "").toLowerCase();
+              let label = "P.Đề";
+              if (n.includes("lồng tiếng") || n.includes("lt")) label = "L.Tiếng";
+              else if (n.includes("thuyết minh") || n.includes("tm")) label = "T.Minh";
+
+              const currentEpsCount = s.episodes?.length || 0;
+              const totalStr = movie?.episode_total ? movie.episode_total.toString().replace(/[^0-9]/g, '') : '';
+              const epDisplay = totalStr ? `${currentEpsCount}/${totalStr} Tập` : `${currentEpsCount} Tập`;
+
+              return (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                  <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                    {label} {epDisplay}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            movie?.lang && (
+              <div className="flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                  {movie.lang}
+                </span>
+              </div>
+            )
+          )}
+
+          {movie?.imdb_score && movie.imdb_score !== "N/A" && (
+            <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-0.5 rounded-lg border border-yellow-500/20">
+              <svg className="w-3 h-3 text-yellow-500 fill-current" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              <span className="text-yellow-500 font-black italic text-xs leading-none mt-0.5">{movie.imdb_score}</span>
+            </div>
+          )}
+
+          <button
+            onClick={toggleFavorite}
+            title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border active:scale-90 ${
+              isFavorite
+                ? "bg-red-500/20 border-red-500/50 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]"
+                : "bg-white/5 border-white/20 text-white/60 hover:bg-white/15 hover:text-white"
+            }`}
+          >
+            <svg
+              className={`w-4 h-4 transition-transform duration-300 ${isFavorite ? 'fill-current' : 'fill-none'}`}
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={isFavorite ? 0 : 2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </button>
         </div>
 
-        {/* NÚT XEM NGAY */}
-        <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center pointer-events-auto z-30">
+        {description && (
+          <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-xl">
+            {description.replace(/<[^>]*>?/gm, '')}
+          </p>
+        )}
+
+        <div className="pt-2">
           <button
             disabled={!isHistoryLoaded || !currentLink}
             onClick={() => setIsPlaying(true)}
-            className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] flex items-center gap-3 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait"
+            className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest inline-flex items-center gap-2.5 enabled:hover:bg-red-600 enabled:hover:text-white disabled:opacity-50 disabled:cursor-wait shadow-[0_0_15px_rgba(220,38,38,0.2)]"
           >
             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
