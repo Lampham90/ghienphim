@@ -356,7 +356,7 @@ const tmdbInfo = movie?.tmdb || { id: movie?.tmdb_id, type: 'movie' };
        .scrollbar-hide::-webkit-scrollbar { display: none; }
      ` }} />
 
-     {/* HERO SECTION */}
+    {/* HERO SECTION */}
 <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
   {isPlaying && currentLink ? (
     <div className="relative w-full h-[75vh] md:h-screen">
