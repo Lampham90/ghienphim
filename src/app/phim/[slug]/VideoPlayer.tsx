@@ -4,6 +4,59 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Hls from "hls.js";
 import { filterSmartByBlock } from "./hls-filter";
 
+const WORKER = "https://sv3.3ks.workers.dev/";
+
+/**
+ * Hàm bóc tách link .m3u9 từ URL Embed NguonC
+ * @param embedUrl Đường dẫn Embed (ví dụ: https://embed18.streamc.xyz/v/xyz)
+ * @returns Link .m3u9 trực tiếp hoặc null nếu không bóc được
+ */
+export const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
+  try {
+    // 1. Gọi qua Worker để lấy toàn bộ HTML của trang Embed (Bypass CORS)
+    const embedRes = await fetch(`${WORKER}?url=${encodeURIComponent(embedUrl)}`);
+    if (!embedRes.ok) return null;
+
+    const htmlText = await embedRes.text();
+    const domainHeader = new URL(embedUrl).origin;
+
+    // 2. Dùng Regex quét tìm thuộc tính data-obf trong HTML
+    let match = htmlText.match(/data-obf\s*=\s*(["'])(.*?)\1/i) ||
+                htmlText.match(/data-obf\s*=\s*([^\s>]+)/i);
+
+    if (match && (match[2] || match[1])) {
+      const rawDataObf = match[2] || match[1];
+
+      // 3. Giải mã Chuỗi Base64 bằng atob()
+      const decodedRaw = atob(rawDataObf);
+      let decodedSub = decodedRaw;
+
+      // 4. Nếu kết quả giải mã là 1 JSON Object thì bóc lấy trường 'sUb'
+      try {
+        const jsonObj = JSON.parse(decodedRaw);
+        if (jsonObj && jsonObj.sUb) {
+          decodedSub = jsonObj.sUb;
+        }
+      } catch (e) {
+        // Nếu không phải JSON thì giữ nguyên chuỗi string vừa decode
+      }
+
+      // 5. Làm sạch path (xóa đuôi /hd, .m3u9 hoặc dấu / ở đầu nếu bị trùng)
+      decodedSub = decodedSub
+        .replace(/\/hd$/i, '')
+        .replace(/\.m3u9$/i, '')
+        .replace(/^\//, '');
+
+      // 6. Trả về URL .m3u9 hoàn chỉnh
+      return `${domainHeader}/${decodedSub}.m3u9`;
+    }
+  } catch (e) {
+    console.error("[NguonC Resolver] Lỗi bóc tách:", e);
+  }
+
+  return null;
+};
+
 interface VideoPlayerProps {
   slug: string;
   movieName: string;
@@ -423,98 +476,114 @@ export default function VideoPlayer({
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
 
-  // HLS CORE INTEGRATION
+  // HLS CORE INTEGRATION (TÍCH HỢP BÓC TÁCH LINK NGUONC EMBED)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    let isCancelled = false;
+
     setShowControls(true);
     setInteractionTime(Date.now());
 
-    if (Hls.isSupported()) {
-      // 🎯 Custom loader: chạy filterSmartByBlock lên nội dung manifest/level
-      // để lọc các block quảng cáo trước khi đưa vào hls.js (hàm này vốn đã
-      // có sẵn trong project nhưng chưa được gắn vào đâu cả).
-      class AdFilterLoader extends Hls.DefaultConfig.loader {
-        load(context: any, config: any, callbacks: any) {
-          const isPlaylist = context.type === 'manifest' || context.type === 'level';
-          if (isPlaylist) {
-            const originalOnSuccess = callbacks.onSuccess;
-            callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
-              if (response && typeof response.data === 'string') {
-                try {
-                  response.data = filterSmartByBlock(ctx.url, response.data);
-                } catch (e) {
-                  console.warn('Ad-filter error:', e);
-                }
-              }
-              originalOnSuccess(response, stats, ctx, networkDetails);
-            };
-          }
-          super.load(context, config, callbacks);
+    const setupPlayer = async () => {
+      let targetUrl = videoUrl;
+
+      // Kiểm tra nếu videoUrl truyền vào là dạng link Embed NguonC thì tiến hành giải mã lấy link .m3u9 trực tiếp
+      if (videoUrl.includes('/v/') || videoUrl.includes('embed') || !videoUrl.includes('.m3u')) {
+        const resolved = await resolveNguoncLink(videoUrl);
+        if (resolved) {
+          targetUrl = resolved;
         }
       }
 
-      const hls = new Hls({
-        maxBufferSize: 30 * 1000 * 1000,
-        maxBufferLength: 30,
-        enableWorker: true,
-        lowLatencyMode: true,
-        loader: AdFilterLoader,
-      });
-      hlsRef.current = hls;
+      if (isCancelled) return;
 
-      hls.loadSource(videoUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, async (_, data) => {
-        if (data.levels && data.levels.length > 0) {
-          const defaultLvl = data.levels[0];
-          setVideoRes(`${defaultLvl.width}x${defaultLvl.height}`);
-        }
-        if (initialTime > 0) {
-          video.currentTime = initialTime;
-        }
-        // ✅ Bê nguyên logic fullscreen + xoay ngang từ code 2 sang:
-        // Android/Chrome (hls.js) tự động fullscreen khi đang ở màn hình nhỏ
-        if (window.innerWidth < 1024 && !document.fullscreenElement) {
-          await toggleFullscreen(true);
-        }
-        video.play().catch(e => console.warn("Auto-play blocked:", e));
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-        const currentLevel = hls.levels[data.level];
-        if (currentLevel) {
-          setVideoRes(`${currentLevel.width}x${currentLevel.height}`);
-        }
-      });
-
-      hls.on(Hls.Events.ERROR, (_, errData) => {
-        if (errData.fatal) {
-          switch (errData.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              break;
+      if (Hls.isSupported()) {
+        // 🎯 Custom loader: chạy filterSmartByBlock lên nội dung manifest/level
+        // để lọc các block quảng cáo trước khi đưa vào hls.js
+        class AdFilterLoader extends Hls.DefaultConfig.loader {
+          load(context: any, config: any, callbacks: any) {
+            const isPlaylist = context.type === 'manifest' || context.type === 'level';
+            if (isPlaylist) {
+              const originalOnSuccess = callbacks.onSuccess;
+              callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
+                if (response && typeof response.data === 'string') {
+                  try {
+                    response.data = filterSmartByBlock(ctx.url, response.data);
+                  } catch (e) {
+                    console.warn('Ad-filter error:', e);
+                  }
+                }
+                originalOnSuccess(response, stats, ctx, networkDetails);
+              };
+            }
+            super.load(context, config, callbacks);
           }
         }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // iOS Safari (native HLS) — video vẫn phát bình thường,
-      // KHÔNG tự fullscreen/xoay ngang (giữ nguyên như code 1 gốc).
-      video.src = videoUrl;
-      video.addEventListener('loadedmetadata', () => {
-        if (initialTime > 0) video.currentTime = initialTime;
-        video.play().catch(e => console.warn("Auto-play blocked native:", e));
-      });
-    }
+
+        const hls = new Hls({
+          maxBufferSize: 30 * 1000 * 1000,
+          maxBufferLength: 30,
+          enableWorker: true,
+          lowLatencyMode: true,
+          loader: AdFilterLoader,
+        });
+        hlsRef.current = hls;
+
+        hls.loadSource(targetUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, async (_, data) => {
+          if (data.levels && data.levels.length > 0) {
+            const defaultLvl = data.levels[0];
+            setVideoRes(`${defaultLvl.width}x${defaultLvl.height}`);
+          }
+          if (initialTime > 0) {
+            video.currentTime = initialTime;
+          }
+          // Android/Chrome (hls.js) tự động fullscreen khi đang ở màn hình nhỏ
+          if (window.innerWidth < 1024 && !document.fullscreenElement) {
+            await toggleFullscreen(true);
+          }
+          video.play().catch(e => console.warn("Auto-play blocked:", e));
+        });
+
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+          const currentLevel = hls.levels[data.level];
+          if (currentLevel) {
+            setVideoRes(`${currentLevel.width}x${currentLevel.height}`);
+          }
+        });
+
+        hls.on(Hls.Events.ERROR, (_, errData) => {
+          if (errData.fatal) {
+            switch (errData.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                break;
+            }
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // iOS Safari (native HLS)
+        video.src = targetUrl;
+        video.addEventListener('loadedmetadata', () => {
+          if (initialTime > 0) video.currentTime = initialTime;
+          video.play().catch(e => console.warn("Auto-play blocked native:", e));
+        });
+      }
+    };
+
+    setupPlayer();
 
     return () => {
+      isCancelled = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
