@@ -4,59 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Hls from "hls.js";
 import { filterSmartByBlock } from "./hls-filter";
 
-const WORKER = "https://sv3.3ks.workers.dev/";
-
-/**
- * Hàm bóc tách link .m3u9 từ URL Embed NguonC
- * @param embedUrl Đường dẫn Embed (ví dụ: https://embed18.streamc.xyz/v/xyz)
- * @returns Link .m3u9 trực tiếp hoặc null nếu không bóc được
- */
-export const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
-  try {
-    // 1. Gọi qua Worker để lấy toàn bộ HTML của trang Embed (Bypass CORS)
-    const embedRes = await fetch(`${WORKER}?url=${encodeURIComponent(embedUrl)}`);
-    if (!embedRes.ok) return null;
-
-    const htmlText = await embedRes.text();
-    const domainHeader = new URL(embedUrl).origin;
-
-    // 2. Dùng Regex quét tìm thuộc tính data-obf trong HTML
-    let match = htmlText.match(/data-obf\s*=\s*(["'])(.*?)\1/i) ||
-                htmlText.match(/data-obf\s*=\s*([^\s>]+)/i);
-
-    if (match && (match[2] || match[1])) {
-      const rawDataObf = match[2] || match[1];
-
-      // 3. Giải mã Chuỗi Base64 bằng atob()
-      const decodedRaw = atob(rawDataObf);
-      let decodedSub = decodedRaw;
-
-      // 4. Nếu kết quả giải mã là 1 JSON Object thì bóc lấy trường 'sUb'
-      try {
-        const jsonObj = JSON.parse(decodedRaw);
-        if (jsonObj && jsonObj.sUb) {
-          decodedSub = jsonObj.sUb;
-        }
-      } catch (e) {
-        // Nếu không phải JSON thì giữ nguyên chuỗi string vừa decode
-      }
-
-      // 5. Làm sạch path (xóa đuôi /hd, .m3u9 hoặc dấu / ở đầu nếu bị trùng)
-      decodedSub = decodedSub
-        .replace(/\/hd$/i, '')
-        .replace(/\.m3u9$/i, '')
-        .replace(/^\//, '');
-
-      // 6. Trả về URL .m3u9 hoàn chỉnh
-      return `${domainHeader}/${decodedSub}.m3u9`;
-    }
-  } catch (e) {
-    console.error("[NguonC Resolver] Lỗi bóc tách:", e);
-  }
-
-  return null;
-};
-
 interface VideoPlayerProps {
   slug: string;
   movieName: string;
@@ -68,6 +15,8 @@ interface VideoPlayerProps {
   onEnded: (nextIndex?: number) => void;
   saveProgress: (epIndex: number, seconds: number, duration: number, shouldSync?: boolean) => void;
 }
+
+const WORKER = "https://sv3.3ks.workers.dev/";
 
 const formatTime = (seconds: number) => {
   const totalSeconds = Math.floor(seconds);
@@ -98,6 +47,10 @@ export default function VideoPlayer({
   const [videoRes, setVideoRes] = useState("0x0");
   const [currentPos, setCurrentPos] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
+
+  // States quản lý Bóc Tách & Lỗi
+  const [isResolving, setIsResolving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // KHỞI TẠO STATE ÂM LƯỢNG AN TOÀN
   const [volume, setVolume] = useState<number>(() => {
@@ -139,18 +92,14 @@ export default function VideoPlayer({
 
   const [showNextNotify, setShowNextNotify] = useState(false);
   const [countdown, setCountdown] = useState(10);
-  // Khởi tạo true vì video chưa kịp play() (đang load/buffer) -> tránh đếm ngược 3s ẩn quá sớm
   const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const lastSavedTimeRef = useRef<number>(0);
   const isDraggingRef = useRef(false);
   const isDraggingVolumeRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [seekFeedback, setSeekFeedback] = useState<'forward' | 'backward' | null>(null);
 
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTapRef = useRef({ time: 0, side: '' });
-  const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const toggleFullscreen = useCallback(async (forceEnter?: boolean) => {
     const container = containerRef.current;
@@ -210,7 +159,6 @@ export default function VideoPlayer({
     setVolume(vol);
     localStorage.setItem('video_player_volume', vol.toString());
 
-    // Áp dụng độ lợi âm thanh theo hàm mũ để nghe tự nhiên hơn
     video.volume = Math.pow(vol, 2);
 
     if (vol > 0) {
@@ -223,17 +171,6 @@ export default function VideoPlayer({
       video.muted = true;
     }
   }, []);
-
-  const handleVolumeClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // ✅ MOBILE: Nhấn icon loa để hiện/ẩn thanh kéo volume
-    if (window.innerWidth < 1024) {
-      setShowVolumeBar(!showVolumeBar);
-    } else {
-      // ✅ PC: Nhấn icon loa để Mute/Unmute
-      toggleMute();
-    }
-  };
 
   const togglePlay = useCallback(async () => {
     if (!videoRef.current) return;
@@ -275,7 +212,7 @@ export default function VideoPlayer({
     }
   }, [currentEpIndex, totalEpisodes, onEnded, saveProgress]);
 
-  // THE DECLARATIVE AUTO-HIDE CONTROLS ENGINE WITH INTERACTION TIME
+  // AUTO-HIDE CONTROLS ENGINE
   const [interactionTime, setInteractionTime] = useState(0);
 
   const handleMouseMove = useCallback(() => {
@@ -284,26 +221,21 @@ export default function VideoPlayer({
   }, []);
 
   const toggleControls = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    // Không cho nổi bọt lên các lớp trên
     e.stopPropagation();
-
     setShowControls(prev => !prev);
     setInteractionTime(Date.now());
   }, []);
 
   useEffect(() => {
-    // Luôn dọn dẹp timer cũ trước khi tạo cái mới
     if (controlsTimerRef.current) {
       clearTimeout(controlsTimerRef.current);
       controlsTimerRef.current = null;
     }
 
-    // Nếu đang Pause, đang kéo thanh trượt, hoặc controls đang ẩn -> KHÔNG chạy timer ẩn
     if (isPaused || isDragging || isDraggingVolume || !showControls) {
       return;
     }
 
-    // Chỉ khi đang PLAY và không có tương tác, tự động ẩn sau 3s
     controlsTimerRef.current = setTimeout(() => {
       setShowControls(false);
     }, 3000);
@@ -318,7 +250,6 @@ export default function VideoPlayer({
     const container = containerRef.current;
     if (!video) return;
 
-    // 1. Định nghĩa các hàm có tên để remove chuẩn xác
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.code) {
@@ -329,7 +260,6 @@ export default function VideoPlayer({
     };
 
     const handleVideoTouch = (e: TouchEvent) => {
-      // 📱 Fix Mobile: Nếu chạm vào nút thì không ẩn/hiện menu
       const target = e.target as HTMLElement;
       if (target.closest('.player-controls')) return;
 
@@ -361,7 +291,6 @@ export default function VideoPlayer({
       const currentSeconds = isFinite(v.currentTime) ? v.currentTime : 0;
       const durationSeconds = isFinite(v.duration) ? v.duration : 0;
 
-      // Save progress 30s một lần
       const currentSec = Math.floor(currentSeconds);
       if (currentSec > 0 && (currentSec % 30 === 0 || Math.abs(currentSec - lastSavedTimeRef.current) > 5) && lastSavedTimeRef.current !== currentSec) {
         lastSavedTimeRef.current = currentSec;
@@ -370,7 +299,6 @@ export default function VideoPlayer({
         }
       }
 
-      // Thông báo tập tiếp theo
       const remaining = video.duration - video.currentTime;
       if (remaining <= 30 && remaining > 20 && video.duration > 60) {
         if (!showNextNotify) setShowNextNotify(true);
@@ -382,7 +310,6 @@ export default function VideoPlayer({
       }
     };
 
-    // 2. Đăng ký sự kiện (Add)
     window.addEventListener("keydown", handleKeyDown);
     video.addEventListener("touchstart", handleVideoTouch);
     video.addEventListener("play", handlePlayPauseStatus);
@@ -405,7 +332,6 @@ export default function VideoPlayer({
       onEnded(nextIndex < totalEpisodes ? nextIndex : undefined);
     };
 
-    // 3. Xóa sự kiện (Cleanup)
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       video.removeEventListener("touchstart", handleVideoTouch);
@@ -465,7 +391,6 @@ export default function VideoPlayer({
     };
   }, [currentEpIndex, saveProgress, handleSaveOnQuit]);
 
-  // COUNTDOWN EFFECT CHO TẬP TIẾP THEO
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (showNextNotify && countdown > 0) {
@@ -476,356 +401,400 @@ export default function VideoPlayer({
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
 
-  // HLS CORE INTEGRATION (GẮN LINK BÓC TÁCH M3U9 TRỰC TIẾP VÀO HLS PLAYER)
+  // --- 1. HÀM BÓC TÁCH LINK M3U9 TỪ TRANG EMBED (CHUẨN) ---
+  const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
+    try {
+      setIsResolving(true);
+      setErrorMessage(null);
+
+      const embedRes = await fetch(`${WORKER}?url=${encodeURIComponent(embedUrl)}`);
+      if (!embedRes.ok) return null;
+      const htmlText = await embedRes.text();
+
+      const urlObj = new URL(embedUrl);
+      const domainHeader = urlObj.origin;
+
+      let match = htmlText.match(/data-obf\s*=\s*(["'])(.*?)\1/i) || htmlText.match(/data-obf\s*=\s*([^\s>]+)/i);
+
+      if (match && (match[2] || match[1])) {
+        const rawDataObf = match[2] || match[1];
+        const decodedRaw = atob(rawDataObf);
+        let decodedSub = decodedRaw;
+
+        try {
+          const jsonObj = JSON.parse(decodedRaw);
+          if (jsonObj && jsonObj.sUb) {
+            decodedSub = jsonObj.sUb;
+          }
+        } catch (e) {}
+
+        decodedSub = decodedSub.replace(/\/hd$/i, '').replace(/\.m3u9$/i, '').replace(/^\//, '');
+
+        return `${domainHeader}/${decodedSub}.m3u9`;
+      }
+    } catch (e) {
+      console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
+    } finally {
+      setIsResolving(false);
+    }
+    return null;
+  };
+
+  // --- 2. LUỒNG KHỞI TẠO PLAYER VÀ CUSTOM HLS LOADER (CHUẨN) ---
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    setErrorMessage(null);
 
-    let isCancelled = false;
+    const startPlayer = async () => {
+      let directLink = videoUrl;
+      const isNguoncStream = videoUrl.includes('streamc.xyz') || videoUrl.includes('nguonc.com') || videoUrl.includes('/v/') || videoUrl.includes('embed');
 
-    setShowControls(true);
-    setInteractionTime(Date.now());
-
-    const setupPlayer = async () => {
-      let finalStreamUrl = videoUrl;
-
-      // 1. Kiểm tra nếu videoUrl là link Embed NguonC thì bóc tách lấy link .m3u9 trực tiếp
-      if (videoUrl.includes('/v/') || videoUrl.includes('embed') || !videoUrl.includes('.m3u')) {
-        const resolvedM3u9 = await resolveNguoncLink(videoUrl);
-        if (resolvedM3u9) {
-          // Gắn link .m3u9 bóc tách được qua Worker để Bypass CORS cho HLS
-          finalStreamUrl = `${WORKER}?url=${encodeURIComponent(resolvedM3u9)}`;
+      if (isNguoncStream) {
+        const resolved = await resolveNguoncLink(videoUrl);
+        if (resolved) {
+          directLink = resolved;
         } else {
-          // Fallback dùng Worker trên link Embed gốc nếu bóc tách lỗi
-          finalStreamUrl = `${WORKER}?url=${encodeURIComponent(videoUrl)}`;
+          setErrorMessage("Không thể bóc tách luồng m3u9 từ trang Embed.");
+          return;
         }
-      } else if (!videoUrl.startsWith('blob:') && !videoUrl.includes('workers.dev')) {
-        // 2. Nếu đã là link direct .m3u8/.m3u9 thì đưa qua Worker
-        finalStreamUrl = `${WORKER}?url=${encodeURIComponent(videoUrl)}`;
       }
 
-      if (isCancelled) return;
+      if (!video) return;
 
       if (Hls.isSupported()) {
-        // Custom loader lọc quảng cáo manifest
-        class AdFilterLoader extends Hls.DefaultConfig.loader {
-          load(context: any, config: any, callbacks: any) {
-            const isPlaylist = context.type === 'manifest' || context.type === 'level';
-            if (isPlaylist) {
-              const originalOnSuccess = callbacks.onSuccess;
-              callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
-                if (response && typeof response.data === 'string') {
-                  try {
-                    response.data = filterSmartByBlock(ctx.url, response.data);
-                  } catch (e) {
-                    console.warn('Ad-filter error:', e);
-                  }
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+        }
+
+        class CustomHlsLoader extends Hls.DefaultConfig.loader {
+          constructor(config: any) {
+            super(config);
+            const load = this.load.bind(this);
+
+            this.load = function (context: any, config: any, callbacks: any) {
+              let targetUrl = context.url;
+
+              if (isNguoncStream) {
+                // Đảm bảo URL tuyệt đối
+                if (!targetUrl.startsWith('http')) {
+                  targetUrl = new URL(targetUrl, directLink).href;
                 }
-                originalOnSuccess(response, stats, ctx, networkDetails);
-              };
-            }
-            super.load(context, config, callbacks);
+
+                const originHeader = new URL(videoUrl).origin;
+
+                // Bọc qua Worker để bypass Referer restriction của CDN
+                if (!targetUrl.startsWith(WORKER)) {
+                  context.url = `${WORKER}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
+                }
+              }
+
+              // Lọc Quảng cáo trong Playlist
+              if (context.type === 'manifest' || context.type === 'level') {
+                const originalOnSuccess = callbacks.onSuccess;
+                callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
+                  if (response && typeof response.data === 'string') {
+                    try {
+                      response.data = filterSmartByBlock(ctx.url, response.data);
+                    } catch (e) {}
+                  }
+                  originalOnSuccess(response, stats, ctx, networkDetails);
+                };
+              }
+
+              load(context, config, callbacks);
+            };
           }
         }
 
         const hls = new Hls({
           maxBufferSize: 30 * 1000 * 1000,
-          maxBufferLength: 30,
-          enableWorker: true,
-          lowLatencyMode: true,
-          loader: AdFilterLoader,
+          loader: CustomHlsLoader
         });
-        hlsRef.current = hls;
 
-        hls.loadSource(finalStreamUrl);
+        hlsRef.current = hls;
+        hls.loadSource(directLink);
         hls.attachMedia(video);
 
-        hls.on(Hls.Events.MANIFEST_PARSED, async (_, data) => {
-          if (data.levels && data.levels.length > 0) {
-            const defaultLvl = data.levels[0];
-            setVideoRes(`${defaultLvl.width}x${defaultLvl.height}`);
-          }
-          if (initialTime > 0) {
-            video.currentTime = initialTime;
-          }
+        hls.on(Hls.Events.MANIFEST_PARSED, async () => {
+          if (initialTime > 0) video.currentTime = initialTime;
           if (window.innerWidth < 1024 && !document.fullscreenElement) {
             await toggleFullscreen(true);
           }
-          video.play().catch(e => console.warn("Auto-play blocked:", e));
+          video.play().catch(() => {});
         });
 
-        hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-          const currentLevel = hls.levels[data.level];
-          if (currentLevel) {
-            setVideoRes(`${currentLevel.width}x${currentLevel.height}`);
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.error("[VideoPlayer] Fatal HLS error:", data);
+            setErrorMessage("Lỗi tải luồng video HLS.");
           }
         });
 
-        hls.on(Hls.Events.ERROR, (_, errData) => {
-          if (errData.fatal) {
-            switch (errData.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                hls.recoverMediaError();
-                break;
-              default:
-                break;
-            }
-          }
-        });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari (native HLS)
-        video.src = finalStreamUrl;
+        // Safari iOS / MacOS
+        const originHeader = new URL(videoUrl).origin;
+        const finalSrc = `${WORKER}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
+
+        video.src = finalSrc;
         video.addEventListener('loadedmetadata', () => {
           if (initialTime > 0) video.currentTime = initialTime;
-          video.play().catch(e => console.warn("Auto-play blocked native:", e));
+          video.play().catch(() => {});
         });
       }
     };
 
-    setupPlayer();
+    startPlayer();
 
     return () => {
-      isCancelled = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      const currentVideo = videoRef.current;
-      if (currentVideo) {
-        currentVideo.pause();
-        currentVideo.removeAttribute('src');
-      }
     };
-  }, [videoUrl, slug, toggleFullscreen, initialTime]);
+  }, [videoUrl, initialTime, toggleFullscreen]);
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full bg-black group overflow-hidden ${(!showControls && !isPaused) ? 'cursor-none' : ''}`}
+      className={`relative w-full h-full bg-black group overflow-hidden flex items-center justify-center ${(!showControls && !isPaused) ? 'cursor-none' : ''}`}
     >
-      <video
-        ref={videoRef}
-        playsInline
-        className={`w-full h-full ${videoFit === 'contain' ? 'object-contain' : videoFit === 'cover' ? 'object-cover' : 'object-fill'}`}
-        onClick={handleMouseMove}
-      />
+      {/* ⏳ MÀN HÌNH ĐỜI BÓC TÁCH LINK */}
+      {isResolving && (
+        <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white">
+          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-xs font-black uppercase italic tracking-widest">Đang bóc tách luồng m3u9...</p>
+        </div>
+      )}
 
-      {/* Overlay điều khiển */}
-      <div
-        onClick={toggleControls}
-        className={`absolute inset-0 z-20 bg-gradient-to-t from-black/90 via-transparent to-black/40 transition-opacity duration-500 ${showControls || isPaused ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-      >
-        <div
-          className="player-controls absolute inset-0 flex flex-col justify-between p-4 md:p-6"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Top Info */}
-          <div className="flex justify-between items-start">
-            <h3 className="text-xs md:text-lg font-black uppercase italic tracking-tighter text-white/90 truncate pr-4 flex-1 mr-4">
-              {movieName}{totalEpisodes > 1 ? ` - Tập ${currentEpIndex + 1}` : ""}
-            </h3>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSaveOnQuit(true);
-                onClose();
-              }}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors relative z-[160]"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
+      {/* ⚠️ THÔNG BÁO LỖI NẾU KHÔNG BÓC ĐƯỢC LINK */}
+      {errorMessage ? (
+        <div className="text-red-500 font-semibold p-4 text-center z-[100]">
+          <p>{errorMessage}</p>
+        </div>
+      ) : (
+        <>
+          <video
+            ref={videoRef}
+            playsInline
+            className={`w-full h-full ${videoFit === 'contain' ? 'object-contain' : videoFit === 'cover' ? 'object-cover' : 'object-fill'}`}
+            onClick={handleMouseMove}
+          />
 
-          {/* Điều khiển trung tâm */}
-          <div className="absolute inset-0 flex items-center justify-center gap-10 md:gap-24 pointer-events-none">
-            <button
-              onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10); }}
-              className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/5 backdrop-blur-md border border-white/20 hover:bg-white/15 hover:border-white/35 active:scale-90 transition-all pointer-events-auto flex items-center justify-center relative group/btn shadow-[0_8px_32px_0_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.15)]"
-            >
-              <svg className="absolute w-full h-full text-white/80 group-hover/btn:text-white transition-colors" viewBox="0 0 100 100">
-                <path d="M50 22 A 28 28 0 1 0 78 50" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round"/>
-                <path d="M46 12 L62 22 L46 32" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-white text-sm md:text-lg font-black relative z-10 mt-1.5 ml-0.5">10</span>
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); togglePlay(); }}
-              className="w-20 h-20 rounded-full bg-red-500/20 backdrop-blur-md border-2 border-red-500/50 hover:bg-red-500/35 hover:border-red-500/70 active:scale-95 transition-all pointer-events-auto flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.35),inset_0_2px_4px_rgba(255,255,255,0.4)] relative z-10"
-            >
-              {isPaused ? (
-                <svg className="w-10 h-10 text-white fill-current ml-1 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              ) : (
-                <svg className="w-10 h-10 text-white fill-current filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" viewBox="0 0 24 24">
-                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                </svg>
-              )}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 10); }}
-              className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/5 backdrop-blur-md border border-white/20 hover:bg-white/15 hover:border-white/35 active:scale-90 transition-all pointer-events-auto flex items-center justify-center relative group/btn shadow-[0_8px_32px_0_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.15)]"
-            >
-              <svg className="absolute w-full h-full text-white/80 group-hover/btn:text-white transition-colors" viewBox="0 0 100 100">
-                <path d="M50 22 A 28 28 0 1 1 22 50" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round"/>
-                <path d="M54 12 L38 22 L54 32" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-white text-sm md:text-lg font-black relative z-10 mt-1.5 mr-0.5">10</span>
-            </button>
-          </div>
-
-          {/* Bottom controls area */}
+          {/* Overlay điều khiển */}
           <div
-            className="flex flex-col gap-3 relative z-[160]"
-            onClick={(e) => e.stopPropagation()}
+            onClick={toggleControls}
+            className={`absolute inset-0 z-20 bg-gradient-to-t from-black/90 via-transparent to-black/40 transition-opacity duration-500 ${showControls || isPaused ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           >
-            {/* Progress bar */}
             <div
-              className="w-full h-8 cursor-pointer group/progress flex items-center touch-none relative z-[170]"
-              style={{ touchAction: 'none' }}
-              onPointerDown={(e) => {
-                setIsDragging(true);
-                isDraggingRef.current = true;
-                (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-                handleSeek(e, false);
-              }}
-              onPointerMove={(e) => { if (isDraggingRef.current) handleSeek(e, false); }}
-              onPointerUp={(e) => {
-                setIsDragging(false);
-                isDraggingRef.current = false;
-                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
-                handleSeek(e, true);
-              }}
+              className="player-controls absolute inset-0 flex flex-col justify-between p-4 md:p-6"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className={`w-full bg-white/20 rounded-full relative ${isDragging ? 'h-[6px]' : 'h-[3px] group-hover/progress:h-[6px]'} transition-all`}>
-                <div
-                  className="absolute top-0 left-0 h-full bg-red-600 rounded-full pointer-events-none"
-                  style={{
-                    width: `${totalDuration > 0 ? (currentPos / totalDuration) * 100 : 0}%`,
-                    transition: isDragging ? 'none' : 'width 0.1s linear'
-                  }}
-                >
-                  <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-red-600 rounded-full translate-x-1/2 shadow-[0_0_10px_rgba(229,9,20,0.8)] transition-transform ${isDragging ? 'scale-110' : 'scale-0 group-hover/progress:scale-100'}`} />
-                </div>
-              </div>
-            </div>
-
-            {/* Row nút bấm và thời gian */}
-            <div className="flex items-center gap-6 pb-2">
-              <div className="text-[11px] font-bold font-mono tracking-widest text-white/80">
-                {formatTime(currentPos)} <span className="text-white/20 mx-1">/</span> {formatTime(totalDuration)}
-              </div>
-
-              <div className="flex-1" />
-
-              {/* Nút tập tiếp theo */}
-              {currentEpIndex + 1 < totalEpisodes && (
+              {/* Top Info */}
+              <div className="flex justify-between items-start">
+                <h3 className="text-xs md:text-lg font-black uppercase italic tracking-tighter text-white/90 truncate pr-4 flex-1 mr-4">
+                  {movieName}{totalEpisodes > 1 ? ` - Tập ${currentEpIndex + 1}` : ""}
+                </h3>
                 <button
-                  onClick={handleNextEpisode}
-                  className="text-white hover:text-red-600 transition-colors flex items-center justify-center p-1 group/next-btn relative"
-                  title="Tập tiếp theo"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSaveOnQuit(true);
+                    onClose();
+                  }}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors relative z-[160]"
                 >
-                  <svg className="w-7 h-7 fill-current" viewBox="0 0 24 24">
-                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-                  </svg>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-              )}
+              </div>
 
-              {/* Âm lượng nằm ngang */}
-              <div
-                className="flex items-center group/volume h-8"
-                onMouseEnter={() => setShowVolumeBar(true)}
-                onMouseLeave={() => setShowVolumeBar(false)}
-              >
-                <button onClick={toggleMute} className="text-white hover:text-red-600 transition-colors relative z-10">
-                  {(isMuted || volume === 0) ? (
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                  ) : volume < 0.5 ? (
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15.536 8.464a5 5 0 010 7.072M12 18.364l-4.707-4.707H4a1 1 0 01-1-1v-4a1 1 0 011-1h3.293L12 2.91V18.36z" /></svg>
+              {/* Điều khiển trung tâm */}
+              <div className="absolute inset-0 flex items-center justify-center gap-10 md:gap-24 pointer-events-none">
+                <button
+                  onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10); }}
+                  className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/5 backdrop-blur-md border border-white/20 hover:bg-white/15 hover:border-white/35 active:scale-90 transition-all pointer-events-auto flex items-center justify-center relative group/btn shadow-[0_8px_32px_0_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.15)]"
+                >
+                  <svg className="absolute w-full h-full text-white/80 group-hover/btn:text-white transition-colors" viewBox="0 0 100 100">
+                    <path d="M50 22 A 28 28 0 1 0 78 50" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round"/>
+                    <path d="M46 12 L62 22 L46 32" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-white text-sm md:text-lg font-black relative z-10 mt-1.5 ml-0.5">10</span>
+                </button>
+
+                <button
+                  onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+                  className="w-20 h-20 rounded-full bg-red-500/20 backdrop-blur-md border-2 border-red-500/50 hover:bg-red-500/35 hover:border-red-500/70 active:scale-95 transition-all pointer-events-auto flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.35),inset_0_2px_4px_rgba(255,255,255,0.4)] relative z-10"
+                >
+                  {isPaused ? (
+                    <svg className="w-10 h-10 text-white fill-current ml-1 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
                   ) : (
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.364l-4.707-4.707H4a1 1 0 01-1-1v-4a1 1 0 011-1h3.293L12 2.91V18.36z" /></svg>
+                    <svg className="w-10 h-10 text-white fill-current filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" viewBox="0 0 24 24">
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                    </svg>
                   )}
                 </button>
 
-                <div className={`overflow-hidden transition-all duration-300 flex items-center ${showVolumeBar ? 'w-44 ml-3 opacity-100' : 'w-0 opacity-0'}`}>
-                  <div
-                    className="relative w-24 h-1.5 bg-white/20 rounded-full cursor-pointer group/v-slider"
-                    onPointerDown={(e) => {
-                      setIsDraggingVolume(true);
-                      isDraggingVolumeRef.current = true;
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const update = (clientX: number) => {
-                        const offsetX = clientX - rect.left;
-                        handleVolumeChange(offsetX / rect.width);
-                      };
-                      update(e.clientX);
-                      const onMove = (me: PointerEvent) => update(me.clientX);
-                      const onUp = () => {
-                        setIsDraggingVolume(false);
-                        isDraggingVolumeRef.current = false;
-                        window.removeEventListener('pointermove', onMove);
-                        window.removeEventListener('pointerup', onUp);
-                        window.removeEventListener('pointercancel', onUp);
-                      };
-                      window.addEventListener('pointermove', onMove);
-                      window.addEventListener('pointerup', onUp);
-                      window.addEventListener('pointercancel', onUp);
-                    }}
-                  >
+                <button
+                  onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 10); }}
+                  className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/5 backdrop-blur-md border border-white/20 hover:bg-white/15 hover:border-white/35 active:scale-90 transition-all pointer-events-auto flex items-center justify-center relative group/btn shadow-[0_8px_32px_0_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.15)]"
+                >
+                  <svg className="absolute w-full h-full text-white/80 group-hover/btn:text-white transition-colors" viewBox="0 0 100 100">
+                    <path d="M50 22 A 28 28 0 1 1 22 50" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round"/>
+                    <path d="M54 12 L38 22 L54 32" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-white text-sm md:text-lg font-black relative z-10 mt-1.5 mr-0.5">10</span>
+                </button>
+              </div>
+
+              {/* Bottom controls area */}
+              <div
+                className="flex flex-col gap-3 relative z-[160]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Progress bar */}
+                <div
+                  className="w-full h-8 cursor-pointer group/progress flex items-center touch-none relative z-[170]"
+                  style={{ touchAction: 'none' }}
+                  onPointerDown={(e) => {
+                    setIsDragging(true);
+                    isDraggingRef.current = true;
+                    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+                    handleSeek(e, false);
+                  }}
+                  onPointerMove={(e) => { if (isDraggingRef.current) handleSeek(e, false); }}
+                  onPointerUp={(e) => {
+                    setIsDragging(false);
+                    isDraggingRef.current = false;
+                    (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+                    handleSeek(e, true);
+                  }}
+                >
+                  <div className={`w-full bg-white/20 rounded-full relative ${isDragging ? 'h-[6px]' : 'h-[3px] group-hover/progress:h-[6px]'} transition-all`}>
                     <div
                       className="absolute top-0 left-0 h-full bg-red-600 rounded-full pointer-events-none"
-                      style={{ width: `${isMuted ? 0 : volume * 100}%` }}
+                      style={{
+                        width: `${totalDuration > 0 ? (currentPos / totalDuration) * 100 : 0}%`,
+                        transition: isDragging ? 'none' : 'width 0.1s linear'
+                      }}
                     >
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg scale-0 group-hover/v-slider:scale-100 transition-transform" />
+                      <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-red-600 rounded-full translate-x-1/2 shadow-[0_0_10px_rgba(229,9,20,0.8)] transition-transform ${isDragging ? 'scale-110' : 'scale-0 group-hover/progress:scale-100'}`} />
                     </div>
                   </div>
-                  <span className={`text-[10px] font-black ml-3 transition-all select-none whitespace-nowrap ${isDraggingVolume ? 'text-red-600 scale-110' : 'text-white/60'}`}>
-                    {isMuted ? 0 : Math.round(volume * 100)}%
-                  </span>
+                </div>
+
+                {/* Row nút bấm và thời gian */}
+                <div className="flex items-center gap-6 pb-2">
+                  <div className="text-[11px] font-bold font-mono tracking-widest text-white/80">
+                    {formatTime(currentPos)} <span className="text-white/20 mx-1">/</span> {formatTime(totalDuration)}
+                  </div>
+
+                  <div className="flex-1" />
+
+                  {/* Nút tập tiếp theo */}
+                  {currentEpIndex + 1 < totalEpisodes && (
+                    <button
+                      onClick={handleNextEpisode}
+                      className="text-white hover:text-red-600 transition-colors flex items-center justify-center p-1 group/next-btn relative"
+                      title="Tập tiếp theo"
+                    >
+                      <svg className="w-7 h-7 fill-current" viewBox="0 0 24 24">
+                        <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Âm lượng nằm ngang */}
+                  <div
+                    className="flex items-center group/volume h-8"
+                    onMouseEnter={() => setShowVolumeBar(true)}
+                    onMouseLeave={() => setShowVolumeBar(false)}
+                  >
+                    <button onClick={toggleMute} className="text-white hover:text-red-600 transition-colors relative z-10">
+                      {(isMuted || volume === 0) ? (
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                      ) : volume < 0.5 ? (
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15.536 8.464a5 5 0 010 7.072M12 18.364l-4.707-4.707H4a1 1 0 01-1-1v-4a1 1 0 011-1h3.293L12 2.91V18.36z" /></svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.364l-4.707-4.707H4a1 1 0 01-1-1v-4a1 1 0 011-1h3.293L12 2.91V18.36z" /></svg>
+                      )}
+                    </button>
+
+                    <div className={`overflow-hidden transition-all duration-300 flex items-center ${showVolumeBar ? 'w-44 ml-3 opacity-100' : 'w-0 opacity-0'}`}>
+                      <div
+                        className="relative w-24 h-1.5 bg-white/20 rounded-full cursor-pointer group/v-slider"
+                        onPointerDown={(e) => {
+                          setIsDraggingVolume(true);
+                          isDraggingVolumeRef.current = true;
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const update = (clientX: number) => {
+                            const offsetX = clientX - rect.left;
+                            handleVolumeChange(offsetX / rect.width);
+                          };
+                          update(e.clientX);
+                          const onMove = (me: PointerEvent) => update(me.clientX);
+                          const onUp = () => {
+                            setIsDraggingVolume(false);
+                            isDraggingVolumeRef.current = false;
+                            window.removeEventListener('pointermove', onMove);
+                            window.removeEventListener('pointerup', onUp);
+                            window.removeEventListener('pointercancel', onUp);
+                          };
+                          window.addEventListener('pointermove', onMove);
+                          window.addEventListener('pointerup', onUp);
+                          window.addEventListener('pointercancel', onUp);
+                        }}
+                      >
+                        <div
+                          className="absolute top-0 left-0 h-full bg-red-600 rounded-full pointer-events-none"
+                          style={{ width: `${isMuted ? 0 : volume * 100}%` }}
+                        >
+                          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg scale-0 group-hover/v-slider:scale-100 transition-transform" />
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-black ml-3 transition-all select-none whitespace-nowrap ${isDraggingVolume ? 'text-red-600 scale-110' : 'text-white/60'}`}>
+                        {isMuted ? 0 : Math.round(volume * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Nút kích thước & Fullscreen */}
+                  <button onClick={toggleVideoFit} className="text-white hover:text-red-600 transition-colors">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                  </button>
+
+                  <button onClick={toggleFullscreen} className="text-white hover:text-red-600 transition-colors">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" /></svg>
+                  </button>
                 </div>
               </div>
-
-              {/* Nút kích thước & Fullscreen */}
-              <button onClick={toggleVideoFit} className="text-white hover:text-red-600 transition-colors">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-              </button>
-
-              <button onClick={toggleFullscreen} className="text-white hover:text-red-600 transition-colors">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" /></svg>
-              </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Thông báo chuyển tập tiếp theo */}
-      {showNextNotify && (
-        <div className="absolute bottom-28 right-6 md:right-12 z-[200] animate-in slide-in-from-right-10 duration-500">
-          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_20px_rgba(255,255,255,0.05)] min-w-[240px] relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.03] to-white/[0.08] pointer-events-none" />
+          {/* Thông báo chuyển tập tiếp theo */}
+          {showNextNotify && (
+            <div className="absolute bottom-28 right-6 md:right-12 z-[200] animate-in slide-in-from-right-10 duration-500">
+              <div className="bg-white/[0.07] backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_20px_rgba(255,255,255,0.05)] min-w-[240px] relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.03] to-white/[0.08] pointer-events-none" />
 
-            <div className="flex flex-col gap-3 relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(229,9,20,0.5)] border border-white/20">
-                  <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <div className="flex flex-col gap-3 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(229,9,20,0.5)] border border-white/20">
+                      <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                    </div>
+                    <h4 className="text-xs font-black uppercase italic leading-none text-white">
+                      {currentEpIndex + 1 < totalEpisodes ? `Tiếp theo tập ${currentEpIndex + 2}` : "Kết thúc phim"}
+                    </h4>
+                  </div>
+
+                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1">
+                    <div className="h-full bg-red-600 shadow-[0_0_8px_#dc2626] transition-all duration-1000 ease-linear"
+                      style={{ width: `${(countdown / 10) * 100}%` }} />
+                  </div>
                 </div>
-                <h4 className="text-xs font-black uppercase italic leading-none text-white">
-                  {currentEpIndex + 1 < totalEpisodes ? `Tiếp theo tập ${currentEpIndex + 2}` : "Kết thúc phim"}
-                </h4>
-              </div>
-
-              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1">
-                <div className="h-full bg-red-600 shadow-[0_0_8px_#dc2626] transition-all duration-1000 ease-linear"
-                  style={{ width: `${(countdown / 10) * 100}%` }} />
               </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
