@@ -401,7 +401,7 @@ export default function VideoPlayer({
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
 
-  // --- 1. HÀM BÓC TÁCH LINK M3U9 TỪ TRANG EMBED (CHUẨN) ---
+  // --- 1. HÀM BÓC TÁCH LINK M3U9 TỪ TRANG EMBED (ĐỒNG BỘ 100% CHUẨN CODE GỐC INDEX.HTML) ---
   const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
     try {
       setIsResolving(true);
@@ -414,7 +414,10 @@ export default function VideoPlayer({
       const urlObj = new URL(embedUrl);
       const domainHeader = urlObj.origin;
 
-      let match = htmlText.match(/data-obf\s*=\s*(["'])(.*?)\1/i) || htmlText.match(/data-obf\s*=\s*([^\s>]+)/i);
+      let match = htmlText.match(/data-obf\s*=\s*(["'])(.*?)\1/i);
+      if (!match) {
+        match = htmlText.match(/data-obf\s*=\s*([^\s>]+)/i);
+      }
 
       if (match && (match[2] || match[1])) {
         const rawDataObf = match[2] || match[1];
@@ -426,9 +429,13 @@ export default function VideoPlayer({
           if (jsonObj && jsonObj.sUb) {
             decodedSub = jsonObj.sUb;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Chuỗi không phải JSON, dùng raw string
+        }
 
-        decodedSub = decodedSub.replace(/\/hd$/i, '').replace(/\.m3u9$/i, '').replace(/^\//, '');
+        decodedSub = decodedSub.replace(/\/hd$/i, '');
+        decodedSub = decodedSub.replace(/\.m3u9$/i, '');
+        decodedSub = decodedSub.replace(/^\//, '');
 
         return `${domainHeader}/${decodedSub}.m3u9`;
       }
@@ -440,7 +447,7 @@ export default function VideoPlayer({
     return null;
   };
 
-  // --- 2. LUỒNG KHỞI TẠO PLAYER VÀ CUSTOM HLS LOADER (CHUẨN) ---
+  // --- 2. LUỒNG KHỞI TẠO PLAYER VÀ CUSTOM HLS LOADER ---
   useEffect(() => {
     const video = videoRef.current;
     setErrorMessage(null);
@@ -480,7 +487,7 @@ export default function VideoPlayer({
                   targetUrl = new URL(targetUrl, directLink).href;
                 }
 
-                const originHeader = new URL(videoUrl).origin;
+                const originHeader = new URL(directLink).origin;
 
                 // Bọc qua Worker để bypass Referer restriction của CDN
                 if (!targetUrl.startsWith(WORKER)) {
@@ -532,7 +539,7 @@ export default function VideoPlayer({
 
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari iOS / MacOS
-        const originHeader = new URL(videoUrl).origin;
+        const originHeader = new URL(directLink).origin;
         const finalSrc = `${WORKER}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
 
         video.src = finalSrc;
