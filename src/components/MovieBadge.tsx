@@ -11,37 +11,19 @@ interface MovieBadgeProps {
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
   const subType = movie.sub_type?.toLowerCase() || "";
   const lang = movie.lang?.toLowerCase() || "";
-  const quality = movie.quality?.toLowerCase() || "";
 
-  // 🌟 HỆ THỐNG XỬ LÝ NHÃN SONG SONG (Lồng Tiếng & Thuyết Minh hiển thị cùng lúc, loại trừ Vietsub thuần nếu có)
+  // 🌟 CHỈ LẤY LỒNG TIẾNG VÀ THUYẾT MINH, HOÀN TOÀN LOẠI BỎ VIỆTSUB
   const badges: string[] = [];
 
   const isLoiTieng = subType.includes("lồng") || lang.includes("lồng");
   const isThuyetMinh = subType.includes("thuyết") || lang.includes("thuyết");
 
-  // Kiểm tra xem có Vietsub hay không
-  const isVietsub = subType.includes("vietsub") || lang.includes("vietsub") || (!subType && !lang);
-  const isFHD = quality.includes("fhd") || quality.includes("1080");
-
-  // Ưu tiên hiển thị Lồng Tiếng và Thuyết Minh song song nếu có, đồng thời loại trừ Vietsub nếu phim đã có Lồng Tiếng hoặc Thuyết Minh
+  // Đưa Lồng Tiếng lên trước, Thuyết Minh theo sau (hoặc hiển thị song song nếu có cả hai)
   if (isLoiTieng) {
     badges.push("L.Tiếng");
   }
   if (isThuyetMinh) {
     badges.push("T.Minh");
-  }
-
-  // Nếu không có Lồng Tiếng và Thuyết Minh, mới xét tới Vietsub / Chất lượng như cũ
-  if (badges.length === 0) {
-    if (isFHD && isVietsub) {
-      badges.push("FHD-Vietsub");
-    } else if (isVietsub) {
-      badges.push("Vietsub");
-    } else if (isFHD) {
-      badges.push("FHD");
-    } else {
-      badges.push("Vietsub");
-    }
   }
 
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String an toàn
@@ -61,7 +43,7 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
       {/* 🌟 NẾU LÀ RANKED 3: DỜI VỊ TRÍ XUỐNG GÓC DƯỚI BÊN PHẢI */}
       {isRanked3 ? (
         <div className="absolute bottom-3 right-3 z-10 flex flex-col items-end gap-1.5 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-          {/* Hàng chứa các Nhãn và Năm xếp cạnh nhau */}
+          {/* Hàng chứa các Nhãn (nếu có) và Năm xếp cạnh nhau */}
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {badges.map((badgeText, idx) => (
               <div
@@ -90,7 +72,7 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
       ) : (
         /* 🌟 ĐỐI VỚI CÁC KIỂU KHÁC (VERTICAL, HORIZONTAL, RANKED1): GÓC TRÊN BÊN PHẢI */
         <>
-          {/* Nhãn trên (Top Right) - Gom toàn bộ nhãn ngôn ngữ và năm */}
+          {/* Nhãn trên (Top Right) - Chỉ chứa nhãn lồng tiếng/thuyết minh (nếu có) và năm */}
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 flex-wrap justify-end max-w-[70%]">
             {badges.map((badgeText, idx) => (
               <div
