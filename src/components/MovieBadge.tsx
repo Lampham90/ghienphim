@@ -8,23 +8,10 @@ interface MovieBadgeProps {
   variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3'; // Thêm variant để điều chỉnh vị trí
 }
 
-// 🌟 HỆ THỐNG XỬ LÝ NHÃN SONG SONG (Lồng Tiếng & Thuyết Minh hiển thị cùng lúc, loại trừ Vietsub thuần nếu có)
-  const badges: string[] = [];
+const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
+  const subType = movie.sub_type?.toLowerCase() || "";
+  const displayLang = subType.includes("lồng") ? "L.Tiếng" : subType.includes("thuyết") ? "T.Minh" : "";
 
-  const isLoiTieng = subType.includes("lồng") || lang.includes("lồng");
-  const isThuyetMinh = subType.includes("thuyết") || lang.includes("thuyết");
-
-  // Kiểm tra xem có Vietsub hay không
-  const isVietsub = subType.includes("vietsub") || lang.includes("vietsub") || (!subType && !lang);
-
-
-  // Ưu tiên hiển thị Lồng Tiếng và Thuyết Minh song song nếu có, đồng thời loại trừ Vietsub nếu phim đã có Lồng Tiếng hoặc Thuyết Minh
-  if (isLoiTieng) {
-    badges.push("L.Tiếng");
-  }
-  if (isThuyetMinh) {
-    badges.push("T.Minh");
-  }
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String một cách an toàn để tránh crash hàm text
   const rawEpisode = movie.current_episode || movie.episode_current || "";
   const episode = String(rawEpisode).trim();
