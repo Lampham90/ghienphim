@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5aa0f6b7-51b6-401e-a969-eaa8a69d3995" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/components/MovieBadge.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/MovieBadge.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/phim/[slug]/MovieDetailClient.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/phim/[slug]/MovieDetailClient.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

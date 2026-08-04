@@ -15,7 +15,6 @@ import { useAuth } from "@/lib/useAuth";
 import { useMovieStore } from "@/lib/useMovieStore";
 import imageLoader from "@/lib/imageLoader";
 
-// Dynamic import VideoPlayer để tăng tốc độ LCP/FCP
 const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
   ssr: false,
   loading: () => (
@@ -27,7 +26,6 @@ const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
 
 const montserrat = Montserrat({ subsets: ["vietnamese"], weight: ["400", "700", "900"] });
 
-// --- UTILS & HELPERS ---
 const getCleanName = (name: string) =>
   name
     .split(/\s+[:\-(\[]?\s*(phần|season|ss|part|tập|chapter|movie|ova|special|p|s)\s+\d+/i)[0]
@@ -36,7 +34,6 @@ const getCleanName = (name: string) =>
     .replace(/[:\-\(\[\]\)]+$/, "")
     .trim();
 
-// Format tên Server & phân biệt Nguồn C
 const formatServerLabel = (server: any) => {
   if (!server) return "";
   const name = (server.server_name || "").toLowerCase();
@@ -50,7 +47,6 @@ const formatServerLabel = (server: any) => {
     baseLabel = "Server dự phòng";
   }
 
-  // Thêm hậu tố (NC) nếu là server từ Nguồn C
   return server.isNguonc ? `${baseLabel} (NC)` : baseLabel;
 };
 
@@ -116,14 +112,21 @@ export default function MovieDetailClient({
 
   const fetchedNguoncRef = useRef<string | null>(null);
 
-  // Fetch Server dự phòng từ Nguồn C
+  // 🟢 HÀM FETCH NGUỒN C CẢI TIẾN: Cho phép gọi trực tiếp qua slug nếu chưa có name
   const fetchNguonc = useCallback(
-    async (movieName: string) => {
-      if (fetchedNguoncRef.current === slug) return;
+    async (movieName?: string) => {
+      if (fetchedNguoncRef.current === slug && servers.some((s) => s.isNguonc)) return;
       try {
-        const res = await fetch(`/api/nguonc?slug=${slug}&name=${encodeURIComponent(movieName)}`);
+        const queryParam = movieName ? `slug=${slug}&name=${encodeURIComponent(movieName)}` : `slug=${slug}`;
+        const res = await fetch(`/api/nguonc?${queryParam}`);
         if (res.ok) {
           const data = await res.json();
+
+          // NẾU KKPHIM SẬP: Dùng dữ liệu cơ bản từ Nguồn C để dựng UI
+          if (data.movieInfo) {
+            setMovie((prev) => prev || data.movieInfo);
+          }
+
           if (data.servers && data.servers.length > 0) {
             setServers((prev) => {
               if (prev.some((s) => s.isNguonc)) return prev;
@@ -136,7 +139,7 @@ export default function MovieDetailClient({
         console.error("Lỗi fetch Nguồn C:", e);
       }
     },
-    [slug]
+    [slug, servers]
   );
 
   useEffect(() => {
@@ -152,14 +155,19 @@ export default function MovieDetailClient({
           setServers(sortServersByPriority(cachedData.servers || []));
           if (cachedData.name) fetchNguonc(cachedData.name);
         } catch (e) {}
+      } else {
+        // 🟢 Nếu không có Cache & không có initialMovie -> Thử gọi Nguồn C ngay
+        fetchNguonc();
       }
     }
   }, [slug, initialMovie, fetchNguonc]);
 
-  const { detail: swrMovie } = useKKPhimDetail(initialMovie ? null : slug);
+  const { detail: swrMovie, error: swrError } = useKKPhimDetail(initialMovie ? null : slug);
 
+  // 🟢 XỬ LÝ KHI KKPHIM LỖI/CÓ DỮ LIỆU
   useEffect(() => {
     const targetMovie = swrMovie || initialMovie;
+
     if (targetMovie) {
       setMovie(targetMovie);
       setServers((prev) => {
@@ -171,8 +179,11 @@ export default function MovieDetailClient({
       try {
         localStorage.setItem(`kkphim_${slug}`, JSON.stringify({ ...targetMovie, cached_at: Date.now() }));
       } catch (e) {}
+    } else if (swrError) {
+      // Nếu API KKPhim trả về lỗi -> Ép gọi Nguồn C để cứu dữ liệu
+      fetchNguonc();
     }
-  }, [swrMovie, initialMovie, slug, fetchNguonc]);
+  }, [swrMovie, initialMovie, slug, fetchNguonc, swrError]);
 
   // Quản lý Seasons
   useEffect(() => {
@@ -303,8 +314,6 @@ export default function MovieDetailClient({
   const activeEpNum = getOnlyNumber(activeEpisode?.episode_num || currentEpIndex + 1);
 
   const description = movie?.content || (movie as any)?.description || "";
-
-  // Tìm phần phim đang xem
   const currentSeasonObj = relatedSeasons.find((s) => s.slug === slug);
 
   return (
@@ -315,7 +324,7 @@ export default function MovieDetailClient({
         .scrollbar-hide::-webkit-scrollbar { display: none; }
       ` }} />
 
-      {/* --- HERO / VIDEO PLAYER --- */}
+      {/* HERO / VIDEO PLAYER */}
       <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5">
         {isPlaying && activeEpisode?.link ? (
           <div className="relative w-full h-[75vh] md:h-screen">
@@ -362,7 +371,7 @@ export default function MovieDetailClient({
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
-                  {movie?.name || "..."}
+                  {movie?.name || "Đang tải..."}
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-4">
@@ -370,7 +379,7 @@ export default function MovieDetailClient({
                     {movie?.quality || "FHD"}
                   </span>
                   <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                    {movie?.year}
+                    {movie?.year || "2026"}
                   </span>
 
                   {servers.map((s, idx) => (
@@ -415,14 +424,14 @@ export default function MovieDetailClient({
 
             <div className="flex md:hidden flex-col items-center text-center px-6 py-6 bg-[#050505] space-y-4">
               <h1 className="text-[28px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
-                {movie?.name || "..."}
+                {movie?.name || "Đang tải..."}
               </h1>
 
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic">
                   {movie?.quality || "FHD"}
                 </span>
-                <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">{movie?.year}</span>
+                <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">{movie?.year || "2026"}</span>
 
                 <button
                   onClick={toggleFavorite}
@@ -456,14 +465,11 @@ export default function MovieDetailClient({
         )}
       </section>
 
-      {/* --- PHẦN KÍCH HOẠT DROPDOWNS & TABS --- */}
+      {/* DROPDOWNS & TABS */}
       {mounted && (
         <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-8 space-y-6">
-
-          {/* HÀNG BÊN TRÊN: KHU VỰC DROPDOWN AUDIO VÀ PHẦN PHIM */}
           <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-6">
-
-            {/* 1. DROPDOWN AUDIO */}
+            {/* DROPDOWN AUDIO */}
             {servers && servers.length > 0 && (
               <div className="relative inline-block text-left min-w-[200px]">
                 <button
@@ -506,7 +512,7 @@ export default function MovieDetailClient({
               </div>
             )}
 
-            {/* 2. DROPDOWN PHẦN PHIM (Hiển thị nếu có liên quan) */}
+            {/* DROPDOWN PHẦN PHIM */}
             {relatedSeasons && relatedSeasons.length > 1 && (
               <div className="relative inline-block text-left min-w-[220px]">
                 <button
@@ -550,7 +556,6 @@ export default function MovieDetailClient({
             )}
           </div>
 
-          {/* HÀNG PHÍA DƯỚI: TAB CHỌN TẬP PHIM VÀ DIỄN VIÊN */}
           <div className="flex items-center gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
             {(["episodes", "actors"] as const).map((tab) => (
               <button
@@ -568,7 +573,6 @@ export default function MovieDetailClient({
             ))}
           </div>
 
-          {/* TAB CONTENT: DANH SÁCH TẬP */}
           {activeTab === "episodes" && (
             <div className="animate-in fade-in duration-300">
               <div className="ep-grid">
@@ -594,7 +598,6 @@ export default function MovieDetailClient({
             </div>
           )}
 
-          {/* TAB CONTENT: DIỄN VIÊN */}
           {activeTab === "actors" && (
             <div className="animate-in fade-in duration-300">
               <ActorList movie={movie} tmdbInfo={movie?.tmdb} />
