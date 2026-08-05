@@ -5,25 +5,12 @@ import type { KKPhimMovie } from '@/lib/kkphim';
 
 interface MovieBadgeProps {
   movie: KKPhimMovie | any;
-  variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3';
+  variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3'; // Thêm variant để điều chỉnh vị trí
 }
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
-  // 🌟 LẤY THÊM TRƯỜNG `language` TỪ NGUONC VÀ CÁC NGUỒN KHÁC
   const subType = movie.sub_type?.toLowerCase() || "";
-  const lang = movie.lang?.toLowerCase() || "";
-  const movieLanguage = movie.language?.toLowerCase() || ""; // Bổ sung trường này cho NguonC
-
-  // Gom tất cả lại để quét từ khóa an toàn
-  const combinedText = `${subType} ${lang} ${movieLanguage}`;
-
-  // 🌟 ƯU TIÊN TUYỆT ĐỐI CHO LỒNG TIẾNG TRƯỚC
-  let displayLang = "";
-  if (combinedText.includes("lồng")) {
-    displayLang = "L.Tiếng";
-  } else if (combinedText.includes("thuyết")) {
-    displayLang = "T.Minh";
-  }
+  const displayLang = subType.includes("lồng") ? "L.Tiếng" : subType.includes("thuyết") ? "T.Minh" : "";
 
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String một cách an toàn để tránh crash hàm text
   const rawEpisode = movie.current_episode || movie.episode_current || "";
