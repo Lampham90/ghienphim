@@ -5,31 +5,20 @@ import type { KKPhimMovie } from '@/lib/kkphim';
 
 interface MovieBadgeProps {
   movie: KKPhimMovie | any;
-  variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3';
+  variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3'; // Thêm variant để điều chỉnh vị trí
 }
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
-  // 🌟 GOM TẤT CẢ CÁC GIÁ TRỊ STRING TRONG OBJECT MOVIE THÀNH MỘT CHUỖI ĐỂ QUÉT (QUÉT SẠCH MỌI TRƯỜNG DỮ LIỆU)
-  const allText = Object.values(movie || {})
-    .map((val) => (typeof val === 'string' ? val : JSON.stringify(val || '')))
-    .join(' ')
-    .toLowerCase();
+  const subType = movie.sub_type?.toLowerCase() || "";
+  const displayLang = subType.includes("lồng") ? "L.Tiếng" : subType.includes("thuyết") ? "T.Minh" : "";
 
-  // 🌟 ƯU TIÊN TUYỆT ĐỐI CHO LỒNG TIẾNG, SAU ĐÓ ĐẾN THUYẾT MINH
-  let displayLang = "";
-  if (allText.includes("lồng")) {
-    displayLang = "L.Tiếng";
-  } else if (allText.includes("thuyết")) {
-    displayLang = "T.Minh";
-  }
-
-  // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String an toàn
+  // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String một cách an toàn để tránh crash hàm text
   const rawEpisode = movie.current_episode || movie.episode_current || "";
   const episode = String(rawEpisode).trim();
 
   const isRanked3 = variant === 'ranked3';
 
-  // Điều kiện hiển thị Tập phim
+  // Điều kiện hiển thị Tập phim (Đã bọc kiểm tra chuỗi an toàn)
   const shouldShowEpisode = episode &&
     !episode.toLowerCase().includes("full") &&
     !episode.toLowerCase().includes("trailer") &&
@@ -96,5 +85,5 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
   );
 });
 
-MovieBadge.displayName = 'MovieBadge';
+MovieBadge.displayName = 'MovieBadge'; // Định danh tường minh cho React devtools
 export default MovieBadge;
