@@ -1,4 +1,5 @@
 // @/components/MovieBadge.tsx
+// GIT_UPDATE_MARKER
 import React, { memo } from 'react';
 import type { KKPhimMovie } from '@/lib/kkphim';
 
@@ -8,16 +9,24 @@ interface MovieBadgeProps {
 }
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
-  const subType = (movie.sub_type || movie.lang || "").toLowerCase();
+  const subType = movie.sub_type?.toLowerCase() || "";
+  const lang = movie.lang?.toLowerCase() || "";
 
-  // Chỉ lọc ra Thuyết minh / Lồng tiếng (không phân biệt nguồn C hay KKPhim ở Poster)
-  const displayLang = subType.includes("lồng") || subType.includes("lt")
-    ? "L.Tiếng"
-    : subType.includes("thuyết") || subType.includes("tm")
-    ? "T.Minh"
-    : "";
+  // 🌟 CHỈ LẤY LỒNG TIẾNG VÀ THUYẾT MINH, HOÀN TOÀN LOẠI BỎ VIỆTSUB
+  const badges: string[] = [];
 
-  // Ép kiểu dữ liệu tập phim về String an toàn
+  const isLoiTieng = subType.includes("lồng") || lang.includes("lồng");
+  const isThuyetMinh = subType.includes("thuyết") || lang.includes("thuyết");
+
+  // Đưa Lồng Tiếng lên trước, Thuyết Minh theo sau (hoặc hiển thị song song nếu có cả hai)
+  if (isLoiTieng) {
+    badges.push("L.Tiếng");
+  }
+  if (isThuyetMinh) {
+    badges.push("T.Minh");
+  }
+
+  // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String an toàn
   const rawEpisode = movie.current_episode || movie.episode_current || "";
   const episode = String(rawEpisode).trim();
 
@@ -31,20 +40,25 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
 
   return (
     <>
-      {/* NẾU LÀ RANKED 3: DỜI VỊ TRÍ XUỐNG GÓC DƯỚI BÊN PHẢI */}
+      {/* 🌟 NẾU LÀ RANKED 3: DỜI VỊ TRÍ XUỐNG GÓC DƯỚI BÊN PHẢI */}
       {isRanked3 ? (
         <div className="absolute bottom-3 right-3 z-10 flex flex-col items-end gap-1.5 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-          <div className="flex items-center gap-1.5">
-            {displayLang && (
-              <div className="bg-red-600 px-2 py-0.5 rounded-lg shadow-lg">
-                <span className="text-[9px] font-black text-white">{displayLang}</span>
+          {/* Hàng chứa các Nhãn (nếu có) và Năm xếp cạnh nhau */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            {badges.map((badgeText, idx) => (
+              <div
+                key={idx}
+                className="bg-red-600 px-2 py-0.5 rounded-lg shadow-lg"
+              >
+                <span className="text-[9px] font-black text-white">{badgeText}</span>
               </div>
-            )}
+            ))}
             <div className="bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10 shadow-lg">
               <span className="text-[9px] font-black text-white/90">{movie.year || '2026'}</span>
             </div>
           </div>
 
+          {/* Nhãn Tập phim nằm ngay bên dưới */}
           {shouldShowEpisode && (
             <div className="bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg group-hover:bg-red-600 transition-colors">
               <span className="text-[9px] font-black text-white uppercase italic tracking-tighter">
@@ -56,21 +70,24 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
           )}
         </div>
       ) : (
-        /* CÁC KIỂU KHÁC (VERTICAL, HORIZONTAL, RANKED1) */
+        /* 🌟 ĐỐI VỚI CÁC KIỂU KHÁC (VERTICAL, HORIZONTAL, RANKED1): GÓC TRÊN BÊN PHẢI */
         <>
-          {/* Nhãn trên (Top Right) */}
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
-            {displayLang && (
-              <div className="bg-red-600/80 backdrop-blur-md px-2 py-0.5 rounded-lg shadow-lg">
-                <span className="text-[9px] font-black text-white">{displayLang}</span>
+          {/* Nhãn trên (Top Right) - Chỉ chứa nhãn lồng tiếng/thuyết minh (nếu có) và năm */}
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 flex-wrap justify-end max-w-[70%]">
+            {badges.map((badgeText, idx) => (
+              <div
+                key={idx}
+                className="bg-red-600/90 backdrop-blur-md px-2 py-0.5 rounded-lg shadow-lg"
+              >
+                <span className="text-[9px] font-black text-white">{badgeText}</span>
               </div>
-            )}
+            ))}
             <div className="bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10 shadow-lg">
               <span className="text-[9px] font-black text-white/90">{movie.year || '2026'}</span>
             </div>
           </div>
 
-          {/* Nhãn dưới (Bottom Right) */}
+          {/* Nhãn dưới (Bottom Right) - Tập phim */}
           {shouldShowEpisode && (
             <div className="absolute bottom-3 right-3 z-10">
               <div className="bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg group-hover:bg-red-600 transition-colors">
