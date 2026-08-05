@@ -10,14 +10,8 @@ interface MovieBadgeProps {
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
   const subType = movie.sub_type?.toLowerCase() || "";
+  const displayLang = subType.includes("lồng") ? "L.Tiếng" : subType.includes("thuyết") ? "T.Minh" : "";
 
-  // Bắt buộc ưu tiên Lồng tiếng trước, dù từ "thuyết" có nằm ở đâu đi nữa
-  let displayLang = "";
-  if (subType.includes("lồng")) {
-    displayLang = "L.Tiếng";
-  } else if (subType.includes("thuyết")) {
-    displayLang = "T.Minh";
-  }
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String một cách an toàn để tránh crash hàm text
   const rawEpisode = movie.current_episode || movie.episode_current || "";
   const episode = String(rawEpisode).trim();
