@@ -5,26 +5,22 @@ import type { KKPhimMovie } from '@/lib/kkphim';
 
 interface MovieBadgeProps {
   movie: KKPhimMovie | any;
-  variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3'; // Thêm variant để điều chỉnh vị trí
+  variant?: 'vertical' | 'horizontal' | 'ranked1' | 'ranked2' | 'ranked3';
 }
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
   const subType = movie.sub_type?.toLowerCase() || "";
   const lang = movie.lang?.toLowerCase() || "";
+  const combinedText = `${subType} ${lang}`;
 
-  // 🌟 CHỈ LẤY LỒNG TIẾNG VÀ THUYẾT MINH, HOÀN TOÀN LOẠI BỎ VIỆTSUB
-  const badges: string[] = [];
-
-  const isLoiTieng = subType.includes("lồng") || lang.includes("lồng");
-  const isThuyetMinh = subType.includes("thuyết") || lang.includes("thuyết");
-
-  // Đưa Lồng Tiếng lên trước, Thuyết Minh theo sau (hoặc hiển thị song song nếu có cả hai)
-  if (isLoiTieng) {
-    badges.push("L.Tiếng");
+  // 🌟 KIỂM TRA TỪNG TỪ KHÓA ĐỘC LẬP VÀ BẮT BUỘC ƯU TIÊN LỒNG TIẾNG NẾU CÓ BẤT KỲ CHỖ NÀO XUẤT HIỆN
+  let displayLang = "";
+  if (combinedText.includes("lồng")) {
+    displayLang = "L.Tiếng";
+  } else if (combinedText.includes("thuyết")) {
+    displayLang = "T.Minh";
   }
-  if (isThuyetMinh) {
-    badges.push("T.Minh");
-  }
+
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String một cách an toàn để tránh crash hàm text
   const rawEpisode = movie.current_episode || movie.episode_current || "";
   const episode = String(rawEpisode).trim();
