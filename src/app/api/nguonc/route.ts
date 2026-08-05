@@ -1,5 +1,3 @@
-// src/app/api/nguonc/route.ts
-
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
@@ -20,14 +18,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        movieInfo: data?.movieInfo || null,
+        movieInfo: data?.movieInfo || null, // 🟢 Bổ sung movieInfo trả về Client
         servers: data?.servers || [],
         original_name: data?.original_name || "",
       },
       {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate',
-          'Content-[#Type]': 'application/json',
+          'Content-Type': 'application/json',
         },
       }
     );
