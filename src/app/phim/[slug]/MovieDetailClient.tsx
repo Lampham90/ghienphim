@@ -47,7 +47,7 @@ const formatServerLabel = (server: any) => {
     baseLabel = "Server dự phòng";
   }
 
-  return server.isNguonc ? `${baseLabel} (NC)` : baseLabel;
+  return server.isNguonc ? `${baseLabel} (2)` : baseLabel;
 };
 
 const sortServersByPriority = (rawServers: any[]) => {
