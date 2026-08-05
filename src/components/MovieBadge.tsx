@@ -9,11 +9,16 @@ interface MovieBadgeProps {
 }
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
+  // 🌟 MỞ RỘNG TÌM KIẾM TRÊN NHIỀU TRƯỜNG DỮ LIỆU ĐỂ HỖ TRỢ CẢ NGUỒN PHỤ (NGUONC)
   const subType = movie.sub_type?.toLowerCase() || "";
   const lang = movie.lang?.toLowerCase() || "";
-  const combinedText = `${subType} ${lang}`;
+  const category = typeof movie.category === 'string' ? movie.category.toLowerCase() : JSON.stringify(movie.category || "").toLowerCase();
+  const name = movie.name?.toLowerCase() || "";
 
-  // 🌟 KIỂM TRA TỪNG TỪ KHÓA ĐỘC LẬP VÀ BẮT BUỘC ƯU TIÊN LỒNG TIẾNG NẾU CÓ BẤT KỲ CHỖ NÀO XUẤT HIỆN
+  // Gom tất cả các trường lại để quét từ khóa
+  const combinedText = `${subType} ${lang} ${category} ${name}`;
+
+  // 🌟 ƯU TIÊN TUYỆT ĐỐI CHO LỒNG TIẾNG TRƯỚC
   let displayLang = "";
   if (combinedText.includes("lồng")) {
     displayLang = "L.Tiếng";
@@ -77,7 +82,7 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
           </div>
 
           {/* Nhãn dưới (Bottom Right) */}
-          {shouldShowEpisode && (
+          {shouldShouldShowEpisode => shouldShowEpisode && (
             <div className="absolute bottom-3 right-3 z-10">
               <div className="bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg group-hover:bg-red-600 transition-colors">
                 <span className="text-[9px] font-black text-white uppercase italic tracking-tighter">
@@ -94,5 +99,5 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
   );
 });
 
-MovieBadge.displayName = 'MovieBadge'; // Định danh tường minh cho React devtools
+MovieBadge.displayName = 'MovieBadge';
 export default MovieBadge;
