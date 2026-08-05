@@ -10,13 +10,20 @@ interface MovieBadgeProps {
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
   const subType = movie.sub_type?.toLowerCase() || "";
+  const lang = movie.lang?.toLowerCase() || "";
 
-  // 🌟 ƯU TIÊN TUYỆT ĐỐI CHO LỒNG TIẾNG TRƯỚC KHI XÉT THUYẾT MINH
-  let displayLang = "";
-  if (subType.includes("lồng")) {
-    displayLang = "L.Tiếng";
-  } else if (subType.includes("thuyết")) {
-    displayLang = "T.Minh";
+  // 🌟 CHỈ LẤY LỒNG TIẾNG VÀ THUYẾT MINH, HOÀN TOÀN LOẠI BỎ VIỆTSUB
+  const badges: string[] = [];
+
+  const isLoiTieng = subType.includes("lồng") || lang.includes("lồng");
+  const isThuyetMinh = subType.includes("thuyết") || lang.includes("thuyết");
+
+  // Đưa Lồng Tiếng lên trước, Thuyết Minh theo sau (hoặc hiển thị song song nếu có cả hai)
+  if (isLoiTieng) {
+    badges.push("L.Tiếng");
+  }
+  if (isThuyetMinh) {
+    badges.push("T.Minh");
   }
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String một cách an toàn để tránh crash hàm text
   const rawEpisode = movie.current_episode || movie.episode_current || "";
