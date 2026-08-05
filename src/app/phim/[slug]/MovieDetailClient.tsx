@@ -1,6 +1,6 @@
 "use client";
 
-export const runtime = "edge";
+// ❌ Bỏ dòng export const runtime = "edge"; ở đây (vì đây là Client Component)
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -109,28 +109,30 @@ export default function MovieDetailClient({
     return previewPoster || (movie ? getImageUrl(movie.poster) : "");
   }, [previewPoster, movie]);
 
-  // Cờ chặn fetch lặp lại
-  const isFetchingNguoncRef = useRef(false);
+  // 🟢 Lưu Key đã fetch thành công để tránh fetch lặp lại
+  const fetchedNguoncKeyRef = useRef<string | null>(null);
 
-  // 🟢 HÀM FETCH NGUỒN C AN TOÀN (Không gây loop)
+  // 🟢 HÀM FETCH NGUỒN C ĐÃ SỬA LỖI LOCK REF
   const fetchNguonc = useCallback(
     async (movieName?: string) => {
-      if (isFetchingNguoncRef.current) return;
-      isFetchingNguoncRef.current = true;
+      // Đặt key nhận diện theo tên phim
+      const currentFetchKey = `${slug}_${movieName || ""}`;
+      if (fetchedNguoncKeyRef.current === currentFetchKey) return;
 
       try {
         const query = movieName ? `slug=${slug}&name=${encodeURIComponent(movieName)}` : `slug=${slug}`;
         const res = await fetch(`/api/nguonc?${query}`);
+
         if (res.ok) {
           const data = await res.json();
-          if (data.movieInfo) {
-            setMovie((prev) => prev || data.movieInfo);
-          }
           if (data.servers && data.servers.length > 0) {
             setServers((prev) => {
+              // Nếu đã có Server Nguồn C rồi thì giữ nguyên
               if (prev.some((s) => s.isNguonc)) return prev;
               return sortServersByPriority([...prev, ...data.servers]);
             });
+            // Đánh dấu đã fetch thành công key này
+            fetchedNguoncKeyRef.current = currentFetchKey;
           }
         }
       } catch (e) {
@@ -151,13 +153,17 @@ export default function MovieDetailClient({
           const cachedData = JSON.parse(cached);
           setMovie(cachedData);
           setServers(sortServersByPriority(cachedData.servers || []));
-          if (cachedData.name) fetchNguonc(cachedData.name);
+          // 🟢 Ưu tiên truyền origin_name (tên tiếng Anh)
+          if (cachedData.origin_name || cachedData.name) {
+            fetchNguonc(cachedData.origin_name || cachedData.name);
+          }
         } catch (e) {}
       } else {
         fetchNguonc();
       }
-    } else if (initialMovie.name) {
-      fetchNguonc(initialMovie.name);
+    } else {
+      // 🟢 Ưu tiên truyền origin_name (tên tiếng Anh)
+      fetchNguonc((initialMovie as any).origin_name || initialMovie.name);
     }
   }, [slug, initialMovie, fetchNguonc]);
 
@@ -171,7 +177,10 @@ export default function MovieDetailClient({
         const nguoncServers = prev.filter((s) => s.isNguonc);
         return sortServersByPriority([...(targetMovie.servers || []), ...nguoncServers]);
       });
-      if (targetMovie.name) fetchNguonc(targetMovie.name);
+
+      // 🟢 Ưu tiên truyền origin_name (tên tiếng Anh)
+      const englishName = (targetMovie as any).origin_name || targetMovie.name;
+      if (englishName) fetchNguonc(englishName);
 
       try {
         localStorage.setItem(`kkphim_${slug}`, JSON.stringify({ ...targetMovie, cached_at: Date.now() }));
