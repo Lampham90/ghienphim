@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, memo, useCallback, useMemo, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Montserrat } from 'next/font/google';
@@ -276,59 +276,40 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const [sections, setSections] = useState<SectionData[]>(initialSections);
   const [currentHero, setCurrentHero] = useState(0);
   const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
+  const [isReady, setIsReady] = useState(false); // Cờ ẩn nhẹ UI tránh chớp màn hình
   
-  // Refs quản lý trạng thái
   const isFetching = useRef(false);
-  const isRestoring = useRef(true); // Cờ chặn observer khi đang restore session
+  const isRestoring = useRef(true);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // Synchronize state sang Ref để dùng trong useCallback ổn định
   const loadedIndexRef = useRef(loadedIndex);
   loadedIndexRef.current = loadedIndex;
 
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
-  // Khởi tạo Cache từ Props
-  useEffect(() => {
+  // Sync cache từ props ngay lập tức
+  if (allCategoriesData && Object.keys(allCategoriesData).length > 0) {
     Object.entries(allCategoriesData).forEach(([slug, movies]) => {
-      if (movies && movies.length > 0) {
+      if (movies && movies.length > 0 && !categoryCache.has(slug)) {
         categoryCache.set(slug, movies as Movie[]);
       }
     });
-  }, [allCategoriesData]);
+  }
 
-  // --- 1. TẮT SCROLL RESTORATION MẶC ĐỊNH CỦA TRÌNH DUYỆT ---
+  // --- 1. LƯU VỊ TRÍ CUỘN MỖI KHẢO SÁT CHUYỂN TRANG/CUỘN ---
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
-      window.history.scrollRestoration = 'manual';
-    }
-  }, []);
-
-  // --- 2. LOGIC LƯU VỊ TRÍ CUỘN VỚI DEBOUNCE ---
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
     const handleScroll = () => {
-      if (isRestoring.current) return;
-
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (window.scrollY > 100) {
-          sessionStorage.setItem("home_scroll_pos", Math.floor(window.scrollY).toString());
-        }
-      }, 150);
+      if (!isRestoring.current && window.scrollY > 50) {
+        sessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
+      }
     };
-
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      clearTimeout(timeoutId);
-    };
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // --- 3. KHÔI PHỤC SESSION & SCROLL CHÍNH XÁC ---
-  useEffect(() => {
+  // --- 2. KHÔI PHỤC SESSION & TẢI ĐỒNG BỘ ĐỂ KHÔNG CHỚP ---
+  useLayoutEffect(() => {
     const restoreSession = async () => {
       try {
         const savedSlugsStr = sessionStorage.getItem("home_loaded_slugs");
@@ -337,6 +318,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         if (savedSlugsStr) {
           const savedSlugs: string[] = JSON.parse(savedSlugsStr);
           if (savedSlugs.length > 0) {
+            // Nạp dữ liệu đồng bộ từ cache trước nếu có
             const fetchPromises = savedSlugs.map(async (slug) => {
               const cat = HOME_CATEGORIES.find(c => c.slug === slug);
               if (!cat) return null;
@@ -353,44 +335,38 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             const results = await Promise.all(fetchPromises);
             const dynamicSections = results.filter((s): s is SectionData => s !== null);
 
-            setSections(prev => {
-              const combined = [...initialSections, ...dynamicSections];
-              const uniqueMap = new Map();
-              combined.forEach(s => uniqueMap.set(s.slug, s));
-              return Array.from(uniqueMap.values());
-            });
+            if (dynamicSections.length > 0) {
+              setSections(prev => {
+                const combined = [...initialSections, ...dynamicSections];
+                const uniqueMap = new Map();
+                combined.forEach(s => uniqueMap.set(s.slug, s));
+                return Array.from(uniqueMap.values());
+              });
 
-            const lastSlug = savedSlugs[savedSlugs.length - 1];
-            const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
-            if (foundIdx !== -1) setLoadedIndex(foundIdx + 1);
+              const lastSlug = savedSlugs[savedSlugs.length - 1];
+              const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
+              if (foundIdx !== -1) setLoadedIndex(foundIdx + 1);
+            }
 
             if (savedScrollPos) {
               const targetScroll = parseInt(savedScrollPos, 10);
-              
-              // Double RAF + Timeout giúp chờ DOM vẽ xong đủ chiều cao rồi mới cuộn
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  setTimeout(() => {
-                    window.scrollTo({ top: targetScroll, behavior: 'instant' });
-                    isRestoring.current = false;
-                  }, 100);
-                });
-              });
-              return;
+              // Cuộn ngay lập tức khi DOM vừa layout xong
+              window.scrollTo(0, targetScroll);
             }
           }
         }
       } catch (e) {
         console.error("Failed to restore session storage", e);
+      } finally {
+        isRestoring.current = false;
+        setIsReady(true);
       }
-      
-      isRestoring.current = false;
     };
 
     restoreSession();
   }, [initialSections]);
 
-  // --- 4. TẢI DANH MỤC TIẾP THEO (Tối ưu Ref & cờ isRestoring) ---
+  // --- 3. INFINITE SCROLL MƯỢT MÀ ---
   const loadNextCategory = useCallback(async () => {
     const currentIndex = loadedIndexRef.current;
     if (isRestoring.current || currentIndex >= HOME_CATEGORIES.length || isFetching.current) return;
@@ -421,15 +397,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
     setLoadedIndex(prev => prev + 1);
     isFetching.current = false;
-
-    // Prefetch nhẹ danh mục kế tiếp
-    const nextNextIdx = currentIndex + 1;
-    if (nextNextIdx < HOME_CATEGORIES.length) {
-       const futureCat = HOME_CATEGORIES[nextNextIdx];
-       if (futureCat && !categoryCache.has(futureCat.slug)) {
-         fetchCategoryFromD1(futureCat.slug);
-       }
-    }
   }, [initialSections]);
 
   useEffect(() => {
@@ -449,7 +416,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   }, [initialHeroMovies.length]);
 
   return (
-    <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white overflow-x-hidden selection:bg-red-600`}>
+    <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white overflow-x-hidden selection:bg-red-600 transition-opacity duration-150 ${isReady ? 'opacity-100' : 'opacity-0'}`}>
       <style dangerouslySetInnerHTML={{ __html: `
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .text-shadow-netflix { text-shadow: 2px 2px 4px rgba(0,0,0,0.8), -1px -1px 0 rgba(0,0,0,0.5); }
