@@ -26,14 +26,13 @@ const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
 
 const montserrat = Montserrat({ subsets: ["vietnamese"], weight: ["400", "700", "900"] });
 
-const getCleanName = (name: string) => {
-  if (!name) return "";
-  return name
-    .replace(/\s*[\(\[\:\-]?\s*(phần|mùa|season|ss|part|tập|chapter|movie|ova|special|p|s)\s*\d+[\)\]\:]?/gi, "")
-    .replace(/\s*\([\d\s\w]+\)$/gi, "") // Xóa cụm ngoặc ở cuối nếu có
-    .replace(/^[\:\-\(\[\s]+|[\:\-\)\]\s]+$/g, "")
+const getCleanName = (name: string) =>
+  name
+    .split(/\s+[:\-(\[]?\s*(phần|season|ss|part|tập|chapter|movie|ova|special|p|s)\s+\d+/i)[0]
+    .replace(/\s+[:\-(\[]?\s*\d+\s*(:.*)?$/, "")
+    .replace(/\s+(X|IX|IV|V?I{1,3})$/i, "")
+    .replace(/[:\-\(\[\]\)]+$/, "")
     .trim();
-};
 
 const formatServerLabel = (server: any) => {
   if (!server) return "";
@@ -190,97 +189,29 @@ export default function MovieDetailClient({
       fetchNguonc();
     }
   }, [swrMovie, initialMovie, slug, fetchNguonc, swrError]);
-//gộp season
+
+  // Quản lý Seasons
   useEffect(() => {
     if (!movie?.name) return;
-    let isSubscribed = true;
-
     const handleRelatedSeasons = async () => {
-      // 🟢 A. Lấy từ khóa Search ngon nhất từ API
-      const tmdbId = movie.tmdb?.id; // Ví dụ: "129832"
-      const altNames = (movie as any).alternative_names || [];
-
-      // Ưu tiên lấy tên tiếng Anh sạch trong alternative_names (VD: "Bread Barbershop")
-      const cleanAltEnglish = altNames.find((n: string) => /^[a-zA-Z0-9\s]+$/.test(n));
-      const cleanVN = getCleanName(movie.name);
-      const cleanEN = getCleanName((movie as any).origin_name || "");
-
-      // Danh sách từ khóa để search
-      const searchQueries = Array.from(
-        new Set([cleanAltEnglish, cleanEN, cleanVN].filter(Boolean))
-      ) as string[];
-
+      const baseName = getCleanName(movie.name);
       try {
-        // 🟢 B. Gọi API Search với các từ khóa chuẩn
-        const searchPromises = searchQueries.map((q) => searchMovies(q).catch(() => []));
-        const resultsArray = await Promise.all(searchPromises);
+        const searchRes = await searchMovies(baseName);
+        let filtered = searchRes
+          .filter((i: any) => getCleanName(i.name).toLowerCase() === baseName.toLowerCase())
+          .map((i: any) => ({ name: i.name, slug: i.slug, country: i.country }))
+          .filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.slug === v.slug) === i);
 
-        if (!isSubscribed) return;
-
-        const allMovies = resultsArray.flat().filter(Boolean);
-
-        if (allMovies.length > 0) {
-          let filtered = allMovies.filter((item: any) => {
-            // 🥇 ƯU TIÊN 1: Nếu cùng TMDB ID -> CHẮC CHẮN 100% LÀ CÙNG BỘ PHIM
-            if (tmdbId && item.tmdb?.id && String(item.tmdb.id) === String(tmdbId)) {
-              return true;
-            }
-
-            // 🥈 ƯU TIÊN 2: Fallback so sánh tên sạch nếu không có tmdb.id
-            const itemCleanVN = getCleanName(item.name || "").toLowerCase();
-            const itemCleanEN = getCleanName(item.origin_name || "").toLowerCase();
-            const targetVN = cleanVN.toLowerCase();
-            const targetEN = cleanEN.toLowerCase();
-
-            return (
-              (targetVN && (itemCleanVN === targetVN || itemCleanVN.includes(targetVN))) ||
-              (targetEN && (itemCleanEN === targetEN || itemCleanEN.includes(targetEN)))
-            );
-          });
-
-          // 🟢 C. Map dữ liệu & Lọc trùng Slug
-          let seasons = filtered
-            .map((i: any) => ({
-              name: i.name,
-              slug: i.slug,
-              country: i.country,
-              seasonNum: i.tmdb?.season || 0 // Lấy số season từ API nếu có
-            }))
-            .filter((v: any, idx: number, self: any[]) => self.findIndex((t: any) => t.slug === v.slug) === idx);
-
-          // Đảm bảo phim hiện tại luôn có mặt
-          if (!seasons.some((s: any) => s.slug === slug)) {
-            seasons.push({
-              name: movie.name,
-              slug: slug,
-              country: movie.country || "",
-              seasonNum: movie.tmdb?.season || 0
-            });
-          }
-
-          // 🟢 D. Sắp xếp thứ tự: Dựa theo tmdb.season hoặc tên tự nhiên
-          const sorted = seasons.sort((a: any, b: any) => {
-            if (a.seasonNum && b.seasonNum) {
-              return a.seasonNum - b.seasonNum; // Ưu tiên xếp theo season: 1, 2, 3, 4
-            }
-            return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-          });
-
-          if (isSubscribed) {
-            setRelatedSeasons(sorted);
-          }
+        if (!filtered.some((s: any) => s.slug === slug)) {
+          filtered.push({ name: movie.name, slug: slug, country: movie.country || "" });
         }
-      } catch (e) {
-        console.error("Lỗi gộp phần phim:", e);
-      }
+        setRelatedSeasons(
+          filtered.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+        );
+      } catch (e) {}
     };
-
     handleRelatedSeasons();
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, [movie, slug]);
+  }, [movie?.name, slug]);
 
   // Lịch sử xem
   useEffect(() => {
