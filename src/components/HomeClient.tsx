@@ -62,7 +62,7 @@ const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
 // 1. HELPER COMPONENTS
 // ==========================================
 
-const LazyRow = memo(({ children, rootMargin = '800px', placeholderHeight = 500 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
+const LazyRow = memo(({ children, rootMargin = '1000px', placeholderHeight = 500 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -303,12 +303,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // --- 1. LOGIC LƯU VỊ TRÍ CUỘN (Tối ưu với rAF) ---
+  // --- 1. LƯU VỊ TRÍ CUỘN AN TOÀN ---
   useEffect(() => {
     const handleScroll = () => {
       if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
       scrollRafRef.current = requestAnimationFrame(() => {
-        if (window.scrollY > 100) {
+        if (window.scrollY > 50) {
           safeSessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
         }
       });
@@ -320,49 +320,61 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
   }, []);
 
-  // --- 2. KHÔI PHỤC SESSION & SCROLL ---
+  // --- 2. KHÔI PHỤC SESSION & ĐỒNG BỘ VỊ TRÍ CUỘN CHUẨN XÁC ---
   useEffect(() => {
     const restoreSession = async () => {
       try {
         const savedSlugsStr = safeSessionStorage.getItem("home_loaded_slugs");
         const savedScrollPos = safeSessionStorage.getItem("home_scroll_pos");
 
-        if (savedSlugsStr) {
-          const savedSlugs: string[] = JSON.parse(savedSlugsStr);
-          if (savedSlugs.length > 0) {
-            const fetchPromises = savedSlugs.map(async (slug) => {
-              const cat = HOME_CATEGORIES.find(c => c.slug === slug);
-              if (!cat) return null;
+        if (!savedSlugsStr) return;
+        const savedSlugs: string[] = JSON.parse(savedSlugsStr);
+        if (savedSlugs.length === 0) return;
 
-              let movies = categoryCache.get(slug);
-              if (!movies || movies.length === 0) {
-                movies = await fetchCategoryFromD1(slug);
-              }
-              if (!movies || movies.length === 0) return null;
+        const fetchPromises = savedSlugs.map(async (slug) => {
+          const cat = HOME_CATEGORIES.find(c => c.slug === slug);
+          if (!cat) return null;
 
-              return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 24) };
-            });
-
-            const results = await Promise.all(fetchPromises);
-            const dynamicSections = results.filter((s): s is SectionData => s !== null);
-
-            setSections(prev => {
-              const combined = [...initialSections, ...dynamicSections];
-              const uniqueMap = new Map();
-              combined.forEach(s => uniqueMap.set(s.slug, s));
-              return Array.from(uniqueMap.values());
-            });
-
-            const lastSlug = savedSlugs[savedSlugs.length - 1];
-            const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
-            if (foundIdx !== -1) setLoadedIndex(foundIdx + 1);
-
-            if (savedScrollPos) {
-              requestAnimationFrame(() => {
-                window.scrollTo({ top: parseInt(savedScrollPos), behavior: 'instant' });
-              });
-            }
+          let movies = categoryCache.get(slug);
+          if (!movies || movies.length === 0) {
+            movies = await fetchCategoryFromD1(slug);
           }
+          if (!movies || movies.length === 0) return null;
+
+          return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 15) };
+        });
+
+        const results = await Promise.all(fetchPromises);
+        const dynamicSections = results.filter((s): s is SectionData => s !== null);
+
+        setSections(prev => {
+          const combined = [...initialSections, ...dynamicSections];
+          const uniqueMap = new Map();
+          combined.forEach(s => uniqueMap.set(s.slug, s));
+          return Array.from(uniqueMap.values());
+        });
+
+        const lastSlug = savedSlugs[savedSlugs.length - 1];
+        const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
+        if (foundIdx !== -1) {
+          setLoadedIndex(foundIdx + 1);
+        }
+
+        // Chờ DOM render đủ chiều cao (scrollHeight) rồi mới nhảy về đúng tọa độ cũ
+        if (savedScrollPos) {
+          const targetScroll = parseInt(savedScrollPos, 10);
+          let attempts = 0;
+
+          const checkAndScroll = () => {
+            attempts++;
+            if (document.documentElement.scrollHeight >= targetScroll || attempts > 15) {
+              window.scrollTo({ top: targetScroll, behavior: 'instant' });
+            } else {
+              requestAnimationFrame(checkAndScroll);
+            }
+          };
+
+          requestAnimationFrame(checkAndScroll);
         }
       } catch (e) {
         console.error("Failed to restore session storage", e);
@@ -372,7 +384,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     restoreSession();
   }, [initialSections]);
 
-  // --- 3. TẢI TỨC THÌ ---
+  // --- 3. TẢI TIẾP KHI CUỘN ĐẾN CUỐI ---
   const loadNextCategory = useCallback(async () => {
     if (loadedIndex >= HOME_CATEGORIES.length || isFetching.current) return;
 
