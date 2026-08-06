@@ -26,19 +26,33 @@ const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
 
 const montserrat = Montserrat({ subsets: ["vietnamese"], weight: ["400", "700", "900"] });
 
+// 🟢 1. Hàm làm sạch tên phim (Bỏ các cụm Phần/Mùa/Season/Ký tự đặc biệt)
 const getCleanName = (name: string) => {
   if (!name) return "";
   return name
-    // 1. Loại bỏ các cụm Phần/Mùa/Season/Part/Tập kèm số (Bổ sung thêm từ "mùa")
     .replace(/\s*[\(\[\:\-]?\s*(phần|mùa|season|ss|part|tập|chapter|movie|ova|special|p|s)\s*\d+[\)\]\:]?/gi, "")
-    // 2. Loại bỏ chữ số La Mã ở cuối (I, II, III, IV, V...)
     .replace(/\s+(X|IX|IV|V?I{1,3})$/i, "")
-    // 3. Loại bỏ số đứng lẻ loi ở cuối (trừ số năm 4 chữ số như 2024, 2019)
     .replace(/\s*[\(\[\:\-]?\s*(?!\d{4}\b)\d+[\)\]\:]?$/, "")
-    // 4. Dọn dẹp sạch sẽ các ký tự ngoặc, dấu gạch dư thừa ở đầu và cuối chuỗi
     .replace(/^[\:\-\(\[\s]+|[\:\-\)\]\s]+$/g, "")
     .trim();
 };
+
+// 🟢 2. Hàm rút ngắn từ khóa (Lấy 2-3 từ đầu để ép API trả về đủ toàn bộ kết quả)
+const getShortSearchKeyword = (name: string) => {
+  const clean = getCleanName(name);
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length <= 3) return clean;
+  return words.slice(0, 3).join(" "); // "Nhà Tạo Mẫu Tóc Siêu Đẳng" -> "Nhà Tạo Mẫu"
+};
+
+// 🟢 3. Hàm chuẩn hóa chuỗi (Bỏ dấu Tiếng Việt & ký tự đặc biệt để so sánh chính xác)
+const cleanNormalized = (str: string) =>
+  getCleanName(str)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
 const formatServerLabel = (server: any) => {
   if (!server) return "";
   const name = (server.server_name || "").toLowerCase();
@@ -195,59 +209,75 @@ export default function MovieDetailClient({
     }
   }, [swrMovie, initialMovie, slug, fetchNguonc, swrError]);
 
-  // Quản lý Seasons (Phần phim)
+  // 🟢 4. useEffect Quản lý Seasons (Tìm kiếm đa luồng & Lọc thông minh)
   useEffect(() => {
     if (!movie?.name) return;
     let isSubscribed = true;
 
     const handleRelatedSeasons = async () => {
-      // Lấy tên sạch cả Tiếng Việt và Tiếng Anh (Origin Name)
-      const cleanNameVN = getCleanName(movie.name);
-      const cleanNameEN = getCleanName((movie as any).origin_name || "");
+      const rawVN = movie.name || "";
+      const rawEN = (movie as any).origin_name || "";
+
+      const cleanVN = getCleanName(rawVN);
+      const cleanEN = getCleanName(rawEN);
+
+      const normTargetVN = cleanNormalized(rawVN);
+      const normTargetEN = cleanNormalized(rawEN);
+
+      // Mảng chứa các từ khóa tìm kiếm tối ưu
+      const searchQueries: string[] = [];
+
+      // Lớp 1: Từ khóa ngắn (VD: "Nhà Tạo Mẫu") -> Bắt buộc phải có để API trả về đầy đủ
+      const shortVN = getShortSearchKeyword(rawVN);
+      if (shortVN) searchQueries.push(shortVN);
+
+      // Lớp 2: Tên tiếng Anh gốc (VD: "Bread Barbershop")
+      if (cleanEN) searchQueries.push(cleanEN);
+
+      // Lớp 3: Tên đầy đủ
+      if (cleanVN && cleanVN !== shortVN) searchQueries.push(cleanVN);
 
       try {
-        // 🟢 Gọi Search song song cả tên VN và tên EN để tránh API KKPhim bỏ sót
-        const searchPromises = [
-          cleanNameVN ? searchMovies(cleanNameVN) : Promise.resolve([]),
-          cleanNameEN && cleanNameEN.toLowerCase() !== cleanNameVN.toLowerCase()
-            ? searchMovies(cleanNameEN)
-            : Promise.resolve([]),
-        ];
+        // Gọi song song tất cả request tìm kiếm cùng lúc
+        const searchPromises = searchQueries.map((q) => searchMovies(q).catch(() => []));
+        const resultsArray = await Promise.all(searchPromises);
 
-        const [resVN, resEN] = await Promise.all(searchPromises);
         if (!isSubscribed) return;
 
-        const combinedResults = [...(resVN || []), ...(resEN || [])];
+        // Gom toàn bộ danh sách phim trả về từ các từ khóa
+        const allFetchedMovies = resultsArray.flat().filter(Boolean);
 
-        if (combinedResults.length > 0) {
-          const targetVN = cleanNameVN.toLowerCase();
-          const targetEN = cleanNameEN.toLowerCase();
-
-          let filtered = combinedResults
+        if (allFetchedMovies.length > 0) {
+          let filtered = allFetchedMovies
             .filter((item: any) => {
-              const itemVN = getCleanName(item.name || "").toLowerCase();
-              const itemEN = getCleanName(item.origin_name || "").toLowerCase();
+              const itemNormVN = cleanNormalized(item.name || "");
+              const itemNormEN = cleanNormalized(item.origin_name || "");
 
-              // 🟢 Nới lỏng logic: Cho phép khớp chính xác HOẶC chứa nhau
+              // Khớp nếu tên đã chuẩn hóa trùng khớp hoặc chứa nhau
               const matchVN =
-                targetVN &&
-                (itemVN === targetVN || itemVN.includes(targetVN) || targetVN.includes(itemVN));
+                normTargetVN &&
+                (itemNormVN === normTargetVN ||
+                  itemNormVN.includes(normTargetVN) ||
+                  normTargetVN.includes(itemNormVN));
+
               const matchEN =
-                targetEN &&
-                (itemEN === targetEN || itemEN.includes(targetEN) || targetEN.includes(itemEN));
+                normTargetEN &&
+                (itemNormEN === normTargetEN ||
+                  itemNormEN.includes(normTargetEN) ||
+                  normTargetEN.includes(itemNormEN));
 
               return matchVN || matchEN;
             })
             .map((i: any) => ({ name: i.name, slug: i.slug, country: i.country }))
-            // Lọc trùng theo slug
+            // Loại bỏ các phim bị trùng Slug
             .filter((v: any, index: number, self: any[]) => self.findIndex((t: any) => t.slug === v.slug) === index);
 
-          // Đảm bảo phim hiện tại luôn có mặt trong danh sách
+          // Đảm bảo phim hiện tại luôn xuất hiện
           if (!filtered.some((s: any) => s.slug === slug)) {
             filtered.push({ name: movie.name, slug: slug, country: movie.country || "" });
           }
 
-          // 🟢 Sắp xếp thứ tự chuẩn: Phần 1 -> Phần 2 -> Phần 3 -> Phần 4
+          // Sắp xếp tự nhiên: Phần gốc -> Phần 1 -> Phần 2 -> Phần 3 -> Phần 4
           const sorted = filtered.sort((a: any, b: any) =>
             a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
           );
