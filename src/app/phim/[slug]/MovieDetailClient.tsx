@@ -38,7 +38,7 @@ const getCleanName = (name: string) => {
     // 4. Dọn dẹp sạch sẽ các ký tự ngoặc, dấu gạch dư thừa ở đầu và cuối chuỗi
     .replace(/^[\:\-\(\[\s]+|[\:\-\)\]\s]+$/g, "")
     .trim();
-
+};
 const formatServerLabel = (server: any) => {
   if (!server) return "";
   const name = (server.server_name || "").toLowerCase();
@@ -266,7 +266,7 @@ export default function MovieDetailClient({
     return () => {
       isSubscribed = false;
     };
-  }, [movie, name, slug]);
+  }, [movie, slug]);
 
   // Lịch sử xem
   useEffect(() => {
