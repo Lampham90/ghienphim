@@ -17,7 +17,7 @@ const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
   ssr: false,
   loading: () => (
     <div className="w-full h-[75vh] md:h-screen bg-black flex items-center justify-center text-white/20 font-black tracking-widest text-xs uppercase italic">
-      Đang khởi tạo trình phát...
+      
     </div>
   ),
 });
@@ -48,18 +48,14 @@ const formatServerLabel = (server: any) => {
   return server.isNguonc ? `${baseLabel} (2)` : baseLabel;
 };
 
-// Cập nhật 1: Ưu tiên Thuyết minh/Lồng tiếng bất kể nguồn nào
 const sortServersByPriority = (rawServers: any[]) => {
   if (!rawServers || rawServers.length === 0) return [];
   
   return [...rawServers].sort((a, b) => {
     const getPriority = (s: any) => {
       const name = (s.server_name || "").toLowerCase();
-      // Bất kể KKPhim hay NguonC, hễ có Lồng Tiếng/Thuyết Minh là được ưu tiên lên đầu
       if (name.includes("lồng tiếng") || name.includes("lt")) return 1;
       if (name.includes("thuyết minh") || name.includes("tm")) return 2;
-      
-      // Nếu không có Audio TV, ưu tiên Vietsub KKPhim trước, Nguồn C sau
       if (s.isNguonc) return 10;
       return 3; 
     };
@@ -67,13 +63,35 @@ const sortServersByPriority = (rawServers: any[]) => {
   });
 };
 
-const getOnlyNumber = (epNum: any) => {
-  if (!epNum) return "1";
-  const match = String(epNum).match(/\d+/);
-  return match ? match[0] : String(epNum);
+// --- CÁC HÀM XỬ LÝ CHUẨN HÓA DỮ LIỆU TỪ NHIỀU API --- //
+
+// 1. Chuẩn hóa mảng danh sách tập (KKPhim dùng server_data, Nguồn C dùng items)
+const getEpisodesArray = (server: any) => {
+  if (!server) return [];
+  return server.episodes || server.server_data || server.items || [];
 };
 
-// Cập nhật 2: Key lưu lịch sử theo Số Tập để đồng bộ mọi Server
+// 2. Chuẩn hóa link video (KKPhim dùng link_m3u8, Nguồn C dùng embed)
+const getEpisodeLink = (ep: any) => {
+  if (!ep) return "";
+  return ep.link || ep.link_m3u8 || ep.embed || ep.link_embed || "";
+};
+
+// 3. Xử lý triệt để số tập: Chuyển "01" và "1" về cùng giá trị "1"
+const extractNumber = (val: any) => {
+  if (!val) return "1";
+  const str = String(val);
+  const match = str.match(/\d+/);
+  // Dùng parseInt để xóa số 0 vô nghĩa ở đầu, sau đó chuyển lại thành chuỗi
+  return match ? parseInt(match[0], 10).toString() : str;
+};
+
+// 4. Lấy số tập chính xác từ mọi API
+const getEpNum = (ep: any, fallbackIndex: number) => {
+  if (!ep) return String(fallbackIndex + 1);
+  return extractNumber(ep.episode_num || ep.name || ep.slug || fallbackIndex + 1);
+};
+
 const getEpisodeHistoryKey = (movieSlug: string, epNum: string) => `${movieSlug}_ep_${epNum}`;
 
 export default function MovieDetailClient({
@@ -128,10 +146,13 @@ export default function MovieDetailClient({
 
         if (res.ok) {
           const data = await res.json();
-          if (data.servers && data.servers.length > 0) {
+          // Hỗ trợ mảng episodes của Nguồn C nếu nó trả về thẳng data.episodes
+          const serversData = data.servers || data.movie?.episodes || [];
+          if (serversData.length > 0) {
             setServers((prev) => {
               if (prev.some((s) => s.isNguonc)) return prev;
-              return sortServersByPriority([...prev, ...data.servers]);
+              const normalizedServers = serversData.map((s: any) => ({ ...s, isNguonc: true }));
+              return sortServersByPriority([...prev, ...normalizedServers]);
             });
             fetchedNguoncKeyRef.current = currentFetchKey;
           }
@@ -153,7 +174,7 @@ export default function MovieDetailClient({
         try {
           const cachedData = JSON.parse(cached);
           setMovie(cachedData);
-          setServers(sortServersByPriority(cachedData.servers || []));
+          setServers(sortServersByPriority(cachedData.servers || cachedData.episodes || []));
           if (cachedData.origin_name || cachedData.name) {
             fetchNguonc(cachedData.origin_name || cachedData.name);
           }
@@ -174,7 +195,7 @@ export default function MovieDetailClient({
       setMovie(targetMovie);
       setServers((prev) => {
         const nguoncServers = prev.filter((s) => s.isNguonc);
-        return sortServersByPriority([...(targetMovie.servers || []), ...nguoncServers]);
+        return sortServersByPriority([...(targetMovie.servers || targetMovie.episodes || []), ...nguoncServers]);
       });
 
       const englishName = (targetMovie as any).origin_name || targetMovie.name;
@@ -210,12 +231,11 @@ export default function MovieDetailClient({
     handleRelatedSeasons();
   }, [movie?.name, slug]);
 
-  // Khôi phục lịch sử lúc mới load trang
   useEffect(() => {
     if (isPlaying || !servers || servers.length === 0) return;
 
     const currentServer = servers[activeServerIndex];
-    const episodes = currentServer?.episodes || [];
+    const episodes = getEpisodesArray(currentServer);
     if (episodes.length === 0) return;
 
     const saved = history[slug];
@@ -223,8 +243,8 @@ export default function MovieDetailClient({
     let timeToSet = 0;
 
     if (saved) {
-      const cleanSavedNum = getOnlyNumber(saved.epNum);
-      const idx = episodes.findIndex((ep: any) => getOnlyNumber(ep.episode_num) === cleanSavedNum);
+      const cleanSavedNum = extractNumber(saved.epNum);
+      const idx = episodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === cleanSavedNum);
       if (idx !== -1) {
         foundIndex = idx;
         const epHistoryKey = getEpisodeHistoryKey(slug, cleanSavedNum);
@@ -258,21 +278,21 @@ export default function MovieDetailClient({
     );
   };
 
-  // Cập nhật 2: Lưu tiến độ đồng bộ chéo theo Số Tập
   const saveProgress = useCallback(
     async (epIndex: number, seconds: number = 0, duration: number = 0, shouldSync: boolean = false) => {
       const currentServer = servers[activeServerIndex];
-      if (!currentServer?.episodes?.[epIndex]) return;
+      const currentEpisodes = getEpisodesArray(currentServer);
+      if (!currentEpisodes?.[epIndex]) return;
 
-      const ep = currentServer.episodes[epIndex];
-      const epNum = getOnlyNumber(ep.episode_num);
+      const ep = currentEpisodes[epIndex];
+      const epNum = getEpNum(ep, epIndex);
 
       const historyData = {
         epIndex,
         epNum,
         seconds: Math.floor(seconds),
         duration: Math.floor(duration),
-        link: ep.link,
+        link: getEpisodeLink(ep),
         name: movie?.name || "",
         poster: posterSrc,
         thumb: bannerSrc,
@@ -282,10 +302,8 @@ export default function MovieDetailClient({
         last_updated: Date.now(),
       };
 
-      // Lưu chi tiết cho tập hiện tại
       const epHistoryKey = getEpisodeHistoryKey(slug, epNum);
       storeSaveProgress(epHistoryKey, historyData, user?.uid, shouldSync);
-      // Lưu tổng quan cho slug hiển thị trang chủ
       storeSaveProgress(slug, historyData, user?.uid, false);
     },
     [slug, servers, activeServerIndex, movie, user, storeSaveProgress, bannerSrc, posterSrc]
@@ -293,10 +311,10 @@ export default function MovieDetailClient({
 
   const handleEpisodeSelect = (index: number) => {
     const currentServer = servers[activeServerIndex];
-    const ep = currentServer?.episodes?.[index];
-    const epNum = getOnlyNumber(ep?.episode_num);
+    const currentEpisodes = getEpisodesArray(currentServer);
+    const ep = currentEpisodes?.[index];
+    const epNum = getEpNum(ep, index);
     
-    // Đọc lịch sử theo tập
     const epHistoryKey = getEpisodeHistoryKey(slug, epNum);
     const savedEpData = history[epHistoryKey];
 
@@ -312,26 +330,31 @@ export default function MovieDetailClient({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Cập nhật 2: Hàm chuyển server thông minh giữ nguyên tiến độ của Số Tập đang xem
+  // Logic chuyển Server đã được nâng cấp đồng bộ mạnh mẽ
   const handleServerChange = (newServerIndex: number) => {
     if (newServerIndex === activeServerIndex) return;
 
-    const targetServer = servers[newServerIndex];
-    const targetEpisodes = targetServer?.episodes || [];
-    
+    const currentServer = servers[activeServerIndex];
+    const currentEpisodes = getEpisodesArray(currentServer);
     const currentEp = currentEpisodes[currentEpIndex];
-    const currentEpNum = getOnlyNumber(currentEp?.episode_num);
+    const currentEpNum = getEpNum(currentEp, currentEpIndex);
 
-    let targetEpIdx = targetEpisodes.findIndex((ep: any) => getOnlyNumber(ep.episode_num) === currentEpNum);
+    const targetServer = servers[newServerIndex];
+    const targetEpisodes = getEpisodesArray(targetServer);
+    
+    // Tìm chính xác tập tương ứng nhờ việc ép chuẩn hóa số 01 -> 1
+    let targetEpIdx = targetEpisodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === currentEpNum);
     if (targetEpIdx === -1) targetEpIdx = 0;
 
     const targetEp = targetEpisodes[targetEpIdx];
     let timeToSet = 0;
 
     if (targetEp) {
-      const targetEpNum = getOnlyNumber(targetEp.episode_num);
+      const targetEpNum = getEpNum(targetEp, targetEpIdx);
       const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
-      const savedEpData = history[epHistoryKey];
+      // Lấy lịch sử mới nhất từ state thay vì phụ thuộc vào mảng history lúc render
+      const latestHistory = useMovieStore.getState().history;
+      const savedEpData = latestHistory[epHistoryKey] || history[epHistoryKey];
       if (savedEpData) {
         timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
       }
@@ -345,9 +368,9 @@ export default function MovieDetailClient({
   const handleNextEpisode = useCallback(
     (explicitNextIndex?: number) => {
       const nextIdx = explicitNextIndex !== undefined ? explicitNextIndex : currentEpIndex + 1;
-      const episodes = servers[activeServerIndex]?.episodes;
+      const currentEpisodes = getEpisodesArray(servers[activeServerIndex]);
 
-      if (episodes && nextIdx < episodes.length) {
+      if (currentEpisodes && nextIdx < currentEpisodes.length) {
         handleEpisodeSelect(nextIdx);
       } else {
         setIsPlaying(false);
@@ -357,9 +380,10 @@ export default function MovieDetailClient({
   );
 
   const currentServer = servers[activeServerIndex];
-  const currentEpisodes = currentServer?.episodes || [];
+  const currentEpisodes = getEpisodesArray(currentServer);
   const activeEpisode = currentEpisodes[currentEpIndex];
-  const activeEpNum = getOnlyNumber(activeEpisode?.episode_num || currentEpIndex + 1);
+  const activeEpNum = getEpNum(activeEpisode, currentEpIndex);
+  const activeLink = getEpisodeLink(activeEpisode);
 
   const description = movie?.content || (movie as any)?.description || "";
   const currentSeasonObj = relatedSeasons.find((s) => s.slug === slug);
@@ -382,13 +406,13 @@ export default function MovieDetailClient({
 
       {/* HERO / VIDEO PLAYER */}
       <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5">
-        {isPlaying && activeEpisode?.link ? (
+        {isPlaying && activeLink ? (
           <div className="relative w-full h-[75vh] md:h-screen">
             <VideoPlayer
-              key={`${activeServerIndex}_${currentEpIndex}_${activeEpisode.link}`}
+              key={`${activeServerIndex}_${currentEpIndex}_${activeLink}`}
               slug={slug}
               movieName={movie?.name || ""}
-              videoUrl={activeEpisode.link}
+              videoUrl={activeLink}
               initialTime={initialTime}
               currentEpIndex={currentEpIndex}
               totalEpisodes={currentEpisodes.length}
@@ -475,7 +499,7 @@ export default function MovieDetailClient({
                       <div key={idx} className="flex items-center gap-2">
                         {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
                         <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                          {formatServerLabel(s)}: {s.episodes?.length || 0} Tập
+                          {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
                         </span>
                       </div>
                     ))}
@@ -493,7 +517,7 @@ export default function MovieDetailClient({
                 </div>
               </div>
             </div>
-
+            
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
               <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
                 {movie?.name || "..."}
@@ -507,43 +531,12 @@ export default function MovieDetailClient({
                 <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
                   {movie?.year || "2026"}
                 </span>
-
-                {movie?.category && movie.category.length > 0 && (
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-white/70 italic">
-                    <span>•</span>
-                    <span>{movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}</span>
-                  </div>
-                )}
-
-                <button
-                  onClick={toggleFavorite}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border ${
-                    isFavorite ? "bg-red-500/20 border-red-500/50 text-red-500" : "bg-white/5 border-white/20 text-white/60"
-                  }`}
-                >
-                  <svg className={`w-4 h-4 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </button>
               </div>
 
               {description && (
                 <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-md">
                   {description.replace(/<[^>]*>?/gm, "")}
                 </p>
-              )}
-
-              {servers && servers.length > 0 && (
-                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
-                  {servers.map((s, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
-                      <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                        {formatServerLabel(s)}: {s.episodes?.length || 0} Tập
-                      </span>
-                    </div>
-                  ))}
-                </div>
               )}
 
               <div className="pt-2 w-full flex justify-center">
@@ -605,48 +598,6 @@ export default function MovieDetailClient({
                 {openAudio && <div className="fixed inset-0 z-40" onClick={() => setOpenAudio(false)} />}
               </div>
             )}
-
-            {relatedSeasons && relatedSeasons.length > 1 && (
-              <div className="relative inline-block text-left min-w-[220px]">
-                <button
-                  onClick={() => {
-                    setOpenSeason(!openSeason);
-                    setOpenAudio(false);
-                  }}
-                  className="w-full bg-[#121212] border border-white/10 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between hover:border-white/30 transition-all"
-                >
-                  <span className="truncate">
-                    Phần phim: <strong className="text-[#F1E5AC] ml-1">{currentSeasonObj?.name || movie?.name}</strong>
-                  </span>
-                  <svg className={`w-4 h-4 ml-2 transition-transform ${openSeason ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
-                  </svg>
-                </button>
-
-                {openSeason && (
-                  <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-1 z-[100] max-h-60 overflow-y-auto">
-                    {relatedSeasons.map((s, i) => (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setOpenSeason(false);
-                          if (s.slug !== slug) router.push(`/phim/${s.slug}`);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 text-xs transition-colors flex items-center justify-between ${
-                          s.slug === slug
-                            ? "text-red-500 font-bold bg-red-600/10"
-                            : "text-white/70 hover:bg-white/5 hover:text-white"
-                        }`}
-                      >
-                        <span className="truncate">{s.name}</span>
-                        {s.slug === slug && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {openSeason && <div className="fixed inset-0 z-40" onClick={() => setOpenSeason(false)} />}
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
@@ -670,7 +621,7 @@ export default function MovieDetailClient({
             <div className="animate-in fade-in duration-300">
               <div className="ep-grid">
                 {currentEpisodes.map((ep: any, i: number) => {
-                  const num = getOnlyNumber(ep.episode_num);
+                  const num = getEpNum(ep, i);
                   const isCurrent = currentEpIndex === i;
 
                   return (
