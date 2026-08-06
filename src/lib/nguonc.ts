@@ -15,7 +15,7 @@ function cleanEnglishName(rawName: string): string {
 
   return clean
     .replace(/\[.*?\]/g, '')             // Xóa tag [FHD-Vietsub], [HD-Thuyết minh]
-    .replace(/\((19|20)\d{2}\)/g, '')     // Xóa năm (2026)
+    .replace(/\((19|20)\d{2}\)/g, '')    // Xóa năm
     .replace(/[\(\)]/g, ' ')             // Xóa dấu ngoặc đơn ()
     .replace(/\s+/g, ' ')                // Thu gọn khoảng trắng
     .trim();
@@ -64,22 +64,6 @@ export async function fetchNguoncDetail(
         const searchJson = await fetchJSON(searchUrl);
         const items = searchJson?.items || searchJson?.data || searchJson?.data?.items || [];
 
-        if (searchJson?.status === "success" && items.length > 0 && items[0]?.slug) {
-          data = await fetchJSON(`https://phim.nguonc.com/api/film/${items[0].slug}`);
-        }
-      }
-    }
-
-    // BƯỚC 3: Transform dữ liệu trả về theo format chuẩn (Đã có movieInfo)
-   // BƯỚC 2: Nếu Slug khác nhau -> Dùng tên tiếng Anh đã làm sạch để Search
-    if ((!data || data.status !== "success" || !data.movie) && movieName) {
-      const keyword = cleanEnglishName(movieName);
-
-      if (keyword) {
-        const searchUrl = `https://phim.nguonc.com/api/film/search?keyword=${encodeURIComponent(keyword)}`;
-        const searchJson = await fetchJSON(searchUrl);
-        const items = searchJson?.items || searchJson?.data || searchJson?.data?.items || [];
-
         if (searchJson?.status === "success" && items.length > 0) {
           // SỬA LỖI TẠI ĐÂY: Tìm khớp chính xác 100% (exact match) thay vì bốc items[0]
           const targetKw = keyword.toLowerCase();
@@ -96,3 +80,46 @@ export async function fetchNguoncDetail(
         }
       }
     }
+
+    // BƯỚC 3: Transform dữ liệu trả về theo format chuẩn
+    if (data && data.status === "success" && data.movie) {
+      const m = data.movie;
+
+      // 1. Tạo movieInfo dự phòng khớp chuẩn cấu trúc KKPhim
+      const movieInfo = {
+        name: m.name || m.original_name,
+        origin_name: m.original_name || m.name,
+        thumb: m.thumb_url || m.poster_url || "",
+        poster: m.poster_url || m.thumb_url || "",
+        content: m.description || m.content || "",
+        quality: m.quality || "FHD",
+        year: m.created ? new Date(m.created).getFullYear() : new Date().getFullYear(),
+        category: m.category ? Object.values(m.category).map((c: any) => ({ name: c.name })) : [],
+      };
+
+      // 2. Transform Danh sách Server Video
+      const rawEpisodes = m.episodes || data.episodes || [];
+      const mappedServers = (Array.isArray(rawEpisodes) ? rawEpisodes : []).map((server: any) => ({
+        server_name: server.server_name || 'Nguồn C',
+        isNguonc: true,
+        episodes: (server.items || []).map((item: any) => ({
+          episode_num: item.name,
+          name: `Tập ${item.name}`,
+          link: item.embed,
+          link_m3u8: item.embed,
+          isNguonc: true
+        }))
+      }));
+
+      return {
+        movieInfo,
+        servers: mappedServers,
+        original_name: m.original_name || m.name
+      };
+    }
+  } catch (e) {
+    console.error("[NGUONC LIB ERROR]:", e);
+  }
+
+  return null;
+}
