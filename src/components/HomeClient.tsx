@@ -115,7 +115,11 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | n
     if (!el) return;
     updateScrollState();
     el.addEventListener('scroll', updateScrollState);
-    return () => el.removeEventListener('scroll', updateScrollState);
+    window.addEventListener('resize', updateScrollState);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+    };
   }, [updateScrollState, rowRef]);
 
   const btnClass = "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border border-white/10 backdrop-blur-md bg-white/5 text-white hover:bg-white/20";
@@ -272,8 +276,18 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const [sections, setSections] = useState<SectionData[]>(initialSections);
   const [currentHero, setCurrentHero] = useState(0);
   const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
+  
+  // Refs quản lý trạng thái
   const isFetching = useRef(false);
+  const isRestoring = useRef(true); // Cờ chặn observer khi đang restore session
   const loaderRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize state sang Ref để dùng trong useCallback ổn định
+  const loadedIndexRef = useRef(loadedIndex);
+  loadedIndexRef.current = loadedIndex;
+
+  const sectionsRef = useRef(sections);
+  sectionsRef.current = sections;
 
   // Khởi tạo Cache từ Props
   useEffect(() => {
@@ -284,18 +298,36 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // --- 1. LOGIC LƯU VỊ TRÍ CUỘN ---
+  // --- 1. TẮT SCROLL RESTORATION MẶC ĐỊNH CỦA TRÌNH DUYỆT ---
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 100) {
-        sessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
   }, []);
 
-  // --- 2. KHÔI PHỤC SESSION & SCROLL ---
+  // --- 2. LOGIC LƯU VỊ TRÍ CUỘN VỚI DEBOUNCE ---
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const handleScroll = () => {
+      if (isRestoring.current) return;
+
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (window.scrollY > 100) {
+          sessionStorage.setItem("home_scroll_pos", Math.floor(window.scrollY).toString());
+        }
+      }, 150);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // --- 3. KHÔI PHỤC SESSION & SCROLL CHÍNH XÁC ---
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -333,26 +365,38 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             if (foundIdx !== -1) setLoadedIndex(foundIdx + 1);
 
             if (savedScrollPos) {
+              const targetScroll = parseInt(savedScrollPos, 10);
+              
+              // Double RAF + Timeout giúp chờ DOM vẽ xong đủ chiều cao rồi mới cuộn
               requestAnimationFrame(() => {
-                window.scrollTo({ top: parseInt(savedScrollPos), behavior: 'instant' });
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    window.scrollTo({ top: targetScroll, behavior: 'instant' });
+                    isRestoring.current = false;
+                  }, 100);
+                });
               });
+              return;
             }
           }
         }
       } catch (e) {
         console.error("Failed to restore session storage", e);
       }
+      
+      isRestoring.current = false;
     };
 
     restoreSession();
   }, [initialSections]);
 
-  // --- 3. TẢI TỨC THÌ ---
+  // --- 4. TẢI DANH MỤC TIẾP THEO (Tối ưu Ref & cờ isRestoring) ---
   const loadNextCategory = useCallback(async () => {
-    if (loadedIndex >= HOME_CATEGORIES.length || isFetching.current) return;
+    const currentIndex = loadedIndexRef.current;
+    if (isRestoring.current || currentIndex >= HOME_CATEGORIES.length || isFetching.current) return;
 
-    const currentCat = HOME_CATEGORIES[loadedIndex];
-    if (sections.some(s => s.slug === currentCat.slug)) {
+    const currentCat = HOME_CATEGORIES[currentIndex];
+    if (sectionsRef.current.some(s => s.slug === currentCat.slug)) {
       setLoadedIndex(prev => prev + 1);
       return;
     }
@@ -378,19 +422,21 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     setLoadedIndex(prev => prev + 1);
     isFetching.current = false;
 
-    const nextNextIdx = loadedIndex + 1;
+    // Prefetch nhẹ danh mục kế tiếp
+    const nextNextIdx = currentIndex + 1;
     if (nextNextIdx < HOME_CATEGORIES.length) {
        const futureCat = HOME_CATEGORIES[nextNextIdx];
        if (futureCat && !categoryCache.has(futureCat.slug)) {
          fetchCategoryFromD1(futureCat.slug);
        }
     }
-  }, [loadedIndex, initialSections, sections]);
+  }, [initialSections]);
 
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) loadNextCategory();
-    }, { threshold: 0.1, rootMargin: '1200px' });
+    }, { threshold: 0.1, rootMargin: '600px' });
+
     if (loaderRef.current) observer.observe(loaderRef.current);
     return () => observer.disconnect();
   }, [loadNextCategory]);
@@ -418,12 +464,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           const quality = m.quality || m.sub_type || 'FHD';
           const year = m.year;
           const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
-          
+          const isActive = i === currentHero;
 
           return (
             <div 
               key={`${m.slug}-${i}`} 
-              className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
+              className={`transition-opacity duration-1000 ease-in-out ${isActive ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
             >
               <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
                 <div className="absolute inset-0 w-full h-full">
@@ -434,7 +480,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       alt={m.name}
                       fill
                       sizes="100vw"
-                      priority={i === currentHero}
+                      priority={i === 0}
                       className="w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
                     />
@@ -446,7 +492,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       alt={m.name}
                       fill
                       sizes="100vw"
-                      priority={i === currentHero}
+                      priority={i === 0}
                       className="w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
                     />
