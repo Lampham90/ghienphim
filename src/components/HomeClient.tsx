@@ -27,9 +27,18 @@ interface SectionData {
 }
 
 // ==========================================
-// 0. CLIENT IN-MEMORY CACHE FOR D1
+// 0. CLIENT IN-MEMORY CACHE & SAFE STORAGE
 // ==========================================
 const categoryCache = new Map<string, Movie[]>();
+
+const safeSessionStorage = {
+  getItem: (key: string) => {
+    try { return sessionStorage.getItem(key); } catch { return null; }
+  },
+  setItem: (key: string, value: string) => {
+    try { sessionStorage.setItem(key, value); } catch {}
+  }
+};
 
 const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
   if (categoryCache.has(slug)) {
@@ -102,35 +111,44 @@ ViewAllButton.displayName = 'ViewAllButton';
 const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | null> }) => {
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(true);
+  const rafId = useRef<number | null>(null);
 
   const updateScrollState = useCallback(() => {
-    const el = rowRef.current;
-    if (!el) return;
-    setCanLeft(el.scrollLeft > 10);
-    setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+    if (rafId.current) cancelAnimationFrame(rafId.current);
+    rafId.current = requestAnimationFrame(() => {
+      const el = rowRef.current;
+      if (!el) return;
+      setCanLeft(el.scrollLeft > 10);
+      setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+    });
   }, [rowRef]);
 
   useEffect(() => {
     const el = rowRef.current;
     if (!el) return;
     updateScrollState();
-    el.addEventListener('scroll', updateScrollState);
-    return () => el.removeEventListener('scroll', updateScrollState);
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      el.removeEventListener('scroll', updateScrollState);
+    };
   }, [updateScrollState, rowRef]);
 
-  const btnClass = "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border border-white/10 backdrop-blur-md bg-white/5 text-white hover:bg-white/20";
+  const btnClass = "w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border border-white/10 backdrop-blur-md bg-white/5 text-white hover:bg-white/25";
 
   return (
     <div className="flex items-center gap-2 shrink-0">
       <button
         onClick={() => rowRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
         className={`${btnClass} ${canLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        aria-label="Scroll left"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
       </button>
       <button
         onClick={() => rowRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
         className={`${btnClass} ${canRight ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        aria-label="Scroll right"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
       </button>
@@ -274,6 +292,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
   const isFetching = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
+  const scrollRafRef = useRef<number | null>(null);
 
   // Khởi tạo Cache từ Props
   useEffect(() => {
@@ -284,23 +303,29 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // --- 1. LOGIC LƯU VỊ TRÍ CUỘN ---
+  // --- 1. LOGIC LƯU VỊ TRÍ CUỘN (Tối ưu với rAF) ---
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 100) {
-        sessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
-      }
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = requestAnimationFrame(() => {
+        if (window.scrollY > 100) {
+          safeSessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
+        }
+      });
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
 
   // --- 2. KHÔI PHỤC SESSION & SCROLL ---
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const savedSlugsStr = sessionStorage.getItem("home_loaded_slugs");
-        const savedScrollPos = sessionStorage.getItem("home_scroll_pos");
+        const savedSlugsStr = safeSessionStorage.getItem("home_loaded_slugs");
+        const savedScrollPos = safeSessionStorage.getItem("home_scroll_pos");
 
         if (savedSlugsStr) {
           const savedSlugs: string[] = JSON.parse(savedSlugsStr);
@@ -370,7 +395,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
         const next = [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
         const dynamicSlugs = next.filter(s => !initialSections.some(init => init.slug === s.slug)).map(s => s.slug);
-        try { sessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs)); } catch (e) {}
+        safeSessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs));
         return next;
       });
     }
@@ -418,12 +443,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           const quality = m.quality || m.sub_type || 'FHD';
           const year = m.year;
           const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
-          
+          const isActive = i === currentHero;
 
           return (
             <div 
               key={`${m.slug}-${i}`} 
-              className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
+              className={`transition-opacity duration-1000 ease-in-out ${isActive ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
             >
               <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
                 <div className="absolute inset-0 w-full h-full">
@@ -434,7 +459,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       alt={m.name}
                       fill
                       sizes="100vw"
-                      priority={i === currentHero}
+                      priority={isActive}
                       className="w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
                     />
@@ -446,7 +471,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       alt={m.name}
                       fill
                       sizes="100vw"
-                      priority={i === currentHero}
+                      priority={isActive}
                       className="w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
                     />
