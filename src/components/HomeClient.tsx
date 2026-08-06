@@ -303,13 +303,21 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // --- 1. LƯU VỊ TRÍ CUỘN AN TOÀN ---
+  // --- TẮT SCROLL RESTORATION MẶC ĐỊNH ĐỂ HOÀN TOÀN KIỂM SOÁT THỦ CÔNG ---
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+  }, []);
+
+  // --- 1. LƯU VỊ TRÍ CUỘN THỜI GIAN THỰC ---
   useEffect(() => {
     const handleScroll = () => {
       if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
       scrollRafRef.current = requestAnimationFrame(() => {
-        if (window.scrollY > 50) {
-          safeSessionStorage.setItem("home_scroll_pos", window.scrollY.toString());
+        const currentScrollY = window.scrollY;
+        if (currentScrollY > 20) {
+          safeSessionStorage.setItem("home_scroll_pos", currentScrollY.toString());
         }
       });
     };
@@ -320,7 +328,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
   }, []);
 
-  // --- 2. KHÔI PHỤC SESSION & ĐỒNG BỘ VỊ TRÍ CUỘN CHUẨN XÁC ---
+  // --- 2. KHÔI PHỤC SESSION & ÉP VỊ TRÍ CUỘN NGAY LẬP TỨC ---
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -331,6 +339,13 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         const savedSlugs: string[] = JSON.parse(savedSlugsStr);
         if (savedSlugs.length === 0) return;
 
+        // Ép nhảy đến tọa độ cũ NGAY LẬP TỨC từ frame đầu tiên trước khi render DOM hàng phim
+        const targetScroll = savedScrollPos ? parseInt(savedScrollPos, 10) : 0;
+        if (targetScroll > 0) {
+          window.scrollTo({ top: targetScroll, behavior: 'instant' });
+        }
+
+        // Tải ngầm các danh sách phim đã lưu trước đó để tái tạo DOM
         const fetchPromises = savedSlugs.map(async (slug) => {
           const cat = HOME_CATEGORIES.find(c => c.slug === slug);
           if (!cat) return null;
@@ -360,22 +375,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           setLoadedIndex(foundIdx + 1);
         }
 
-        // Chờ DOM render đủ chiều cao (scrollHeight) rồi mới nhảy về đúng tọa độ cũ
-        if (savedScrollPos) {
-          const targetScroll = parseInt(savedScrollPos, 10);
-          let attempts = 0;
+        // Bồi thêm một nhịp cuộn sau khi DOM đã được nạp hoàn chỉnh để đảm bảo tuyệt đối không bị lệch pixel nào
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: targetScroll, behavior: 'instant' });
+        });
 
-          const checkAndScroll = () => {
-            attempts++;
-            if (document.documentElement.scrollHeight >= targetScroll || attempts > 15) {
-              window.scrollTo({ top: targetScroll, behavior: 'instant' });
-            } else {
-              requestAnimationFrame(checkAndScroll);
-            }
-          };
-
-          requestAnimationFrame(checkAndScroll);
-        }
       } catch (e) {
         console.error("Failed to restore session storage", e);
       }

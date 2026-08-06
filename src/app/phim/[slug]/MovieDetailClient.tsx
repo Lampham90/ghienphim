@@ -109,13 +109,10 @@ export default function MovieDetailClient({
     return previewPoster || (movie ? getImageUrl(movie.poster) : "");
   }, [previewPoster, movie]);
 
-  // 🟢 Lưu Key đã fetch thành công để tránh fetch lặp lại
   const fetchedNguoncKeyRef = useRef<string | null>(null);
 
-  // 🟢 HÀM FETCH NGUỒN C ĐÃ SỬA LỖI LOCK REF
   const fetchNguonc = useCallback(
     async (movieName?: string) => {
-      // Đặt key nhận diện theo tên phim
       const currentFetchKey = `${slug}_${movieName || ""}`;
       if (fetchedNguoncKeyRef.current === currentFetchKey) return;
 
@@ -127,11 +124,9 @@ export default function MovieDetailClient({
           const data = await res.json();
           if (data.servers && data.servers.length > 0) {
             setServers((prev) => {
-              // Nếu đã có Server Nguồn C rồi thì giữ nguyên
               if (prev.some((s) => s.isNguonc)) return prev;
               return sortServersByPriority([...prev, ...data.servers]);
             });
-            // Đánh dấu đã fetch thành công key này
             fetchedNguoncKeyRef.current = currentFetchKey;
           }
         }
@@ -153,7 +148,6 @@ export default function MovieDetailClient({
           const cachedData = JSON.parse(cached);
           setMovie(cachedData);
           setServers(sortServersByPriority(cachedData.servers || []));
-          // 🟢 Ưu tiên truyền origin_name (tên tiếng Anh)
           if (cachedData.origin_name || cachedData.name) {
             fetchNguonc(cachedData.origin_name || cachedData.name);
           }
@@ -162,7 +156,6 @@ export default function MovieDetailClient({
         fetchNguonc();
       }
     } else {
-      // 🟢 Ưu tiên truyền origin_name (tên tiếng Anh)
       fetchNguonc((initialMovie as any).origin_name || initialMovie.name);
     }
   }, [slug, initialMovie, fetchNguonc]);
@@ -178,7 +171,6 @@ export default function MovieDetailClient({
         return sortServersByPriority([...(targetMovie.servers || []), ...nguoncServers]);
       });
 
-      // 🟢 Ưu tiên truyền origin_name (tên tiếng Anh)
       const englishName = (targetMovie as any).origin_name || targetMovie.name;
       if (englishName) fetchNguonc(englishName);
 
@@ -190,7 +182,6 @@ export default function MovieDetailClient({
     }
   }, [swrMovie, initialMovie, slug, fetchNguonc, swrError]);
 
-  // Quản lý Seasons
   useEffect(() => {
     if (!movie?.name) return;
     const handleRelatedSeasons = async () => {
@@ -213,7 +204,6 @@ export default function MovieDetailClient({
     handleRelatedSeasons();
   }, [movie?.name, slug]);
 
-  // Lịch sử xem
   useEffect(() => {
     if (isPlaying || !servers || servers.length === 0) return;
 
@@ -321,6 +311,16 @@ export default function MovieDetailClient({
   const description = movie?.content || (movie as any)?.description || "";
   const currentSeasonObj = relatedSeasons.find((s) => s.slug === slug);
 
+  // Kiểm tra xem phim có phải dạng Full / 1 tập duy nhất hay không
+  const isFullMovie = currentEpisodes.length <= 1;
+
+  // Xử lý nhãn hiển thị cho nút Xem ngay / Xem tiếp
+  const getWatchButtonLabel = () => {
+    if (!mounted || !history[slug]) return "Xem ngay";
+    if (isFullMovie) return "Xem tiếp";
+    return `Tiếp tục tập ${activeEpNum}`;
+  };
+
   return (
     <main className={`${montserrat.className} min-h-screen bg-[#050505] text-white pb-32`}>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -378,12 +378,10 @@ export default function MovieDetailClient({
             {/* DESKTOP INFO CONTAINER */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
-                {/* 1. Tựa đề */}
                 <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
                   {movie?.name || "..."}
                 </h1>
 
-                {/* 2. Quality, Year, 2 Thể loại, Yêu thích */}
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                     {movie?.quality || "FHD"}
@@ -417,7 +415,6 @@ export default function MovieDetailClient({
                   </button>
                 </div>
 
-                {/* 3. Description */}
                 {description && (
                   <div
                     className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic"
@@ -425,7 +422,6 @@ export default function MovieDetailClient({
                   />
                 )}
 
-                {/* 4. Cụm Servers */}
                 {servers && servers.length > 0 && (
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     {servers.map((s, idx) => (
@@ -439,27 +435,24 @@ export default function MovieDetailClient({
                   </div>
                 )}
 
-                {/* 5. Nút Xem Ngay */}
                 <div className="pt-2 w-full max-w-xl flex justify-start">
                   <button
                     disabled={!isHistoryLoaded || !activeEpisode}
                     onClick={() => setIsPlaying(true)}
                     className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
                   >
-                    {!mounted || !history[slug] ? "Xem ngay" : `Tiếp tục tập ${activeEpNum}`}
+                    {getWatchButtonLabel()}
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* MOBILE INFO CONTAINER (Nằm hoàn toàn ở khoảng trống bên dưới Poster, căn giữa) */}
+            {/* MOBILE INFO CONTAINER */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
-              {/* 1. Tựa đề */}
               <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
                 {movie?.name || "..."}
               </h1>
 
-              {/* 2. Quality, Year, 2 Thể loại, Yêu thích */}
               <div className="flex flex-wrap items-center justify-center gap-2.5">
                 <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
                   {movie?.quality || "FHD"}
@@ -488,14 +481,12 @@ export default function MovieDetailClient({
                 </button>
               </div>
 
-              {/* 3. Description */}
               {description && (
                 <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-md">
                   {description.replace(/<[^>]*>?/gm, "")}
                 </p>
               )}
 
-              {/* 4. Cụm Servers */}
               {servers && servers.length > 0 && (
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
                   {servers.map((s, idx) => (
@@ -509,14 +500,13 @@ export default function MovieDetailClient({
                 </div>
               )}
 
-              {/* 5. Nút Xem Ngay */}
               <div className="pt-2 w-full flex justify-center">
                 <button
                   disabled={!isHistoryLoaded || !activeEpisode}
                   onClick={() => setIsPlaying(true)}
                   className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
                 >
-                  {!mounted || !history[slug] ? "Xem ngay" : `Tiếp tục tập ${activeEpNum}`}
+                  {getWatchButtonLabel()}
                 </button>
               </div>
             </div>
