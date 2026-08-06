@@ -26,12 +26,17 @@ const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
 
 const montserrat = Montserrat({ subsets: ["vietnamese"], weight: ["400", "700", "900"] });
 
-const getCleanName = (name: string) =>
-  name
-    .split(/\s+[:\-(\[]?\s*(phần|season|ss|part|tập|chapter|movie|ova|special|p|s)\s+\d+/i)[0]
-    .replace(/\s+[:\-(\[]?\s*\d+\s*(:.*)?$/, "")
+const getCleanName = (name: string) => {
+  if (!name) return "";
+  return name
+    // 1. Loại bỏ các cụm Phần/Mùa/Season/Part/Tập kèm số (Bổ sung thêm từ "mùa")
+    .replace(/\s*[\(\[\:\-]?\s*(phần|mùa|season|ss|part|tập|chapter|movie|ova|special|p|s)\s*\d+[\)\]\:]?/gi, "")
+    // 2. Loại bỏ chữ số La Mã ở cuối (I, II, III, IV, V...)
     .replace(/\s+(X|IX|IV|V?I{1,3})$/i, "")
-    .replace(/[:\-\(\[\]\)]+$/, "")
+    // 3. Loại bỏ số đứng lẻ loi ở cuối (trừ số năm 4 chữ số như 2024, 2019)
+    .replace(/\s*[\(\[\:\-]?\s*(?!\d{4}\b)\d+[\)\]\:]?$/, "")
+    // 4. Dọn dẹp sạch sẽ các ký tự ngoặc, dấu gạch dư thừa ở đầu và cuối chuỗi
+    .replace(/^[\:\-\(\[\s]+|[\:\-\)\]\s]+$/g, "")
     .trim();
 
 const formatServerLabel = (server: any) => {
@@ -190,28 +195,78 @@ export default function MovieDetailClient({
     }
   }, [swrMovie, initialMovie, slug, fetchNguonc, swrError]);
 
-  // Quản lý Seasons
+  // Quản lý Seasons (Phần phim)
   useEffect(() => {
     if (!movie?.name) return;
-    const handleRelatedSeasons = async () => {
-      const baseName = getCleanName(movie.name);
-      try {
-        const searchRes = await searchMovies(baseName);
-        let filtered = searchRes
-          .filter((i: any) => getCleanName(i.name).toLowerCase() === baseName.toLowerCase())
-          .map((i: any) => ({ name: i.name, slug: i.slug, country: i.country }))
-          .filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.slug === v.slug) === i);
+    let isSubscribed = true;
 
-        if (!filtered.some((s: any) => s.slug === slug)) {
-          filtered.push({ name: movie.name, slug: slug, country: movie.country || "" });
+    const handleRelatedSeasons = async () => {
+      // Lấy tên sạch cả Tiếng Việt và Tiếng Anh (Origin Name)
+      const cleanNameVN = getCleanName(movie.name);
+      const cleanNameEN = getCleanName((movie as any).origin_name || "");
+
+      try {
+        // 🟢 Gọi Search song song cả tên VN và tên EN để tránh API KKPhim bỏ sót
+        const searchPromises = [
+          cleanNameVN ? searchMovies(cleanNameVN) : Promise.resolve([]),
+          cleanNameEN && cleanNameEN.toLowerCase() !== cleanNameVN.toLowerCase()
+            ? searchMovies(cleanNameEN)
+            : Promise.resolve([]),
+        ];
+
+        const [resVN, resEN] = await Promise.all(searchPromises);
+        if (!isSubscribed) return;
+
+        const combinedResults = [...(resVN || []), ...(resEN || [])];
+
+        if (combinedResults.length > 0) {
+          const targetVN = cleanNameVN.toLowerCase();
+          const targetEN = cleanNameEN.toLowerCase();
+
+          let filtered = combinedResults
+            .filter((item: any) => {
+              const itemVN = getCleanName(item.name || "").toLowerCase();
+              const itemEN = getCleanName(item.origin_name || "").toLowerCase();
+
+              // 🟢 Nới lỏng logic: Cho phép khớp chính xác HOẶC chứa nhau
+              const matchVN =
+                targetVN &&
+                (itemVN === targetVN || itemVN.includes(targetVN) || targetVN.includes(itemVN));
+              const matchEN =
+                targetEN &&
+                (itemEN === targetEN || itemEN.includes(targetEN) || targetEN.includes(itemEN));
+
+              return matchVN || matchEN;
+            })
+            .map((i: any) => ({ name: i.name, slug: i.slug, country: i.country }))
+            // Lọc trùng theo slug
+            .filter((v: any, index: number, self: any[]) => self.findIndex((t: any) => t.slug === v.slug) === index);
+
+          // Đảm bảo phim hiện tại luôn có mặt trong danh sách
+          if (!filtered.some((s: any) => s.slug === slug)) {
+            filtered.push({ name: movie.name, slug: slug, country: movie.country || "" });
+          }
+
+          // 🟢 Sắp xếp thứ tự chuẩn: Phần 1 -> Phần 2 -> Phần 3 -> Phần 4
+          const sorted = filtered.sort((a: any, b: any) =>
+            a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
+          );
+
+          if (isSubscribed) {
+            setRelatedSeasons(sorted);
+          }
         }
-        setRelatedSeasons(
-          filtered.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-        );
-      } catch (e) {}
+      } catch (e) {
+        console.error("Lỗi gộp phần phim:", e);
+      }
     };
+
     handleRelatedSeasons();
-  }, [movie?.name, slug]);
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [movie, name, slug]);
 
   // Lịch sử xem
   useEffect(() => {
