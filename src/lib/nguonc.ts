@@ -71,44 +71,28 @@ export async function fetchNguoncDetail(
     }
 
     // BƯỚC 3: Transform dữ liệu trả về theo format chuẩn (Đã có movieInfo)
-    if (data && data.status === "success" && data.movie) {
-      const m = data.movie;
+   // BƯỚC 2: Nếu Slug khác nhau -> Dùng tên tiếng Anh đã làm sạch để Search
+    if ((!data || data.status !== "success" || !data.movie) && movieName) {
+      const keyword = cleanEnglishName(movieName);
 
-      // 🟢 1. Tạo movieInfo dự phòng khớp chuẩn cấu trúc KKPhim
-      const movieInfo = {
-        name: m.name || m.original_name,
-        origin_name: m.original_name || m.name,
-        thumb: m.thumb_url || m.poster_url || "",
-        poster: m.poster_url || m.thumb_url || "",
-        content: m.description || m.content || "",
-        quality: m.quality || "FHD",
-        year: m.created ? new Date(m.created).getFullYear() : 2026,
-        category: m.category ? Object.values(m.category).map((c: any) => ({ name: c.name })) : [],
-      };
+      if (keyword) {
+        const searchUrl = `https://phim.nguonc.com/api/film/search?keyword=${encodeURIComponent(keyword)}`;
+        const searchJson = await fetchJSON(searchUrl);
+        const items = searchJson?.items || searchJson?.data || searchJson?.data?.items || [];
 
-      // 🟢 2. Transform Danh sách Server Video
-      const rawEpisodes = m.episodes || data.episodes || [];
-      const mappedServers = (Array.isArray(rawEpisodes) ? rawEpisodes : []).map((server: any) => ({
-        server_name: server.server_name || 'Nguồn C',
-        isNguonc: true,
-        episodes: (server.items || []).map((item: any) => ({
-          episode_num: item.name,
-          name: `Tập ${item.name}`,
-          link: item.embed,
-          link_m3u8: item.embed,
-          isNguonc: true
-        }))
-      }));
+        if (searchJson?.status === "success" && items.length > 0) {
+          // SỬA LỖI TẠI ĐÂY: Tìm khớp chính xác 100% (exact match) thay vì bốc items[0]
+          const targetKw = keyword.toLowerCase();
+          const exactMatch = items.find((item: any) => {
+            const origin = (item.original_name || "").toLowerCase();
+            const name = (item.name || "").toLowerCase();
+            return origin === targetKw || name === targetKw;
+          });
 
-      return {
-        movieInfo,
-        servers: mappedServers,
-        original_name: m.original_name || m.name
-      };
+          // Chỉ lấy slug đi fetch chi tiết nếu tìm thấy chính xác bộ phim đó
+          if (exactMatch && exactMatch.slug) {
+            data = await fetchJSON(`https://phim.nguonc.com/api/film/${exactMatch.slug}`);
+          }
+        }
+      }
     }
-  } catch (e) {
-    console.error("[NGUONC LIB ERROR]:", e);
-  }
-
-  return null;
-}
