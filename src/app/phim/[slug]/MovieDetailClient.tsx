@@ -1,7 +1,5 @@
 "use client";
 
-// ❌ Bỏ dòng export const runtime = "edge"; ở đây (vì đây là Client Component)
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Montserrat } from "next/font/google";
@@ -50,17 +48,22 @@ const formatServerLabel = (server: any) => {
   return server.isNguonc ? `${baseLabel} (2)` : baseLabel;
 };
 
+// Cập nhật 1: Ưu tiên Thuyết minh/Lồng tiếng bất kể nguồn nào
 const sortServersByPriority = (rawServers: any[]) => {
-  if (!rawServers) return [];
+  if (!rawServers || rawServers.length === 0) return [];
+  
   return [...rawServers].sort((a, b) => {
-    const priority = (s: any) => {
+    const getPriority = (s: any) => {
+      const name = (s.server_name || "").toLowerCase();
+      // Bất kể KKPhim hay NguonC, hễ có Lồng Tiếng/Thuyết Minh là được ưu tiên lên đầu
+      if (name.includes("lồng tiếng") || name.includes("lt")) return 1;
+      if (name.includes("thuyết minh") || name.includes("tm")) return 2;
+      
+      // Nếu không có Audio TV, ưu tiên Vietsub KKPhim trước, Nguồn C sau
       if (s.isNguonc) return 10;
-      const n = (s.server_name || "").toLowerCase();
-      if (n.includes("lồng tiếng") || n.includes("lt")) return 1;
-      if (n.includes("thuyết minh") || n.includes("tm")) return 2;
-      return 3;
+      return 3; 
     };
-    return priority(a) - priority(b);
+    return getPriority(a) - getPriority(b);
   });
 };
 
@@ -69,6 +72,9 @@ const getOnlyNumber = (epNum: any) => {
   const match = String(epNum).match(/\d+/);
   return match ? match[0] : String(epNum);
 };
+
+// Cập nhật 2: Key lưu lịch sử theo Số Tập để đồng bộ mọi Server
+const getEpisodeHistoryKey = (movieSlug: string, epNum: string) => `${movieSlug}_ep_${epNum}`;
 
 export default function MovieDetailClient({
   initialMovie,
@@ -204,6 +210,7 @@ export default function MovieDetailClient({
     handleRelatedSeasons();
   }, [movie?.name, slug]);
 
+  // Khôi phục lịch sử lúc mới load trang
   useEffect(() => {
     if (isPlaying || !servers || servers.length === 0) return;
 
@@ -220,7 +227,9 @@ export default function MovieDetailClient({
       const idx = episodes.findIndex((ep: any) => getOnlyNumber(ep.episode_num) === cleanSavedNum);
       if (idx !== -1) {
         foundIndex = idx;
-        timeToSet = saved.duration && saved.seconds > saved.duration * 0.95 ? 0 : saved.seconds || 0;
+        const epHistoryKey = getEpisodeHistoryKey(slug, cleanSavedNum);
+        const epSaved = history[epHistoryKey] || saved;
+        timeToSet = epSaved.duration && epSaved.seconds > epSaved.duration * 0.95 ? 0 : epSaved.seconds || 0;
       }
     }
 
@@ -249,6 +258,7 @@ export default function MovieDetailClient({
     );
   };
 
+  // Cập nhật 2: Lưu tiến độ đồng bộ chéo theo Số Tập
   const saveProgress = useCallback(
     async (epIndex: number, seconds: number = 0, duration: number = 0, shouldSync: boolean = false) => {
       const currentServer = servers[activeServerIndex];
@@ -272,17 +282,64 @@ export default function MovieDetailClient({
         last_updated: Date.now(),
       };
 
-      storeSaveProgress(slug, historyData, user?.uid, shouldSync);
+      // Lưu chi tiết cho tập hiện tại
+      const epHistoryKey = getEpisodeHistoryKey(slug, epNum);
+      storeSaveProgress(epHistoryKey, historyData, user?.uid, shouldSync);
+      // Lưu tổng quan cho slug hiển thị trang chủ
+      storeSaveProgress(slug, historyData, user?.uid, false);
     },
     [slug, servers, activeServerIndex, movie, user, storeSaveProgress, bannerSrc, posterSrc]
   );
 
   const handleEpisodeSelect = (index: number) => {
+    const currentServer = servers[activeServerIndex];
+    const ep = currentServer?.episodes?.[index];
+    const epNum = getOnlyNumber(ep?.episode_num);
+    
+    // Đọc lịch sử theo tập
+    const epHistoryKey = getEpisodeHistoryKey(slug, epNum);
+    const savedEpData = history[epHistoryKey];
+
+    let timeToSet = 0;
+    if (savedEpData) {
+      timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
+    }
+
     setCurrentEpIndex(index);
-    setInitialTime(0);
+    setInitialTime(timeToSet);
     setIsPlaying(true);
-    saveProgress(index, 0, 0, true);
+    saveProgress(index, timeToSet, savedEpData?.duration || 0, true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Cập nhật 2: Hàm chuyển server thông minh giữ nguyên tiến độ của Số Tập đang xem
+  const handleServerChange = (newServerIndex: number) => {
+    if (newServerIndex === activeServerIndex) return;
+
+    const targetServer = servers[newServerIndex];
+    const targetEpisodes = targetServer?.episodes || [];
+    
+    const currentEp = currentEpisodes[currentEpIndex];
+    const currentEpNum = getOnlyNumber(currentEp?.episode_num);
+
+    let targetEpIdx = targetEpisodes.findIndex((ep: any) => getOnlyNumber(ep.episode_num) === currentEpNum);
+    if (targetEpIdx === -1) targetEpIdx = 0;
+
+    const targetEp = targetEpisodes[targetEpIdx];
+    let timeToSet = 0;
+
+    if (targetEp) {
+      const targetEpNum = getOnlyNumber(targetEp.episode_num);
+      const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
+      const savedEpData = history[epHistoryKey];
+      if (savedEpData) {
+        timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
+      }
+    }
+
+    setActiveServerIndex(newServerIndex);
+    setCurrentEpIndex(targetEpIdx);
+    setInitialTime(timeToSet);
   };
 
   const handleNextEpisode = useCallback(
@@ -291,16 +348,12 @@ export default function MovieDetailClient({
       const episodes = servers[activeServerIndex]?.episodes;
 
       if (episodes && nextIdx < episodes.length) {
-        setCurrentEpIndex(nextIdx);
-        setInitialTime(0);
-        setIsPlaying(true);
-        saveProgress(nextIdx, 0, 0, true);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        handleEpisodeSelect(nextIdx);
       } else {
         setIsPlaying(false);
       }
     },
-    [currentEpIndex, servers, activeServerIndex, saveProgress]
+    [currentEpIndex, servers, activeServerIndex, history, slug]
   );
 
   const currentServer = servers[activeServerIndex];
@@ -311,10 +364,8 @@ export default function MovieDetailClient({
   const description = movie?.content || (movie as any)?.description || "";
   const currentSeasonObj = relatedSeasons.find((s) => s.slug === slug);
 
-  // Kiểm tra xem phim có phải dạng Full / 1 tập duy nhất hay không
   const isFullMovie = currentEpisodes.length <= 1;
 
-  // Xử lý nhãn hiển thị cho nút Xem ngay / Xem tiếp
   const getWatchButtonLabel = () => {
     if (!mounted || !history[slug]) return "Xem ngay";
     if (isFullMovie) return "Xem tiếp";
@@ -348,7 +399,6 @@ export default function MovieDetailClient({
           </div>
         ) : (
           <div className="relative w-full">
-            {/* Nút Back */}
             <button
               onClick={() => router.back()}
               className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
@@ -358,7 +408,6 @@ export default function MovieDetailClient({
               </svg>
             </button>
 
-            {/* BANNER / POSTER IMAGE CONTAINER */}
             <div className="relative w-full h-[45vh] md:h-screen bg-black overflow-hidden">
               <div className="absolute inset-0 w-full h-full">
                 {posterSrc && (
@@ -375,7 +424,6 @@ export default function MovieDetailClient({
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
             </div>
 
-            {/* DESKTOP INFO CONTAINER */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
@@ -407,7 +455,6 @@ export default function MovieDetailClient({
                         ? "bg-red-500/20 border-red-500/50 text-red-500"
                         : "bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40"
                     }`}
-                    title={isFavorite ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
                   >
                     <svg className={`w-4 h-4 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
                       <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -447,7 +494,6 @@ export default function MovieDetailClient({
               </div>
             </div>
 
-            {/* MOBILE INFO CONTAINER */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
               <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
                 {movie?.name || "..."}
@@ -518,7 +564,6 @@ export default function MovieDetailClient({
       {mounted && (
         <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-8 space-y-6">
           <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-6">
-            {/* DROPDOWN AUDIO */}
             {servers && servers.length > 0 && (
               <div className="relative inline-block text-left min-w-[200px]">
                 <button
@@ -542,7 +587,7 @@ export default function MovieDetailClient({
                       <button
                         key={i}
                         onClick={() => {
-                          setActiveServerIndex(i);
+                          handleServerChange(i);
                           setOpenAudio(false);
                         }}
                         className={`w-full text-left px-4 py-2.5 text-xs transition-colors flex items-center justify-between ${
@@ -561,7 +606,6 @@ export default function MovieDetailClient({
               </div>
             )}
 
-            {/* DROPDOWN PHẦN PHIM */}
             {relatedSeasons && relatedSeasons.length > 1 && (
               <div className="relative inline-block text-left min-w-[220px]">
                 <button
