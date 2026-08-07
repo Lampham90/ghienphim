@@ -247,14 +247,34 @@ const HistoryRow = memo(() => {
 
   const historyMovies = useMemo(() => {
     if (!mounted || !storeHistory) return [];
-    return Object.entries(storeHistory)
-      .map(([slug, data]: [string, any]) => ({ slug, ...data }))
-      .filter(item => item && item.name && (item.poster || item.thumb))
+    
+    // Sử dụng Map để gom nhóm các phim trùng tên
+    const uniqueMovies = new Map();
+
+    Object.entries(storeHistory).forEach(([key, data]: [string, any]) => {
+      // Bỏ qua các key của từng tập lẻ (chứa "_ep_") để tránh lặp thumbnail
+      if (key.includes('_ep_')) return;
+
+      if (data && data.name && (data.poster || data.thumb)) {
+        // Chuẩn hóa tên phim để làm key gom nhóm (phòng trường hợp 2 slug khác nhau nhưng chung 1 phim)
+        const cleanName = data.name.trim().toLowerCase();
+
+        if (uniqueMovies.has(cleanName)) {
+          const existing = uniqueMovies.get(cleanName);
+          // Nếu trùng tên, so sánh last_updated để luôn ưu tiên hiển thị bản ghi xem gần nhất
+          if ((data.last_updated || 0) > (existing.last_updated || 0)) {
+            uniqueMovies.set(cleanName, { slug: key, ...data });
+          }
+        } else {
+          uniqueMovies.set(cleanName, { slug: key, ...data });
+        }
+      }
+    });
+
+    return Array.from(uniqueMovies.values())
       .sort((a, b) => (b.last_updated || 0) - (a.last_updated || 0))
       .slice(0, 10);
   }, [mounted, storeHistory]);
-
-  if (!mounted || historyMovies.length === 0) return null;
 
   return (
       <div className="pl-6 md:pl-20 group/row relative mb-20">
