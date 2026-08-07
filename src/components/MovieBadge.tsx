@@ -9,18 +9,27 @@ interface MovieBadgeProps {
 }
 
 const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
-  // 🌟 GOM TẤT CẢ CÁC GIÁ TRỊ STRING TRONG OBJECT MOVIE THÀNH MỘT CHUỖI ĐỂ QUÉT (QUÉT SẠCH MỌI TRƯỜNG DỮ LIỆU)
-  const allText = Object.values(movie || {})
-    .map((val) => (typeof val === 'string' ? val : JSON.stringify(val || '')))
+  // 🌟 CHỈ GOM CÁC TRƯỜNG DỮ LIỆU LIÊN QUAN ĐẾN NGÔN NGỮ ĐỂ QUÉT
+  const langText = [
+    movie?.lang,
+    movie?.language,
+    movie?.quality,
+    movie?.episode_current, // KKPhim đôi khi kẹp chữ 'Thuyết minh' vào tập hiện tại
+    movie?.current_episode,
+    movie?.sub_type // Hoặc sub_doc tùy API của bạn
+  ]
+    .filter((val) => typeof val === 'string') // Lọc chỉ lấy các giá trị chuỗi (bỏ null, undefined)
     .join(' ')
     .toLowerCase();
 
   // 🌟 ƯU TIÊN TUYỆT ĐỐI CHO LỒNG TIẾNG, SAU ĐÓ ĐẾN THUYẾT MINH
   let displayLang = "";
-  if (allText.includes("lồng")) {
+  if (langText.includes("lồng")) {
     displayLang = "L.Tiếng";
-  } else if (allText.includes("thuyết")) {
+  } else if (langText.includes("thuyết")) {
     displayLang = "T.Minh";
+  } else if (langText.includes("vietsub") || langText.includes("phụ đề")) {
+    displayLang = "Vietsub"; // Thêm nhãn này cho đầy đủ nếu cần
   }
 
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String an toàn
