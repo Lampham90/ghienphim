@@ -28,8 +28,6 @@ const MovieBadge = memo(({ movie, variant }: MovieBadgeProps) => {
     displayLang = "L.Tiếng";
   } else if (langText.includes("thuyết")) {
     displayLang = "T.Minh";
-  } else if (langText.includes("vietsub") || langText.includes("phụ đề")) {
-    displayLang = "Vietsub"; // Thêm nhãn này cho đầy đủ nếu cần
   }
 
   // ✅ BỌC TẠI ĐÂY: Ép kiểu dữ liệu tập phim về String an toàn
