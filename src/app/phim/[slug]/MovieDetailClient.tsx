@@ -232,31 +232,53 @@ export default function MovieDetailClient({
   }, [movie?.name, slug]);
 
   useEffect(() => {
+    // SỬA LẠI ĐOẠN NÀY ĐỂ TỰ ĐỘNG KHỚP CẢ SERVER (AUDIO) VÀ TẬP PHIM TỪ LỊCH SỬ
+  useEffect(() => {
     if (isPlaying || !servers || servers.length === 0) return;
 
-    const currentServer = servers[activeServerIndex];
-    const episodes = getEpisodesArray(currentServer);
-    if (episodes.length === 0) return;
-
     const saved = history[slug];
+    if (!saved) {
+      setIsHistoryLoaded(true);
+      return;
+    }
+
+    let targetServerIndex = 0;
     let foundIndex = 0;
     let timeToSet = 0;
 
-    if (saved) {
-      const cleanSavedNum = extractNumber(saved.epNum);
-      const idx = episodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === cleanSavedNum);
-      if (idx !== -1) {
-        foundIndex = idx;
-        const epHistoryKey = getEpisodeHistoryKey(slug, cleanSavedNum);
-        const epSaved = history[epHistoryKey] || saved;
-        timeToSet = epSaved.duration && epSaved.seconds > epSaved.duration * 0.95 ? 0 : epSaved.seconds || 0;
+    const cleanSavedNum = extractNumber(saved.epNum);
+
+    // 1. Dò xem server nào chứa tập phim mà user đang xem dở dựa trên sub_type hoặc epNum
+    if (saved.sub_type) {
+      const matchedServerIdx = servers.findIndex(
+        (s) => formatServerLabel(s).toLowerCase() === saved.sub_type.toLowerCase()
+      );
+      if (matchedServerIdx !== -1) {
+        targetServerIndex = matchedServerIdx;
       }
     }
 
+    // 2. Lấy danh sách tập của server đã chọn để tìm chính xác số tập
+    const targetServer = servers[targetServerIndex];
+    const episodes = getEpisodesArray(targetServer);
+
+    if (episodes.length > 0) {
+      const idx = episodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === cleanSavedNum);
+      if (idx !== -1) {
+        foundIndex = idx;
+      }
+    }
+
+    // 3. Lấy thời gian đã xem của tập đó
+    const epHistoryKey = getEpisodeHistoryKey(slug, cleanSavedNum);
+    const epSaved = history[epHistoryKey] || saved;
+    timeToSet = epSaved.duration && epSaved.seconds > epSaved.duration * 0.95 ? 0 : epSaved.seconds || 0;
+
+    setActiveServerIndex(targetServerIndex);
     setCurrentEpIndex(foundIndex);
     setInitialTime(timeToSet);
     setIsHistoryLoaded(true);
-  }, [slug, activeServerIndex, servers, history, isPlaying]);
+  }, [slug, servers, history, isPlaying]);
 
   const isFavorite = favorites.some((item: any) => item.slug === slug);
 
