@@ -554,7 +554,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
                       alt={m.name}
                       fill
-                      sizes="75vw"
+                      sizes="50vw"
                       priority={i === currentHero}
                       className="w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
@@ -566,7 +566,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
                       alt={m.name}
                       fill
-                      sizes="75vw"
+                      sizes="50vw"
                       priority={i === currentHero}
                       className="w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
