@@ -231,7 +231,6 @@ export default function MovieDetailClient({
     handleRelatedSeasons();
   }, [movie?.name, slug]);
 
-  useEffect(() => {
     // SỬA LẠI ĐOẠN NÀY ĐỂ TỰ ĐỘNG KHỚP CẢ SERVER (AUDIO) VÀ TẬP PHIM TỪ LỊCH SỬ
   useEffect(() => {
     if (isPlaying || !servers || servers.length === 0) return;
