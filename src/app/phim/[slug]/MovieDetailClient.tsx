@@ -436,12 +436,12 @@ export default function MovieDetailClient({
         <div className="absolute inset-0 w-full h-full">
           {posterSrc && (
             <div className="block md:hidden relative w-full h-full">
-              <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
+              <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
             </div>
           )}
           {bannerSrc && (
             <div className="hidden md:block relative w-full h-full">
-              <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={80} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
+              <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
             </div>
           )}
         </div>
