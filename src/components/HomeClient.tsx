@@ -499,7 +499,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => {
       observer.disconnect();
     };
-  }, [loadNextCategory, isRestoring]);/ Giờ đây dependencies rất ổn định, không bị chớp giật 
+  }, [loadNextCategory, isRestoring]);// Giờ đây dependencies rất ổn định, không bị chớp giật 
 
   useEffect(() => {
     if (initialHeroMovies.length > 0) {
