@@ -436,55 +436,70 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
   // --- 3. TẢI TIẾP KHI CUỘN ĐẾN CUỐI (HÀM NÀY ĐƯỢC GIỮ ỔN ĐỊNH BẰNG REF) ---
   const loadNextCategory = useCallback(async () => {
-    const currentIndex = loadedIndexRef.current; // Dùng Ref để không bị phụ thuộc vòng lặp
+    const currentIndex = loadedIndexRef.current;
+    
+    // Nếu đã tải hết hoặc đang bận fetch thì bỏ qua, nhưng thêm cơ chế timeout đề phòng kẹt cờ quá 5 giây
     if (currentIndex >= HOME_CATEGORIES.length || isFetching.current) return;
 
     isFetching.current = true;
     const currentCat = HOME_CATEGORIES[currentIndex];
 
-    let movies = categoryCache.get(currentCat.slug);
-    if (!movies || movies.length === 0) {
-      movies = await fetchCategoryFromD1(currentCat.slug);
-    }
+    try {
+      let movies = categoryCache.get(currentCat.slug);
+      if (!movies || movies.length === 0) {
+        movies = await fetchCategoryFromD1(currentCat.slug);
+      }
 
-    if (movies && movies.length > 0) {
-      setSections(prev => {
-        if (prev.some(s => s.slug === currentCat.slug)) return prev;
+      if (movies && movies.length > 0) {
+        setSections(prev => {
+          if (prev.some(s => s.slug === currentCat.slug)) return prev;
 
-        const next = [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
-        const dynamicSlugs = next.filter(s => !initialSections.some(init => init.slug === s.slug)).map(s => s.slug);
-        safeSessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs));
-        return next;
-      });
-    }
+          const next = [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
+          const dynamicSlugs = next.filter(s => !initialSections.some(init => init.slug === s.slug)).map(s => s.slug);
+          safeSessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs));
+          return next;
+        });
+      }
 
-    updateLoadedIndex(currentIndex + 1);
-    isFetching.current = false;
+      // Tăng index lên 1 bước an toàn
+      updateLoadedIndex(currentIndex + 1);
 
-    // Load nền mảng tiếp theo
-    const nextNextIdx = currentIndex + 1;
-    if (nextNextIdx < HOME_CATEGORIES.length) {
-       const futureCat = HOME_CATEGORIES[nextNextIdx];
-       if (futureCat && !categoryCache.has(futureCat.slug)) {
-         fetchCategoryFromD1(futureCat.slug);
-       }
+      // Preload ngầm mảng tiếp theo cho mượt
+      const nextNextIdx = currentIndex + 1;
+      if (nextNextIdx < HOME_CATEGORIES.length) {
+         const futureCat = HOME_CATEGORIES[nextNextIdx];
+         if (futureCat && !categoryCache.has(futureCat.slug)) {
+           fetchCategoryFromD1(futureCat.slug);
+         }
+      }
+    } catch (err) {
+      console.error("Error loading next category:", err);
+    } finally {
+      // LUÔN LUÔN MỞ KHÓA FETCH DÙ THÀNH CÔNG HAY THẤT BẠI ĐỂ TRÁNH TREO VĨNH VIỄN
+      isFetching.current = false;
     }
   }, [initialSections, updateLoadedIndex]);
 
   // --- INTERSECTION OBSERVER CHỈ KHỞI TẠO 1 LẦN ---
   useEffect(() => {
-    if (isRestoring) return; // Chặn Observer khi đang khôi phục trang
+    if (isRestoring) return;
+
+    const currentLoader = loaderRef.current;
+    if (!currentLoader) return;
 
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
+      // Chỉ gọi khi loader thực sự xuất hiện trong viewport và KHÔNG đang trong quá trình restore
+      if (entries[0]?.isIntersecting && !isRestoring) {
         loadNextCategory();
       }
-    }, { threshold: 0.1, rootMargin: '1200px' });
+    }, { threshold: 0.05, rootMargin: '800px' }); // Giảm rootMargin xuống 800px để tránh trigger quá sớm khi DOM chưa sẵn sàng
     
-    if (loaderRef.current) observer.observe(loaderRef.current);
+    observer.observe(currentLoader);
     
-    return () => observer.disconnect();
-  }, [loadNextCategory, isRestoring]); // Giờ đây dependencies rất ổn định, không bị chớp giật 
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadNextCategory, isRestoring]);/ Giờ đây dependencies rất ổn định, không bị chớp giật 
 
   useEffect(() => {
     if (initialHeroMovies.length > 0) {
