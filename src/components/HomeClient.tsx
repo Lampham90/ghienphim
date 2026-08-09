@@ -58,30 +58,36 @@ const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
   return [];
 };
 
+// Helper làm sạch nội dung HTML
+const stripHtml = (html: string = '') => html.replace(/<[^>]*>?/gm, '');
+
 // ==========================================
 // 1. HELPER COMPONENTS
 // ==========================================
 
+// FIX 3: Gộp 2 useEffect thành 1 trong LazyRow
 const LazyRow = memo(({ children, rootMargin = '1000px', placeholderHeight = 500 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
-  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
-    if (!mounted) return;
     const el = ref.current;
     if (!el) return;
+
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) { setVisible(true); observer.disconnect(); }
+      if (entries[0]?.isIntersecting) { 
+        setVisible(true); 
+        observer.disconnect(); 
+      }
     }, { rootMargin, threshold: 0.01 });
+
     observer.observe(el);
     return () => observer.disconnect();
-  }, [mounted, rootMargin]);
+  }, [rootMargin]);
 
   return (
     <div ref={ref} className="min-h-[200px] transform-gpu will-change-transform">
-      {mounted && visible ? children : <div style={{ height: placeholderHeight }} className="w-full" />}
+      {visible ? children : <div style={{ height: placeholderHeight }} className="w-full" />}
     </div>
   );
 });
@@ -248,20 +254,16 @@ const HistoryRow = memo(() => {
   const historyMovies = useMemo(() => {
     if (!mounted || !storeHistory) return [];
     
-    // Sử dụng Map để gom nhóm các phim trùng tên
     const uniqueMovies = new Map();
 
     Object.entries(storeHistory).forEach(([key, data]: [string, any]) => {
-      // Bỏ qua các key của từng tập lẻ (chứa "_ep_") để tránh lặp thumbnail
       if (key.includes('_ep_')) return;
 
       if (data && data.name && (data.poster || data.thumb)) {
-        // Chuẩn hóa tên phim để làm key gom nhóm (phòng trường hợp 2 slug khác nhau nhưng chung 1 phim)
         const cleanName = data.name.trim().toLowerCase();
 
         if (uniqueMovies.has(cleanName)) {
           const existing = uniqueMovies.get(cleanName);
-          // Nếu trùng tên, so sánh last_updated để luôn ưu tiên hiển thị bản ghi xem gần nhất
           if ((data.last_updated || 0) > (existing.last_updated || 0)) {
             uniqueMovies.set(cleanName, { slug: key, ...data });
           }
@@ -276,23 +278,25 @@ const HistoryRow = memo(() => {
       .slice(0, 10);
   }, [mounted, storeHistory]);
 
+  if (historyMovies.length === 0) return null;
+
   return (
-      <div className="pl-6 md:pl-20 group/row relative mb-20">
-        <div className="flex items-end justify-between pr-8 md:pr-24 mb-8 border-b border-white/[0.03] pb-3">
-          <div className="flex flex-col text-left">
-            <span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">Continue Watching</span>
-            <h2 className="text-lg md:text-2xl font-black uppercase tracking-tighter text-white italic">Tiếp tục xem</h2>
-          </div>
-          <ScrollNav rowRef={rowRef} />
+    <div className="pl-6 md:pl-20 group/row relative mb-20">
+      <div className="flex items-end justify-between pr-8 md:pr-24 mb-8 border-b border-white/[0.03] pb-3">
+        <div className="flex flex-col text-left">
+          <span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">Continue Watching</span>
+          <h2 className="text-lg md:text-2xl font-black uppercase tracking-tighter text-white italic">Tiếp tục xem</h2>
         </div>
-        <div className="relative">
-          <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth">
-            {historyMovies.map((m, index) => <HistoryItem key={`${m.slug}-${index}`} m={m} />)}
-          </div>
+        <ScrollNav rowRef={rowRef} />
+      </div>
+      <div className="relative">
+        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth">
+          {historyMovies.map((m, index) => <HistoryItem key={`${m.slug}-${index}`} m={m} />)}
         </div>
       </div>
-    );
-  });
+    </div>
+  );
+});
 HistoryRow.displayName = 'HistoryRow';
 
 // ==========================================
@@ -310,7 +314,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const [sections, setSections] = useState<SectionData[]>(initialSections);
   const [currentHero, setCurrentHero] = useState(0);
   
-  // SỬ DỤNG REF KẾT HỢP STATE ĐỂ FIX INFINITE LOOP CỦA OBSERVER
   const loadedIndexRef = useRef(initialLoadedCount);
   const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
   
@@ -319,8 +322,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     loadedIndexRef.current = newIndex;
   }, []);
 
-  const [isRestoring, setIsRestoring] = useState(true); // Khóa các hoạt động auto-load khi đang khôi phục trang
+  const [isRestoring, setIsRestoring] = useState(true);
   const isFetching = useRef(false);
+  const hasRestoredRef = useRef(false); // FIX 2: Flag chống restore lặp lại
   const loaderRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
 
@@ -340,10 +344,10 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }
   }, []);
 
-  // --- 1. LƯU VỊ TRÍ CUỘN (CHỈ LƯU KHI KHÔNG TRONG QUÁ TRÌNH RESTORE) ---
+  // --- 1. LƯU VỊ TRÍ CUỘN ---
   useEffect(() => {
     const handleScroll = () => {
-      if (isRestoring) return; // Tránh ghi đè vị trí 0 vào session khi đang nhảy vị trí
+      if (isRestoring) return;
       
       if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
       scrollRafRef.current = requestAnimationFrame(() => {
@@ -362,6 +366,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
   // --- 2. KHÔI PHỤC SESSION VÀ SCROLL ---
   useEffect(() => {
+    if (hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+
+    let timer1: NodeJS.Timeout, timer2: NodeJS.Timeout;
+
     const restoreSession = async () => {
       try {
         const savedSlugsStr = safeSessionStorage.getItem("home_loaded_slugs");
@@ -378,7 +387,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           return;
         }
 
-        // Tải ngầm các danh sách phim
         const fetchPromises = savedSlugs.map(async (slug) => {
           const cat = HOME_CATEGORIES.find(c => c.slug === slug);
           if (!cat) return null;
@@ -410,13 +418,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           }
         }
 
-        // ĐỢI DOM RENDER MỚI BẮT ĐẦU CUỘN (TRÁNH LỖI MẤT KÍCH THƯỚC)
-        setTimeout(() => {
+        // FIX 4: Lưu Timer ID để cleanup nếu Unmount
+        timer1 = setTimeout(() => {
           const targetScroll = savedScrollPos ? parseInt(savedScrollPos, 10) : 0;
           if (targetScroll > 0) {
             window.scrollTo({ top: targetScroll, behavior: 'instant' });
-            // Double-check chốt vị trí cuộn cho LazyRow render xong
-            setTimeout(() => {
+            timer2 = setTimeout(() => {
                window.scrollTo({ top: targetScroll, behavior: 'instant' });
                setIsRestoring(false);
             }, 100);
@@ -432,13 +439,17 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
 
     restoreSession();
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [initialSections, updateLoadedIndex]);
 
-  // --- 3. TẢI TIẾP KHI CUỘN ĐẾN CUỐI (HÀM NÀY ĐƯỢC GIỮ ỔN ĐỊNH BẰNG REF) ---
+  // --- 3. TẢI TIẾP KHI CUỘN ĐẾN CUỐI ---
   const loadNextCategory = useCallback(async () => {
     const currentIndex = loadedIndexRef.current;
     
-    // Nếu đã tải hết hoặc đang bận fetch thì bỏ qua, nhưng thêm cơ chế timeout đề phòng kẹt cờ quá 5 giây
     if (currentIndex >= HOME_CATEGORIES.length || isFetching.current) return;
 
     isFetching.current = true;
@@ -461,46 +472,38 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         });
       }
 
-      // Tăng index lên 1 bước an toàn
       updateLoadedIndex(currentIndex + 1);
 
-      // Preload ngầm mảng tiếp theo cho mượt
       const nextNextIdx = currentIndex + 1;
       if (nextNextIdx < HOME_CATEGORIES.length) {
          const futureCat = HOME_CATEGORIES[nextNextIdx];
          if (futureCat && !categoryCache.has(futureCat.slug)) {
-           fetchCategoryFromD1(futureCat.slug);
+            fetchCategoryFromD1(futureCat.slug);
          }
       }
     } catch (err) {
       console.error("Error loading next category:", err);
     } finally {
-      // LUÔN LUÔN MỞ KHÓA FETCH DÙ THÀNH CÔNG HAY THẤT BẠI ĐỂ TRÁNH TREO VĨNH VIỄN
       isFetching.current = false;
     }
   }, [initialSections, updateLoadedIndex]);
 
-  // --- INTERSECTION OBSERVER CHỈ KHỞI TẠO 1 LẦN ---
+  // FIX 1: Đưa loadedIndex vào deps để tự động trigger nếu loader vẫn trong Viewport
   useEffect(() => {
     if (isRestoring) return;
 
-    const currentLoader = loaderRef.current;
-    if (!currentLoader) return;
-
     const observer = new IntersectionObserver((entries) => {
-      // Chỉ gọi khi loader thực sự xuất hiện trong viewport và KHÔNG đang trong quá trình restore
-      if (entries[0]?.isIntersecting && !isRestoring) {
+      if (entries[0].isIntersecting) {
         loadNextCategory();
       }
-    }, { threshold: 0.05, rootMargin: '800px' }); // Giảm rootMargin xuống 800px để tránh trigger quá sớm khi DOM chưa sẵn sàng
+    }, { threshold: 0.1, rootMargin: '1200px' });
     
-    observer.observe(currentLoader);
+    if (loaderRef.current) observer.observe(loaderRef.current);
     
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadNextCategory, isRestoring]);// Giờ đây dependencies rất ổn định, không bị chớp giật 
+    return () => observer.disconnect();
+  }, [loadNextCategory, isRestoring, loadedIndex]);
 
+  // Automatic Hero Slider
   useEffect(() => {
     if (initialHeroMovies.length > 0) {
       const timer = setInterval(() => setCurrentHero(p => (p + 1) % initialHeroMovies.length), 7000);
@@ -518,190 +521,179 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         .snap-start { scroll-snap-align: start; }
       ` }} />
 
-      {/* CHỖ NÀY GIỮ NGUYÊN HOÀN TOÀN PHẦN RENDER HERO VÀ CÁC ROW NHƯ CODE CŨ CỦA BẠN */}
-      {/* ... (Các phần JSX Hero, History, và List Movies render) ... */}
-
       {initialHeroMovies.length > 0 && (
+        <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
+          {initialHeroMovies.map((m, i) => {
+            const langText = [
+              m?.lang,
+              m?.language,
+              m?.quality,
+              m?.episode_current,
+              m?.current_episode,
+              m?.sub_type 
+            ]
+              .filter((val) => typeof val === 'string')
+              .join(' ')
+              .toLowerCase();
 
-      <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
-        {initialHeroMovies.map((m, i) => {
-          // --- BẮT ĐẦU THÊM LOGIC TỪ MOVIEBADGE ---
-          const langText = [
-            m?.lang,
-            m?.language,
-            m?.quality,
-            m?.episode_current,
-            m?.current_episode,
-            m?.sub_type 
-          ]
-            .filter((val) => typeof val === 'string')
-            .join(' ')
-            .toLowerCase();
+            let displayLang = m.sub_type || "";
+            if (langText.includes("lồng")) {
+              displayLang = "L.Tiếng";
+            } else if (langText.includes("thuyết")) {
+              displayLang = "T.Minh";
+            }
 
-          // Ưu tiên lồng tiếng, sau đó thuyết minh
-          let displayLang = m.sub_type || ""; // Mặc định giữ lại sub_type nếu không có từ khóa
-          if (langText.includes("lồng")) {
-            displayLang = "L.Tiếng";
-          } else if (langText.includes("thuyết")) {
-            displayLang = "T.Minh";
-          }
+            let displayQuality = m.quality || 'FHD';
+            if (displayQuality.toLowerCase().includes("lồng") || displayQuality.toLowerCase().includes("thuyết")) {
+               displayQuality = "FHD";
+            }
 
-          // Xử lý Quality: Nếu API trả lộn Thuyết minh/Lồng tiếng vào quality, ép về FHD cho chuẩn layout
-          let displayQuality = m.quality || 'FHD';
-          if (displayQuality.toLowerCase().includes("lồng") || displayQuality.toLowerCase().includes("thuyết")) {
-             displayQuality = "FHD";
-          }
-          // --- KẾT THÚC LOGIC ---
+            const year = m.year;
+            const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
 
-          const year = m.year;
-          const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
-
-          return (
-            <div
-              key={`${m.slug}-${i}`}
-              className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
-            >
-              <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
-                <div className="absolute inset-0 w-full h-full">
-                  <div className="block md:hidden relative w-full h-full">
-                    <Image
-                      loader={imageLoader}
-                      src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
-                      alt={m.name}
-                      fill
-                      sizes="100vw"
-                      priority={i === currentHero}
-                      className="w-full h-full object-cover transform-gpu"
-                      style={{ objectPosition: 'center 20%' }}
-                    />
+            return (
+              <div
+                key={`${m.slug}-${i}`}
+                className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
+              >
+                <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
+                  <div className="absolute inset-0 w-full h-full">
+                    <div className="block md:hidden relative w-full h-full">
+                      <Image
+                        loader={imageLoader}
+                        src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
+                        alt={m.name}
+                        fill
+                        sizes="100vw"
+                        priority={i === currentHero}
+                        className="w-full h-full object-cover transform-gpu"
+                        style={{ objectPosition: 'center 20%' }}
+                      />
+                    </div>
+                    <div className="hidden md:block relative w-full h-full">
+                      <Image
+                        loader={imageLoader}
+                        src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
+                        alt={m.name}
+                        fill
+                        sizes="100vw"
+                        priority={i === currentHero}
+                        className="w-full h-full object-cover transform-gpu"
+                        style={{ objectPosition: 'center 20%' }}
+                      />
+                    </div>
                   </div>
-                  <div className="hidden md:block relative w-full h-full">
-                    <Image
-                      loader={imageLoader}
-                      src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
-                      alt={m.name}
-                      fill
-                      sizes="100vw"
-                      priority={i === currentHero}
-                      className="w-full h-full object-cover transform-gpu"
-                      style={{ objectPosition: 'center 20%' }}
-                    />
+
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
+                 
+                  {/* DESKTOP HERO */}
+                  <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
+                    <div className="max-w-2xl space-y-4 relative z-20">
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+                        <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
+                        <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+                      </div>
+                     
+                      <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                        {m.name || "..."}
+                      </h1>
+
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
+                        <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                          {displayQuality}
+                        </span>
+                        {displayLang && (
+                          <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-xs">
+                            {displayLang}
+                          </span>
+                        )}
+                        {rating && (
+                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-xs flex items-center gap-1">
+                            ⭐ {rating}
+                          </span>
+                        )}
+                        {year && (
+                          <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-xs backdrop-blur-sm">
+                            {year}
+                          </span>
+                        )}
+                        {Array.isArray(m.category) && m.category.length > 0 && (
+                          <span className="text-white/70 text-[11px] italic">
+                            {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-white/70 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic">
+                        {stripHtml(m.content || m.description)}
+                      </p>
+
+                      <div className="pt-2">
+                        <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 hover:bg-red-600 hover:text-white">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                          <span>Xem ngay</span>
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
-               
-                {/* --- GIAO DIỆN DESKTOP --- */}
-                <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
-                  <div className="max-w-2xl space-y-4 relative z-20">
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
-                      <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
-                      <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
-                    </div>
-                   
-                    <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
-                      {m.name || "..."}
-                    </h1>
+                {/* MOBILE HERO COVER */}
+                <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
+                    <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
+                    <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
+                  </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
-                      <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-                        {displayQuality}
+                  <h1 className="text-[24px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
+                    {m.name || "..."}
+                  </h1>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold">
+                    <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
+                      {displayQuality}
+                    </span>
+                    {displayLang && (
+                      <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px]">
+                        {displayLang}
                       </span>
-                      {/* Đã thay đổi thành displayLang */}
-                      {displayLang && (
-                        <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-xs">
-                          {displayLang}
-                        </span>
-                      )}
-                      {rating && (
-                        <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-xs flex items-center gap-1">
-                          ⭐ {rating}
-                        </span>
-                      )}
-                      {year && (
-                        <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-xs backdrop-blur-sm">
-                          {year}
-                        </span>
-                      )}
-                      {Array.isArray(m.category) && m.category.length > 0 && (
-                        <span className="text-white/70 text-[11px] italic">
-                          {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    {rating && (
+                      <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] flex items-center gap-1">
+                        ⭐ {rating}
+                      </span>
+                    )}
+                    {year && (
+                      <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] backdrop-blur-sm">
+                        {year}
+                      </span>
+                    )}
+                    {Array.isArray(m.category) && m.category.length > 0 && (
+                      <span className="text-white/70 text-[11px] italic">
+                        {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                      </span>
+                    )}
+                  </div>
 
-                    <p className="text-white/70 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic">
-                      {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
-                    </p>
+                  <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
+                    {stripHtml(m.content || m.description)}
+                  </p>
 
-                    <div className="pt-2">
-                      <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 hover:bg-red-600 hover:text-white">
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                        <span>Xem ngay</span>
-                      </Link>
-                    </div>
+                  <div className="pt-1">
+                    <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-7 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 hover:bg-red-600 hover:text-white">
+                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      <span>Xem ngay</span>
+                    </Link>
                   </div>
                 </div>
               </div>
-
-              {/* --- GIAO DIỆN MOBILE (Phần Cover dưới banner) --- */}
-              <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-                  <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
-                  <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-                </div>
-
-                <h1 className="text-[24px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
-                  {m.name || "..."}
-                </h1>
-
-                <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold">
-                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
-                    {displayQuality}
-                  </span>
-                  {/* Đã thay đổi thành displayLang */}
-                  {displayLang && (
-                    <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px]">
-                      {displayLang}
-                    </span>
-                  )}
-                  {rating && (
-                    <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] flex items-center gap-1">
-                      ⭐ {rating}
-                    </span>
-                  )}
-                  {year && (
-                    <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] backdrop-blur-sm">
-                      {year}
-                    </span>
-                  )}
-                  {Array.isArray(m.category) && m.category.length > 0 && (
-                    <span className="text-white/70 text-[11px] italic">
-                      {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
-                  {(m.content || m.description || "").replace(/<[^>]*>?/gm, '')}
-                </p>
-
-                <div className="pt-1">
-                  <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-7 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 hover:bg-red-600 hover:text-white">
-                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                    <span>Xem ngay</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-    )}
+            );
+          })}
+        </section>
+      )}
       
       <InterestedSection />
       <HistoryRow />
