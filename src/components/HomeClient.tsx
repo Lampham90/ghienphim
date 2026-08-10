@@ -466,11 +466,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         displayLang = "T.Minh";
       }
 
-      let displayQuality = m.quality || 'FHD';
-      if (displayQuality.toLowerCase().includes("lồng") || displayQuality.toLowerCase().includes("thuyết")) {
-         displayQuality = "FHD";
-      }
-
       const heroThumbUrl = getImageUrl(m.thumb_url || m.thumb || m.poster);
       const heroPosterUrl = getImageUrl(m.poster || m.poster_url || m.thumb_url || m.thumb);
 
@@ -478,7 +473,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         ...m,
         rating,
         displayLang,
-        displayQuality,
         cleanDescription: stripHtml(m.content || m.description),
         heroThumbUrl,
         heroPosterUrl
@@ -828,8 +822,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent z-10 md:hidden" />
                  
-                  {/* HERO CONTENT */}
-                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-12 px-6 md:pb-36 md:px-20 text-center md:text-left items-center md:items-start">
+                  {/* Lớp màng mờ Fade đáy Banner (đặt z-15 dưới Hero Content z-20 để không che chữ/nút) */}
+                  <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none" />
+
+                  {/* HERO CONTENT (Nằm trên z-20 giúp chữ và nút Xem ngay luôn nổi bật, sắc nét) */}
+                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-10 px-6 md:pb-24 md:px-20 text-center md:text-left items-center md:items-start">
                     <div className="max-w-xl md:max-w-3xl lg:max-w-4xl space-y-2.5 md:space-y-4">
                       
                       <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
@@ -843,26 +840,21 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         {m.name || "..."}
                       </h2>
 
-                      {/* Thông tin phụ: Badge Chất lượng, Thuyết minh, Năm đóng khung, IMDb mượt mắt */}
+                      {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb */}
                       <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
-                        <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] md:text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-                          {m.displayQuality}
-                        </span>
-
+                        
                         {m.displayLang && (
-                          <span className="px-2 py-0.5 bg-white/10 text-white border border-white/15 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
                             {m.displayLang}
                           </span>
                         )}
 
-                        {/* 1. Năm sản xuất được đóng khung chuẩn cân đối */}
                         {m.year && (
-                          <span className="px-2 py-0.5 bg-white/10 text-white/90 border border-white/15 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
                             {m.year}
                           </span>
                         )}
 
-                        {/* 2. Badge IMDb thiết kế dịu, không bị chói vàng */}
                         {m.rating && (
                           <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
                             <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
@@ -901,11 +893,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             );
           })}
 
-          {/* 3. Lớp màng mờ Fade đáy Banner hòa chìm hoàn toàn vào nền đen của website */}
-          <div className="absolute inset-x-0 bottom-0 h-32 md:h-48 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/80 to-transparent z-25 pointer-events-none" />
-
           {/* Navigation Dots */}
-          <div className="absolute bottom-4 right-1/2 translate-x-1/2 md:translate-x-0 md:bottom-12 md:right-20 z-30 flex items-center gap-2">
+          <div className="absolute bottom-4 right-1/2 translate-x-1/2 md:translate-x-0 md:bottom-10 md:right-20 z-30 flex items-center gap-2">
             {heroMoviesProcessed.map((_, idx) => (
               <button
                 key={idx}
