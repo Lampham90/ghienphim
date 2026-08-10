@@ -65,13 +65,11 @@ interface HistoryRecord {
 // HELPER FUNCTIONS
 // ==========================================
 const getMovieRating = (m: any): RatingResult => {
-  // 1. Kiểm tra điểm thật nếu có từ API/DB
   const realScore = Number(m?.imdb_score || m?.imdb?.vote_average || m?.tmdb?.vote_average || m?.vote_average);
   if (!isNaN(realScore) && realScore > 0) {
     return { score: realScore.toFixed(1), label: "IMDb" };
   }
 
-  // 2. Cách 1: Tạo điểm IMDb giả lập ổn định dựa trên slug (7.2 - 8.8) khi D1 không có điểm
   if (m?.slug) {
     let hash = 0;
     for (let i = 0; i < m.slug.length; i++) {
@@ -444,13 +442,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // Memoize Hero Movies - Tách biệt URL, Xử lý điểm Rating và Ngôn ngữ
+  // Memoize Hero Movies
   const heroMoviesProcessed = useMemo(() => {
     return initialHeroMovies.map((m) => {
-      // 1. Tách rating từ TMDB/IMDb chuẩn (Fallback Cách 1)
       const rating = getMovieRating(m);
 
-      // 2. Xử lý ngôn ngữ / Vietsub / Thuyết minh
       const langText = [
         m?.lang,
         m?.language,
@@ -475,7 +471,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
          displayQuality = "FHD";
       }
 
-      // Desktop dùng Thumb (Ngang), Mobile dùng Poster (Dọc)
       const heroThumbUrl = getImageUrl(m.thumb_url || m.thumb || m.poster);
       const heroPosterUrl = getImageUrl(m.poster || m.poster_url || m.thumb_url || m.thumb);
 
@@ -491,7 +486,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [initialHeroMovies]);
 
-  // Preload Slide kế tiếp (Bao gồm cả Thumb cho Desktop và Poster cho Mobile)
+  // Preload Slide kế tiếp
   useEffect(() => {
     if (typeof window === 'undefined' || heroMoviesProcessed.length <= 1) return;
     const nextIdx = (currentHero + 1) % heroMoviesProcessed.length;
@@ -509,7 +504,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }
   }, [currentHero, heroMoviesProcessed]);
 
-  // Auto Hero Slider chạy liên tục (Bỏ tạm ngưng khi rê chuột)
+  // Auto Hero Slider
   useEffect(() => {
     if (heroMoviesProcessed.length <= 1) return;
 
@@ -782,9 +777,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white selection:bg-red-600`}>
       <h1 className="sr-only">Xem Phim Mới Cập Nhật - Phim Hay Vietsub Thuyết Minh HD</h1>
 
-      {/* Hero Banner: Desktop hiển thị Thumb, Mobile hiển thị Poster */}
+      {/* Hero Banner */}
       {heroMoviesProcessed.length > 0 && (
-        <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 h-[62vh] md:h-screen transform-gpu">
+        <section className="relative w-full bg-black overflow-hidden h-[65vh] md:h-screen transform-gpu">
           {heroMoviesProcessed.map((m, index) => {
             const total = heroMoviesProcessed.length;
             const isActive = index === currentHero;
@@ -801,7 +796,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                 className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}
               >
                 <div className="relative w-full h-full bg-black">
-                  {/* DESKTOP THUMB IMAGE (Ẩn trên Mobile) */}
+                  {/* DESKTOP THUMB IMAGE */}
                   {m.heroThumbUrl && (
                     <Image
                       loader={imageLoader}
@@ -815,7 +810,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                     />
                   )}
 
-                  {/* MOBILE POSTER IMAGE (Hiện trên Mobile, Ẩn trên Desktop) */}
+                  {/* MOBILE POSTER IMAGE */}
                   {m.heroPosterUrl && (
                     <Image
                       loader={imageLoader}
@@ -829,12 +824,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                     />
                   )}
 
-                  {/* Gradient Overlay Tối Ưu Tương Phản Nhìn Rõ Nội Dung */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/30 to-transparent z-10 hidden md:block" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 md:hidden" />
+                  {/* Gradient Overlays tương phản nội dung */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent z-10 md:hidden" />
                  
                   {/* HERO CONTENT */}
-                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 px-6 md:pb-32 md:px-20 text-center md:text-left items-center md:items-start">
+                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-12 px-6 md:pb-36 md:px-20 text-center md:text-left items-center md:items-start">
                     <div className="max-w-xl md:max-w-3xl lg:max-w-4xl space-y-2.5 md:space-y-4">
                       
                       <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
@@ -843,43 +838,43 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      {/* Tiêu đề điều chỉnh cỡ chữ nhỏ gọn hơn */}
-                      <h2 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2 md:line-clamp-2">
+                      {/* Tiêu đề */}
+                      <h2 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
                         {m.name || "..."}
                       </h2>
 
-                      {/* Thông tin phụ: Badge Chất lượng, Thuyết minh, Năm, IMDb, Thể loại */}
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2.5 text-[10px] md:text-sm font-semibold">
+                      {/* Thông tin phụ: Badge Chất lượng, Thuyết minh, Năm đóng khung, IMDb mượt mắt */}
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
                         <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] md:text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                           {m.displayQuality}
                         </span>
 
                         {m.displayLang && (
-                          <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
+                          <span className="px-2 py-0.5 bg-white/10 text-white border border-white/15 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
                             {m.displayLang}
                           </span>
                         )}
 
-                        {/* Năm phát hành đặt ngay cạnh Lang */}
+                        {/* 1. Năm sản xuất được đóng khung chuẩn cân đối */}
                         {m.year && (
-                          <span className="px-1.5 py-0.5 bg-white/20 text-white rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-white/10 text-white/90 border border-white/15 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
                             {m.year}
                           </span>
                         )}
 
-                        {/* Badge IMDb màu vàng chuẩn */}
+                        {/* 2. Badge IMDb thiết kế dịu, không bị chói vàng */}
                         {m.rating && (
-                          <span className="px-2 py-0.5 bg-amber-500 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1 shadow-md">
-                            <span className="bg-black text-amber-400 px-1 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-wider">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
+                            <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
                               {m.rating.label}
                             </span>
-                            <span>⭐ {m.rating.score}</span>
+                            <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
                           </span>
                         )}
 
                         {/* Thể loại */}
                         {m?.category && m.category.length > 0 && (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 ml-1">
                             <span className="w-1 h-1 rounded-full bg-white/40" />
                             <span className="text-[10px] md:text-xs font-medium text-white/80 italic">
                               {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
@@ -906,8 +901,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             );
           })}
 
+          {/* 3. Lớp màng mờ Fade đáy Banner hòa chìm hoàn toàn vào nền đen của website */}
+          <div className="absolute inset-x-0 bottom-0 h-32 md:h-48 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/80 to-transparent z-25 pointer-events-none" />
+
           {/* Navigation Dots */}
-          <div className="absolute bottom-3 right-1/2 translate-x-1/2 md:translate-x-0 md:bottom-10 md:right-20 z-30 flex items-center gap-2">
+          <div className="absolute bottom-4 right-1/2 translate-x-1/2 md:translate-x-0 md:bottom-12 md:right-20 z-30 flex items-center gap-2">
             {heroMoviesProcessed.map((_, idx) => (
               <button
                 key={idx}

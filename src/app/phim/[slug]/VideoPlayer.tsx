@@ -16,7 +16,14 @@ interface VideoPlayerProps {
   saveProgress: (epIndex: number, seconds: number, duration: number, shouldSync?: boolean) => void;
 }
 
-const WORKER = "https://sv3.3ks.workers.dev/";
+const WORKER_POOL = [
+  "https://pro2.phuonglam56973.workers.dev/",
+  "https://pro3.pplam5697.workers.dev/",
+  "https://pro4.phuonglam56971.workers.dev/",
+  "https://pro5.phuonglam56972.workers.dev/"
+];
+// Hàm lấy ngẫu nhiên 1 worker mỗi khi gọi để chia tải
+const getWorker = () => WORKER_POOL[Math.floor(Math.random() * WORKER_POOL.length)];
 
 const formatTime = (seconds: number) => {
   const totalSeconds = Math.floor(seconds);
@@ -407,7 +414,7 @@ export default function VideoPlayer({
       setIsResolving(true);
       setErrorMessage(null);
 
-      const embedRes = await fetch(`${WORKER}?url=${encodeURIComponent(embedUrl)}`);
+      const embedRes = await fetch(`${getWorker()}?url=${encodeURIComponent(embedUrl)}`);
       if (!embedRes.ok) return null;
       const htmlText = await embedRes.text();
 
@@ -490,8 +497,9 @@ export default function VideoPlayer({
                 const originHeader = new URL(directLink).origin;
 
                 // Bọc qua Worker để bypass Referer restriction của CDN
-                if (!targetUrl.startsWith(WORKER)) {
-                  context.url = `${WORKER}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
+                // Kiểm tra xem targetUrl đã được bọc bởi bất kỳ worker nào trong pool chưa
+                if (!WORKER_POOL.some(w => targetUrl.startsWith(w))) {
+                  context.url = `${getWorker()}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
                 }
               }
 
@@ -540,8 +548,7 @@ export default function VideoPlayer({
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari iOS / MacOS
         const originHeader = new URL(directLink).origin;
-        const finalSrc = `${WORKER}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
-
+        const finalSrc = `${getWorker()}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
         video.src = finalSrc;
         video.addEventListener('loadedmetadata', () => {
           if (initialTime > 0) video.currentTime = initialTime;
