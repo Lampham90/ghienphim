@@ -769,7 +769,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
   return (
     <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white selection:bg-red-600`}>
-      <h1 className="sr-only">Xem Phim Mới Cập Nhật - Phim Hay Vietsub Thuyết Minh HD</h1>
+      <h1 className="sr-only"></h1>
 
       {/* Hero Banner */}
       {heroMoviesProcessed.length > 0 && (
@@ -843,6 +843,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}
 <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
   
+  {m.rating && (
+    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+      <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
+    </span>
+  )}
+
   {m.displayLang && (
     <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
       {m.displayLang}
@@ -855,11 +861,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     </span>
   )}
 
-  {m.rating && (
-    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-      <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
-    </span>
-  )}
+  
 
   {/* Thể loại (Chung khung phong cách) */}
   {m?.category && m.category.length > 0 && (
