@@ -484,9 +484,9 @@ export default function MovieDetailClient({
             {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
-                <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
-                        {m.name || "..."}
-                      </h1>
+                <h1 className="text-[26px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                  {movie?.name || "..."}
+                </h1>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Badge IMDb */}
@@ -565,9 +565,9 @@ export default function MovieDetailClient({
             
             {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
-              <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
-                        {m.name || "..."}
-                      </h1>
+              <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
+                {movie?.name || "..."}
+              </h1>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {/* Badge IMDb */}
