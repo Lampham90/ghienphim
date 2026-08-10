@@ -17,6 +17,15 @@ const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', 
 interface Movie extends KKPhimMovie {
   content?: string;
   thumb_url?: string;
+  description?: string;
+  imdb_score?: number | string;
+  vote_average?: number | string;
+  tmdb?: { vote_average?: number | string };
+  last_updated?: number;
+  seconds?: number;
+  duration?: number;
+  poster?: string;
+  thumb?: string;
 }
 
 interface SectionData {
@@ -58,15 +67,14 @@ const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
   return [];
 };
 
-// Helper làm sạch nội dung HTML
 const stripHtml = (html: string = '') => html.replace(/<[^>]*>?/gm, '');
 
 // ==========================================
 // 1. HELPER COMPONENTS
 // ==========================================
 
-// FIX 3: Gộp 2 useEffect thành 1 trong LazyRow
-const LazyRow = memo(({ children, rootMargin = '1000px', placeholderHeight = 500 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
+// FIX: Giảm rootMargin từ 1000px xuống 200px để Lazy load thực sự hoạt động hiệu quả
+const LazyRow = memo(({ children, rootMargin = '200px', placeholderHeight = 350 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -163,9 +171,10 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | n
 });
 ScrollNav.displayName = 'ScrollNav';
 
-const HistoryItem = memo(({ m }: { m: any }) => {
+// FIX: Khai báo Type rõ ràng cho Prop m
+const HistoryItem = memo(({ m }: { m: Movie }) => {
   const imageUrl = getImageUrl(m.thumb || m.poster);
-  const progress = (m.duration && m.duration > 0) ? Math.min((m.seconds / m.duration) * 100, 100) : 0;
+  const progress = (m.duration && m.duration > 0 && m.seconds) ? Math.min((m.seconds / m.duration) * 100, 100) : 0;
 
   return (
     <div className="min-w-[240px] md:min-w-[320px] snap-start group relative flex flex-col transform-gpu">
@@ -212,7 +221,8 @@ const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' 
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[300px]">
-          {section.items?.map((movie, index) => movie && <MovieCard key={`${movie.slug}-${index}`} movie={movie} variant={variant} index={index} />)}
+          {/* FIX: Dùng movie.slug chuẩn làm key thay vì cộng index */}
+          {section.items?.map((movie, index) => movie && <MovieCard key={movie.slug || index} movie={movie} variant={variant} index={index} />)}
         </div>
       </div>
     </div>
@@ -233,8 +243,9 @@ const MovieRow = memo(({ section, variant = 'vertical' }: { section: SectionData
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[250px]">
+          {/* FIX: Dùng movie.slug làm key */}
           {section.items?.map((movie, index) => movie && (
-             <MovieCard key={`${movie.slug}-${index}`} movie={movie} variant={variant} />
+             <MovieCard key={movie.slug || index} movie={movie} variant={variant} />
           ))}
         </div>
       </div>
@@ -254,7 +265,7 @@ const HistoryRow = memo(() => {
   const historyMovies = useMemo(() => {
     if (!mounted || !storeHistory) return [];
     
-    const uniqueMovies = new Map();
+    const uniqueMovies = new Map<string, Movie>();
 
     Object.entries(storeHistory).forEach(([key, data]: [string, any]) => {
       if (key.includes('_ep_')) return;
@@ -263,7 +274,7 @@ const HistoryRow = memo(() => {
         const cleanName = data.name.trim().toLowerCase();
 
         if (uniqueMovies.has(cleanName)) {
-          const existing = uniqueMovies.get(cleanName);
+          const existing = uniqueMovies.get(cleanName)!;
           if ((data.last_updated || 0) > (existing.last_updated || 0)) {
             uniqueMovies.set(cleanName, { slug: key, ...data });
           }
@@ -291,7 +302,8 @@ const HistoryRow = memo(() => {
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth">
-          {historyMovies.map((m, index) => <HistoryItem key={`${m.slug}-${index}`} m={m} />)}
+          {/* FIX: Dùng m.slug chuẩn làm key */}
+          {historyMovies.map((m) => <HistoryItem key={m.slug} m={m} />)}
         </div>
       </div>
     </div>
@@ -324,9 +336,13 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
   const [isRestoring, setIsRestoring] = useState(true);
   const isFetching = useRef(false);
-  const hasRestoredRef = useRef(false); // FIX 2: Flag chống restore lặp lại
+  const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
+
+  // FIX: Dùng useRef lưu ID timer để cleanup triệt để tránh memory leak
+  const timer1Ref = useRef<NodeJS.Timeout | null>(null);
+  const timer2Ref = useRef<NodeJS.Timeout | null>(null);
 
   // Khởi tạo Cache từ Props
   useEffect(() => {
@@ -337,7 +353,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // TẮT SCROLL RESTORATION MẶC ĐỊNH
+  // Tắt Scroll Restoration mặc định
   useEffect(() => {
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
@@ -368,8 +384,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   useEffect(() => {
     if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
-
-    let timer1: NodeJS.Timeout, timer2: NodeJS.Timeout;
 
     const restoreSession = async () => {
       try {
@@ -418,12 +432,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           }
         }
 
-        // FIX 4: Lưu Timer ID để cleanup nếu Unmount
-        timer1 = setTimeout(() => {
+        // FIX: Lưu đúng ID timer vào Ref
+        timer1Ref.current = setTimeout(() => {
           const targetScroll = savedScrollPos ? parseInt(savedScrollPos, 10) : 0;
           if (targetScroll > 0) {
             window.scrollTo({ top: targetScroll, behavior: 'instant' });
-            timer2 = setTimeout(() => {
+            timer2Ref.current = setTimeout(() => {
                window.scrollTo({ top: targetScroll, behavior: 'instant' });
                setIsRestoring(false);
             }, 100);
@@ -441,8 +455,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     restoreSession();
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      if (timer1Ref.current) clearTimeout(timer1Ref.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
     };
   }, [initialSections, updateLoadedIndex]);
 
@@ -488,7 +502,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }
   }, [initialSections, updateLoadedIndex]);
 
-  // FIX 1: Đưa loadedIndex vào deps để tự động trigger nếu loader vẫn trong Viewport
   useEffect(() => {
     if (isRestoring) return;
 
@@ -496,7 +509,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       if (entries[0].isIntersecting) {
         loadNextCategory();
       }
-    }, { threshold: 0.1, rootMargin: '1200px' });
+    }, { threshold: 0.1, rootMargin: '800px' });
     
     if (loaderRef.current) observer.observe(loaderRef.current);
     
@@ -512,14 +525,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   }, [initialHeroMovies.length]);
 
   return (
-    <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white overflow-x-hidden selection:bg-red-600`}>
-      <style dangerouslySetInnerHTML={{ __html: `
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .text-shadow-netflix { text-shadow: 2px 2px 4px rgba(0,0,0,0.8), -1px -1px 0 rgba(0,0,0,0.5); }
-        main { overflow-anchor: none; }
-        .snap-x { scroll-snap-type: x mandatory; scroll-behavior: smooth; }
-        .snap-start { scroll-snap-align: start; }
-      ` }} />
+    <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white selection:bg-red-600`}>
+      {/* FIX: Đã gỡ bỏ thẻ <style dangerouslySetInnerHTML> vì đã chuyển sang globals.css */}
 
       {initialHeroMovies.length > 0 && (
         <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
@@ -549,19 +556,21 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             }
 
             const year = m.year;
-            const rating = m.imdb_score || (m as any).vote_average || (m as any).tmdb?.vote_average;
+            const rating = m.imdb_score || m.vote_average || m.tmdb?.vote_average;
+            const heroImageUrl = getImageUrl(m.thumb_url || m.thumb || m.poster);
 
             return (
               <div
-                key={`${m.slug}-${i}`}
+                key={m.slug || i}
                 className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
               >
                 <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
+                  {/* FIX: Gộp 2 thẻ <Image> Mobile và Desktop làm 1 để tránh tải đôi ảnh */}
                   <div className="absolute inset-0 w-full h-full">
-                    <div className="block md:hidden relative w-full h-full">
+                    {heroImageUrl && (
                       <Image
                         loader={imageLoader}
-                        src={getImageUrl(m.poster || m.thumb_url || m.thumb)}
+                        src={heroImageUrl}
                         alt={m.name}
                         fill
                         sizes="100vw"
@@ -569,25 +578,13 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         className="w-full h-full object-cover transform-gpu"
                         style={{ objectPosition: 'center 20%' }}
                       />
-                    </div>
-                    <div className="hidden md:block relative w-full h-full">
-                      <Image
-                        loader={imageLoader}
-                        src={getImageUrl(m.thumb_url || m.thumb || m.poster)}
-                        alt={m.name}
-                        fill
-                        sizes="100vw"
-                        priority={i === currentHero}
-                        className="w-full h-full object-cover transform-gpu"
-                        style={{ objectPosition: 'center 20%' }}
-                      />
-                    </div>
+                    )}
                   </div>
 
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
                  
-                  {/* DESKTOP HERO */}
+                  {/* DESKTOP HERO CONTENT */}
                   <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
                     <div className="max-w-2xl space-y-4 relative z-20">
                       <div className="flex items-center gap-3">
@@ -699,20 +696,21 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       <HistoryRow />
 
       <section className="relative z-30 space-y-8 pb-20">
-        {sections.map((s, index) => {
+        {sections.map((s) => {
           if (!s || !s.slug) return null;
           const config = getCategoryConfig(s.slug);
           const isRanked = config?.rowType === "ranked";
           const rowVariant = config?.rowVariant || (isRanked ? "ranked1" : "vertical");
 
           return (
-            <LazyRow key={`${s.slug}-${index}`} placeholderHeight={isRanked ? 450 : 350}>
+            <LazyRow key={s.slug} placeholderHeight={isRanked ? 450 : 350}>
               {isRanked ? (
                 <RankedMovieRow section={s} variant={rowVariant as any} isTrending={s.slug === 'phim-bo'} />
               ) : (
                 <MovieRow section={s} variant={rowVariant as any} />
               )}
             </LazyRow>
+
           );
         })}
       </section>
