@@ -404,6 +404,13 @@ export default function MovieDetailClient({
     ? Number((movie as any).imdb.vote_average).toFixed(1)
     : null;
 
+    const displayImdb = useMemo(() => {
+    if (imdbRating) return imdbRating;
+    const hash = slug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const randomScore = 7.1 + (hash % 15) * 0.1; 
+    return randomScore.toFixed(1);
+  }, [imdbRating, slug]);
+
   const movieLang = movie?.lang || (movie as any)?.language || "";
 
   const countryName = Array.isArray(movie?.country)
@@ -474,7 +481,7 @@ export default function MovieDetailClient({
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
             </div>
 
-            {/* DESKTOP INFO (Giao diện chuẩn hoá đầy đủ IMDb, Year, Lang, Genre) */}
+            {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
@@ -482,60 +489,55 @@ export default function MovieDetailClient({
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Badge IMDb / Giả lập điểm từ 7.1 - 8.5 với icon ngôi sao */}
+                  {/* Badge IMDb */}
                   <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
-                    <span className="font-extrabold text-white">{imdbRating || "8.2"}</span>
+                    <span className="font-extrabold text-white">{displayImdb}</span>
                   </div>
 
                   {/* Quality */}
-                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movie?.quality || "FHD"}
                   </span>
 
                   {/* Year */}
-                  <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movie?.year || "2026"}
                   </span>
 
                   {/* Language */}
                   {movieLang && (
-                    <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[10px] font-bold rounded border border-white/10 uppercase italic">
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                       {movieLang}
                     </span>
                   )}
 
-                  {/* Country */}
-                  {countryName && (
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                      <span className="text-[12px] font-medium text-white/80 italic">
-                        {countryName}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Genre / Category (Lấy 2 thể loại đầu từ mảng gốc movie.category) */}
+                  {/* Categories */}
                   {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                      <span className="text-[12px] font-medium text-white/80 italic">
-                        {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
-                      </span>
-                    </div>
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                      {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
+                    </span>
                   )}
 
+                  {/* Total Episodes */}
+                  {currentEpisodes && currentEpisodes.length > 0 && (
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                      {currentEpisodes.length} Tập
+                    </span>
+                  )}
+
+                  {/* Nút yêu thích */}
                   <button
                     onClick={toggleFavorite}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border ml-1 ${
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
                       isFavorite
                         ? "bg-red-500/20 border-red-500/50 text-red-500"
                         : "bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40"
                     }`}
                   >
-                    <svg className={`w-4 h-4 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
+                    <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
                       <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                   </button>
@@ -546,19 +548,6 @@ export default function MovieDetailClient({
                     className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic"
                     dangerouslySetInnerHTML={{ __html: description }}
                   />
-                )}
-
-                {servers && servers.length > 0 && (
-                  <div className="hidden flex-wrap items-center gap-3 pt-1">
-                    {servers.map((s, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
-                        <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                          {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
-                        </span>
-                      </div>
-                    ))}
-                  </div>
                 )}
 
                 <div className="pt-2 w-full max-w-xl flex justify-start">
@@ -573,58 +562,53 @@ export default function MovieDetailClient({
               </div>
             </div>
             
-            {/* MOBILE INFO (Giao diện chuẩn hoá đầy đủ IMDb, Year, Lang, Genre) */}
+            {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
               <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
                 {movie?.name || "..."}
               </h1>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
-                {/* Badge IMDb / Giả lập điểm từ 7.1 - 8.5 với icon ngôi sao */}
+                {/* Badge IMDb */}
                 <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                   <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
-                  <span className="font-extrabold text-white">{imdbRating || "8.2"}</span>
+                  <span className="font-extrabold text-white">{displayImdb}</span>
                 </div>
 
                 {/* Quality */}
-                <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
+                <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                   {movie?.quality || "FHD"}
                 </span>
 
                 {/* Year */}
-                <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
+                <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                   {movie?.year || "2026"}
                 </span>
 
                 {/* Language */}
                 {movieLang && (
-                  <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[9px] font-bold rounded border border-white/10 uppercase italic">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movieLang}
                   </span>
                 )}
 
-                {/* Country */}
-                {countryName && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                    <span className="text-[11px] font-medium text-white/80 italic">
-                      {countryName}
-                    </span>
-                  </div>
-                )}
-
-                {/* Categories / Genres (Lấy 2 thể loại đầu từ mảng gốc movie.category) */}
+                {/* Categories */}
                 {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                    <span className="text-[11px] font-medium text-white/80 italic">
-                      {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
-                    </span>
-                  </div>
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                    {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
+                  </span>
                 )}
 
+                {/* Total Episodes */}
+                {currentEpisodes && currentEpisodes.length > 0 && (
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                    {currentEpisodes.length} Tập
+                  </span>
+                )}
+
+                {/* Nút yêu thích */}
                 <button
                   onClick={toggleFavorite}
                   className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
@@ -638,19 +622,6 @@ export default function MovieDetailClient({
                   </svg>
                 </button>
               </div>
-
-              {servers && servers.length > 0 && (
-                <div className="hidden flex-wrap items-center justify-center gap-2 pt-0.5">
-                  {servers.map((s, idx) => (
-                    <div key={idx} className="flex items-center gap-1.5">
-                      {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
-                      <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                        {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {description && (
                 <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-md">
@@ -669,9 +640,8 @@ export default function MovieDetailClient({
               </div>
             </div>
           </div>
-        )
-      }
-    </section>
+        )}
+      </section>
 
       {/* DROPDOWNS & TABS */}
       {mounted && (
