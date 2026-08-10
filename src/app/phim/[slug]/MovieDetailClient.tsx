@@ -514,7 +514,7 @@ export default function MovieDetailClient({
                             </span>
                           </div>
                         )}
-                      </div>
+                      
 
                   <button
                     onClick={toggleFavorite}
@@ -601,7 +601,7 @@ export default function MovieDetailClient({
                             </span>
                           </div>
                         )}
-                      </div>
+                      
 
                 <button
                   onClick={toggleFavorite}
