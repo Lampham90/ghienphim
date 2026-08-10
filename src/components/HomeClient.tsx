@@ -25,6 +25,7 @@ interface CategoryInfo {
 interface Movie extends KKPhimMovie {
   content?: string;
   thumb_url?: string;
+  poster_url?: string;
   description?: string;
   imdb_score?: number | string;
   vote_average?: number | string;
@@ -414,7 +415,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // Memoize Hero Movies
+  // Memoize Hero Movies - Tách biệt URL Thumb (Desktop) và Poster (Mobile)
   const heroMoviesProcessed = useMemo(() => {
     return initialHeroMovies.map((m) => {
       const langText = [
@@ -441,24 +442,36 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
          displayQuality = "FHD";
       }
 
+      // Desktop dùng Thumb (Ngang), Mobile dùng Poster (Dọc)
+      const heroThumbUrl = getImageUrl(m.thumb_url || m.thumb || m.poster);
+      const heroPosterUrl = getImageUrl(m.poster || m.poster_url || m.thumb_url || m.thumb);
+
       return {
         ...m,
         displayLang,
         displayQuality,
         cleanDescription: stripHtml(m.content || m.description),
-        heroImageUrl: getImageUrl(m.thumb_url || m.thumb || m.poster)
+        heroThumbUrl,
+        heroPosterUrl
       };
     });
   }, [initialHeroMovies]);
 
-  // Preload Next Hero Image thông qua imageLoader chuẩn Next.js
+  // Preload Slide kế tiếp (Bao gồm cả Thumb cho Desktop và Poster cho Mobile)
   useEffect(() => {
     if (typeof window === 'undefined' || heroMoviesProcessed.length <= 1) return;
     const nextIdx = (currentHero + 1) % heroMoviesProcessed.length;
-    const nextImgUrl = heroMoviesProcessed[nextIdx]?.heroImageUrl;
-    if (nextImgUrl) {
-      const img = new window.Image();
-      img.src = imageLoader({ src: nextImgUrl, width: 1920, quality: 80 });
+    const nextMovie = heroMoviesProcessed[nextIdx];
+
+    if (nextMovie) {
+      if (nextMovie.heroThumbUrl) {
+        const imgDesktop = new window.Image();
+        imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 80 });
+      }
+      if (nextMovie.heroPosterUrl) {
+        const imgMobile = new window.Image();
+        imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 80 });
+      }
     }
   }, [currentHero, heroMoviesProcessed]);
 
@@ -475,7 +488,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => clearInterval(timer);
   }, [heroMoviesProcessed.length, isHoveredHero]);
 
-  // Đồng bộ initialSections khi Server Revalidate mà không làm mất danh mục cuộn
+  // Sync initialSections khi Revalidate
   useEffect(() => {
     setSections(prev => {
       if (prev.length === 0) return initialSections;
@@ -488,7 +501,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [initialSections]);
 
-  // Init Cache từ Props
+  // Cache Props
   useEffect(() => {
     Object.entries(allCategoriesData).forEach(([slug, movies]) => {
       if (movies && movies.length > 0) {
@@ -733,13 +746,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
   return (
     <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white selection:bg-red-600`}>
-      {/* Fixed SR-Only H1 for SEO */}
       <h1 className="sr-only">Xem Phim Mới Cập Nhật - Phim Hay Vietsub Thuyết Minh HD</h1>
 
-      {/* Hero Banner: Tối ưu DOM cực đại (Chỉ render 3 slides prev/active/next) + Responsive H2 hợp nhất */}
+      {/* Hero Banner: Desktop hiển thị Thumb, Mobile hiển thị Poster */}
       {heroMoviesProcessed.length > 0 && (
         <section 
-          className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 h-[55vh] md:h-screen transform-gpu"
+          className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 h-[62vh] md:h-screen transform-gpu"
           onMouseEnter={() => setIsHoveredHero(true)}
           onMouseLeave={() => setIsHoveredHero(false)}
         >
@@ -749,7 +761,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             const isPrev = index === (currentHero - 1 + total) % total;
             const isNext = index === (currentHero + 1) % total;
 
-            // Chỉ render đúng 3 slide (Prev, Active, Next)
             if (!isActive && !isNext && !isPrev) {
               return null;
             }
@@ -760,24 +771,40 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                 className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}
               >
                 <div className="relative w-full h-full bg-black">
-                  {m.heroImageUrl && (
+                  {/* DESKTOP THUMB IMAGE (Ẩn trên Mobile) */}
+                  {m.heroThumbUrl && (
                     <Image
                       loader={imageLoader}
-                      src={m.heroImageUrl}
+                      src={m.heroThumbUrl}
                       alt={m.name || 'Hero Banner'}
                       fill
                       sizes="100vw"
                       priority={index === 0}
-                      className="w-full h-full object-cover transform-gpu"
+                      className="hidden md:block w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
                     />
                   )}
 
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
+                  {/* MOBILE POSTER IMAGE (Hiện trên Mobile, Ẩn trên Desktop) */}
+                  {m.heroPosterUrl && (
+                    <Image
+                      loader={imageLoader}
+                      src={m.heroPosterUrl}
+                      alt={m.name || 'Hero Banner Mobile'}
+                      fill
+                      sizes="100vw"
+                      priority={index === 0}
+                      className="block md:hidden w-full h-full object-cover transform-gpu"
+                      style={{ objectPosition: 'center top' }}
+                    />
+                  )}
+
+                  {/* Gradient Overlay Tối Ưu Tương Phản Nhìn Rõ Nội Dung */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/30 to-transparent z-10 hidden md:block" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30 z-10 md:hidden" />
                  
-                  {/* UNIFIED HERO CONTENT (Hợp nhất Desktop & Mobile, loại bỏ trùng h2) */}
-                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 px-6 md:pb-32 md:px-20 text-center md:text-left items-center md:items-start bg-gradient-to-t from-black via-black/40 md:via-transparent to-transparent">
+                  {/* HERO CONTENT */}
+                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 px-6 md:pb-32 md:px-20 text-center md:text-left items-center md:items-start">
                     <div className="max-w-2xl space-y-2 md:space-y-4">
                       <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
@@ -785,7 +812,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      {/* Thẻ H2 duy nhất cho cả Mobile lẫn Desktop */}
                       <h2 className="text-[22px] md:text-[45px] font-black uppercase italic leading-[1.1] md:leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-1 md:line-clamp-none">
                         {m.name || "..."}
                       </h2>
@@ -828,7 +854,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             );
           })}
 
-          {/* Slide Navigation Dots */}
+          {/* Navigation Dots */}
           <div className="absolute bottom-3 right-1/2 translate-x-1/2 md:translate-x-0 md:bottom-10 md:right-20 z-30 flex items-center gap-2">
             {heroMoviesProcessed.map((_, idx) => (
               <button
