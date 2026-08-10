@@ -840,40 +840,38 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         {m.name || "..."}
                       </h2>
 
-                      {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb */}
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
-                        
-                        {m.displayLang && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.displayLang}
-                          </span>
-                        )}
+                      {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}
+<div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
+  
+  {m.displayLang && (
+    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+      {m.displayLang}
+    </span>
+  )}
 
-                        {m.year && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.year}
-                          </span>
-                        )}
+  {m.year && (
+    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+      {m.year}
+    </span>
+  )}
 
-                        {m.rating && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
-                            <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
-                              {m.rating.label}
-                            </span>
-                            <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
-                          </span>
-                        )}
+  {m.rating && (
+    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
+      <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
+        {m.rating.label}
+      </span>
+      <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
+    </span>
+  )}
 
-                        {/* Thể loại */}
-                        {m?.category && m.category.length > 0 && (
-                          <div className="flex items-center gap-1.5 ml-1">
-                            <span className="w-1 h-1 rounded-full bg-white/40" />
-                            <span className="text-[10px] md:text-xs font-medium text-white/80 italic">
-                              {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+  {/* Thể loại (Chung khung phong cách) */}
+  {m?.category && m.category.length > 0 && (
+    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+      {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+    </span>
+  )}
+
+</div>
 
                       <p className="text-white/70 text-[11px] md:text-[14px] font-medium line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed max-w-2xl italic">
                         {m.cleanDescription}
