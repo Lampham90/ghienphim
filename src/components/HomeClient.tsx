@@ -30,6 +30,8 @@ interface Movie extends KKPhimMovie {
   imdb_score?: number | string;
   vote_average?: number | string;
   tmdb?: { vote_average?: number | string };
+  imdb?: { vote_average?: number | string; score?: number | string };
+  rating?: string | null;
   last_updated?: number;
   seconds?: number;
   duration?: number;
@@ -53,6 +55,40 @@ interface HistoryRecord {
   seconds?: number;
   duration?: number;
 }
+
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+const getMovieRating = (m: any): string | null => {
+  // 1. Ưu tiên điểm TMDB (nếu > 0)
+  const tmdbScore = Number(m?.tmdb?.vote_average);
+  if (!isNaN(tmdbScore) && tmdbScore > 0) return tmdbScore.toFixed(1);
+
+  // 2. Điểm IMDb (nếu > 0)
+  const imdbScore = Number(m?.imdb?.vote_average || m?.imdb?.score || m?.imdb_score);
+  if (!isNaN(imdbScore) && imdbScore > 0) return imdbScore.toFixed(1);
+
+  // 3. Điểm Fallback
+  const fallbackScore = Number(m?.vote_average || m?.score);
+  if (!isNaN(fallbackScore) && fallbackScore > 0) return fallbackScore.toFixed(1);
+
+  return null;
+};
+
+const stripHtml = (html: string = ''): string => {
+  if (!html) return '';
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+};
 
 // ==========================================
 // 0. SAFE SESSION STORAGE & CLIENT CACHE
@@ -102,21 +138,6 @@ const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
     console.error(`Error fetching category ${slug} from D1:`, e);
   }
   return [];
-};
-
-const stripHtml = (html: string = ''): string => {
-  if (!html) return '';
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
 };
 
 // ==========================================
@@ -415,9 +436,13 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // Memoize Hero Movies - Tách biệt URL Thumb (Desktop) và Poster (Mobile)
+  // Memoize Hero Movies - Tách biệt URL, Xử lý điểm Rating và Ngôn ngữ
   const heroMoviesProcessed = useMemo(() => {
     return initialHeroMovies.map((m) => {
+      // 1. Tách rating từ TMDB/IMDb chuẩn
+      const rating = getMovieRating(m);
+
+      // 2. Xử lý ngôn ngữ / Vietsub / Thuyết minh
       const langText = [
         m?.lang,
         m?.language,
@@ -448,6 +473,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
       return {
         ...m,
+        rating,
         displayLang,
         displayQuality,
         cleanDescription: stripHtml(m.content || m.description),
@@ -805,31 +831,49 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                  
                   {/* HERO CONTENT */}
                   <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 px-6 md:pb-32 md:px-20 text-center md:text-left items-center md:items-start">
-                    <div className="max-w-2xl space-y-2 md:space-y-4">
+                    {/* Tăng max-w lên 3xl / 4xl để câu chữ dài tự do mở rộng ngang */}
+                    <div className="max-w-xl md:max-w-3xl lg:max-w-4xl space-y-2.5 md:space-y-4">
+                      
                       <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                         <span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] md:tracking-[0.5em] uppercase italic">Hot Premiere</span>
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      <h2 className="text-[18px] md:text-[45px] font-black uppercase italic leading-[1.1] md:leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-1 md:line-clamp-none">
+                      {/* Tiêu đề tự điều chỉnh kích thước mượt mà, không bị gãy dòng đột ngột */}
+                      <h2 className="text-[18px] md:text-[32px] lg:text-[40px] xl:text-[44px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2 md:line-clamp-2">
                         {m.name || "..."}
                       </h2>
 
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
+                      {/* Thông tin phụ: Badge Chất lượng, Thuyết minh, IMDb, Thể loại, Năm */}
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2.5 text-[10px] md:text-sm font-semibold">
                         <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] md:text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                           {m.displayQuality}
                         </span>
+
                         {m.displayLang && (
                           <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
                             {m.displayLang}
                           </span>
                         )}
-                        {(m.imdb_score || m.vote_average || m.tmdb?.vote_average) && (
-                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1">
-                            ⭐ {m.imdb_score || m.vote_average || m.tmdb?.vote_average}
+
+                        {/* Điểm IMDb / TMDB */}
+                        {m.rating && (
+                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1 shadow-sm">
+                            ⭐ {m.rating}
                           </span>
                         )}
+
+                        {/* Thể loại (Sửa từ movie -> m) */}
+                        {m?.category && m.category.length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1 h-1 rounded-full bg-white/40" />
+                            <span className="text-[10px] md:text-xs font-medium text-white/80 italic">
+                              {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                            </span>
+                          </div>
+                        )}
+
                         {m.year && (
                           <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] md:text-xs backdrop-blur-sm">
                             {m.year}
@@ -837,7 +881,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         )}
                       </div>
 
-                      <p className="text-white/70 text-[11px] md:text-[14px] font-medium line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed max-w-xl italic">
+                      <p className="text-white/70 text-[11px] md:text-[14px] font-medium line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed max-w-2xl italic">
                         {m.cleanDescription}
                       </p>
 
@@ -847,6 +891,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                           <span>Xem ngay</span>
                         </Link>
                       </div>
+
                     </div>
                   </div>
                 </div>
