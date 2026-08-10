@@ -482,64 +482,55 @@ export default function MovieDetailClient({
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-3">
-                 {/* Badge IMDb / TMDb (Nền tối dịu mắt, hiệu ứng kính mờ & viền vàng nhạt) */}
-{imdbRating && (
-  <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
-    <span className="font-black tracking-tight">IMDb</span>
-    <span className="font-extrabold text-white">{imdbRating}</span>
-  </div>
-)}
+                 <div className="flex flex-wrap items-center gap-2">
+  {/* Badge IMDb (Bỏ nhãn IMDb, thêm icon ngôi sao) */}
+  {imdbRating && (
+    <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+      <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+      <span className="font-extrabold text-white">{imdbRating}</span>
+    </div>
+  )}
 
-                  {/* Quality */}
-                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-                    {movie?.quality || "FHD"}
-                  </span>
+  {/* Quality (Đồng bộ nền style IMDb) */}
+  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    {movie?.quality || "FHD"}
+  </span>
 
-                  {/* Year */}
-                  <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                    {movie?.year || "2026"}
-                  </span>
+  {/* Year (Đồng bộ nền style IMDb) */}
+  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    {movie?.year || "2026"}
+  </span>
 
-                  {/* Language */}
-                  {movieLang && (
-                    <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[10px] font-bold rounded border border-white/10 uppercase italic">
-                      {movieLang}
-                    </span>
-                  )}
+  {/* Language (Đồng bộ nền style IMDb) */}
+  {movieLang && (
+    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+      {movieLang}
+    </span>
+  )}
 
-                  {/* Country */}
-                  {countryName && (
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                      <span className="text-[12px] font-medium text-white/80 italic">
-                        {countryName}
-                      </span>
-                    </div>
-                  )}
+  {/* Categories / Genres (Đồng bộ nền style IMDb) */}
+  {categories && categories.length > 0 && (
+    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+      {categories.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+    </span>
+  )}
 
-                  {/* Genre / Category */}
-                  {categories && (
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                      <span className="text-[12px] font-medium text-white/80 italic">
-                        {categories}
-                      </span>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={toggleFavorite}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border ml-1 ${
-                      isFavorite
-                        ? "bg-red-500/20 border-red-500/50 text-red-500"
-                        : "bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40"
-                    }`}
-                  >
-                    <svg className={`w-4 h-4 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-                      <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                  </button>
-                </div>
+  {/* Nút yêu thích */}
+  <button
+    onClick={toggleFavorite}
+    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
+      isFavorite
+        ? "bg-red-500/20 border-red-500/50 text-red-500"
+        : "bg-white/5 border-white/20 text-white/60"
+    }`}
+  >
+    <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
+      <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+    </svg>
+  </button>
+</div>
 
                 {description && (
                   <div
@@ -581,64 +572,55 @@ export default function MovieDetailClient({
               </h1>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
-                {/* Badge IMDb / TMDb (Nền tối dịu mắt, hiệu ứng kính mờ & viền vàng nhạt) */}
-{imdbRating && (
-  <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
-    <span className="font-black tracking-tight">IMDb</span>
-    <span className="font-extrabold text-white">{imdbRating}</span>
-  </div>
-)}
+               <div className="flex flex-wrap items-center gap-2">
+  {/* Badge IMDb (Bỏ nhãn IMDb, thêm icon ngôi sao) */}
+  {imdbRating && (
+    <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+      <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+      <span className="font-extrabold text-white">{imdbRating}</span>
+    </div>
+  )}
 
-                {/* Quality */}
-                <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
-                  {movie?.quality || "FHD"}
-                </span>
+  {/* Quality (Đồng bộ nền style IMDb) */}
+  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    {movie?.quality || "FHD"}
+  </span>
 
-                {/* Year */}
-                <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
-                  {movie?.year || "2026"}
-                </span>
+  {/* Year (Đồng bộ nền style IMDb) */}
+  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    {movie?.year || "2026"}
+  </span>
 
-                {/* Language */}
-                {movieLang && (
-                  <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[9px] font-bold rounded border border-white/10 uppercase italic">
-                    {movieLang}
-                  </span>
-                )}
+  {/* Language (Đồng bộ nền style IMDb) */}
+  {movieLang && (
+    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+      {movieLang}
+    </span>
+  )}
 
-                {/* Country */}
-                {countryName && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                    <span className="text-[11px] font-medium text-white/80 italic">
-                      {countryName}
-                    </span>
-                  </div>
-                )}
+  {/* Categories / Genres (Đồng bộ nền style IMDb) */}
+  {categories && categories.length > 0 && (
+    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+      {categories.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+    </span>
+  )}
 
-                {/* Categories / Genres */}
-                {categories && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                    <span className="text-[11px] font-medium text-white/80 italic">
-                      {categories}
-                    </span>
-                  </div>
-                )}
-
-                <button
-                  onClick={toggleFavorite}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
-                    isFavorite
-                      ? "bg-red-500/20 border-red-500/50 text-red-500"
-                      : "bg-white/5 border-white/20 text-white/60"
-                  }`}
-                >
-                  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </button>
-              </div>
+  {/* Nút yêu thích */}
+  <button
+    onClick={toggleFavorite}
+    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
+      isFavorite
+        ? "bg-red-500/20 border-red-500/50 text-red-500"
+        : "bg-white/5 border-white/20 text-white/60"
+    }`}
+  >
+    <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
+      <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+    </svg>
+  </button>
+</div>
 
               {servers && servers.length > 0 && (
                 <div className="hidden flex flex-wrap items-center justify-center gap-2 pt-0.5">
