@@ -856,10 +856,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   )}
 
   {m.rating && (
-    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
-      <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
-        {m.rating.label}
-      </span>
+    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
       <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
     </span>
   )}

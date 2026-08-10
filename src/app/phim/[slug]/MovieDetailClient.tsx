@@ -521,26 +521,27 @@ export default function MovieDetailClient({
                     </span>
                   )}
 
-                  {/* Total Episodes */}
-                  {currentEpisodes && currentEpisodes.length > 0 && (
-                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
-                      {currentEpisodes.length} Tập
-                    </span>
-                  )}
+                  {/* Số tập đã cập nhật / Tổng số tập (Ví dụ: 7/12 Tập) */}
+{currentEpisodes && currentEpisodes.length > 0 && (
+  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
+  </span>
+)}
 
                   {/* Nút yêu thích */}
-                  <button
-                    onClick={toggleFavorite}
-                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
-                      isFavorite
-                        ? "bg-red-500/20 border-red-500/50 text-red-500"
-                        : "bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40"
-                    }`}
-                  >
-                    <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-                      <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                  </button>
+                  {/* Nút yêu thích */}
+<button
+  onClick={toggleFavorite}
+  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
+    isFavorite
+      ? "bg-red-500/20 border-red-500/50 text-red-500"
+      : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
+  }`}
+>
+  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+  </svg>
+</button>
                 </div>
 
                 {description && (
@@ -601,26 +602,27 @@ export default function MovieDetailClient({
                   </span>
                 )}
 
-                {/* Total Episodes */}
-                {currentEpisodes && currentEpisodes.length > 0 && (
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
-                    {currentEpisodes.length} Tập
-                  </span>
-                )}
+                {/* Số tập đã cập nhật / Tổng số tập (Ví dụ: 7/12 Tập) */}
+{currentEpisodes && currentEpisodes.length > 0 && (
+  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
+  </span>
+)}
 
                 {/* Nút yêu thích */}
-                <button
-                  onClick={toggleFavorite}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
-                    isFavorite
-                      ? "bg-red-500/20 border-red-500/50 text-red-500"
-                      : "bg-white/5 border-white/20 text-white/60"
-                  }`}
-                >
-                  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </button>
+                {/* Nút yêu thích */}
+<button
+  onClick={toggleFavorite}
+  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
+    isFavorite
+      ? "bg-red-500/20 border-red-500/50 text-red-500"
+      : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
+  }`}
+>
+  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+  </svg>
+</button>
               </div>
 
               {description && (
