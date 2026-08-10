@@ -551,6 +551,18 @@ export default function MovieDetailClient({
                   />
                 )}
 
+{servers && servers.length > 0 && (
+  <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+    {servers.map((s, idx) => (
+      <div key={idx} className="flex items-center gap-1.5">
+        {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/10"></span>}
+        <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+          {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
+        </span>
+      </div>
+    ))}
+  </div>
+)}
                 <div className="pt-2 w-full max-w-xl flex justify-start">
                   <button
                     disabled={!isHistoryLoaded || !activeEpisode}
@@ -610,7 +622,6 @@ export default function MovieDetailClient({
 )}
 
                 {/* Nút yêu thích */}
-                {/* Nút yêu thích */}
 <button
   onClick={toggleFavorite}
   className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
@@ -630,6 +641,19 @@ export default function MovieDetailClient({
                   {description.replace(/<[^>]*>?/gm, "")}
                 </p>
               )}
+
+              {servers && servers.length > 0 && (
+  <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+    {servers.map((s, idx) => (
+      <div key={idx} className="flex items-center gap-1.5">
+        {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/10"></span>}
+        <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+          {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
+        </span>
+      </div>
+    ))}
+  </div>
+)}
 
               <div className="pt-2 w-full flex justify-center">
                 <button
