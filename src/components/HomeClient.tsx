@@ -483,7 +483,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         setCurrentHero((p) => (p + 1) % heroMoviesProcessed.length);
       }
-    }, 7000);
+    }, 4000);
 
     return () => clearInterval(timer);
   }, [heroMoviesProcessed.length, isHoveredHero]);
