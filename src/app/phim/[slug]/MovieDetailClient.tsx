@@ -484,12 +484,7 @@ export default function MovieDetailClient({
             <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
               {movie?.year || "2026"}
             </span>
-{/* Điểm IMDb / TMDB */}
-                        {m.rating && (
-                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1 shadow-sm">
-                            ⭐ {m.rating}
-                          </span>
-                        )}
+
             {movie?.category && movie.category.length > 0 && (
               <div className="flex items-center gap-2">
                 <span className="w-1 h-1 rounded-full bg-white/30"></span>
