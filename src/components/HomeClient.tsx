@@ -812,7 +812,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      <h2 className="text-[22px] md:text-[45px] font-black uppercase italic leading-[1.1] md:leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-1 md:line-clamp-none">
+                      <h2 className="text-[18px] md:text-[45px] font-black uppercase italic leading-[1.1] md:leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-1 md:line-clamp-none">
                         {m.name || "..."}
                       </h2>
 
