@@ -549,7 +549,8 @@ export default function MovieDetailClient({
                 )}
 
                 {servers && servers.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                  /* Thêm class 'hidden' vào div cha bên dưới */
+  <div className="hidden flex-wrap items-center gap-3 pt-1">
                     {servers.map((s, idx) => (
                       <div key={idx} className="flex items-center gap-2">
                         {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
@@ -640,7 +641,7 @@ export default function MovieDetailClient({
               </div>
 
               {servers && servers.length > 0 && (
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                <div className="hidden flex flex-wrap items-center justify-center gap-2 pt-0.5">
                   {servers.map((s, idx) => (
                     <div key={idx} className="flex items-center gap-1.5">
                       {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
