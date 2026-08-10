@@ -22,6 +22,11 @@ interface CategoryInfo {
   slug?: string;
 }
 
+interface RatingResult {
+  score: string;
+  label: string;
+}
+
 interface Movie extends KKPhimMovie {
   content?: string;
   thumb_url?: string;
@@ -31,7 +36,7 @@ interface Movie extends KKPhimMovie {
   vote_average?: number | string;
   tmdb?: { vote_average?: number | string };
   imdb?: { vote_average?: number | string; score?: number | string };
-  rating?: string | null;
+  rating?: RatingResult | null;
   last_updated?: number;
   seconds?: number;
   duration?: number;
@@ -59,14 +64,14 @@ interface HistoryRecord {
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
-const getMovieRating = (m: any): { score: string; label: string } => {
-  // 1. Kiểm tra nếu có điểm thật từ API chi tiết
-  const realScore = Number(m?.imdb_score || m?.imdb?.vote_average || m?.tmdb?.vote_average);
+const getMovieRating = (m: any): RatingResult => {
+  // 1. Kiểm tra điểm thật nếu có từ API/DB
+  const realScore = Number(m?.imdb_score || m?.imdb?.vote_average || m?.tmdb?.vote_average || m?.vote_average);
   if (!isNaN(realScore) && realScore > 0) {
     return { score: realScore.toFixed(1), label: "IMDb" };
   }
 
-  // 2. Tạo điểm giả lập ổn định (luôn cố định theo slug của phim từ 7.2 - 8.8)
+  // 2. Cách 1: Tạo điểm IMDb giả lập ổn định dựa trên slug (7.2 - 8.8) khi D1 không có điểm
   if (m?.slug) {
     let hash = 0;
     for (let i = 0; i < m.slug.length; i++) {
@@ -429,7 +434,6 @@ interface HomeClientProps {
 export default function HomeClient({ initialSections, initialHeroMovies, allCategoriesData = {}, initialLoadedCount }: HomeClientProps) {
   const [sections, setSections] = useState<SectionData[]>(initialSections);
   const [currentHero, setCurrentHero] = useState(0);
-  const [isHoveredHero, setIsHoveredHero] = useState(false);
 
   const loadedIndexRef = useRef(initialLoadedCount);
   const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
@@ -443,7 +447,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   // Memoize Hero Movies - Tách biệt URL, Xử lý điểm Rating và Ngôn ngữ
   const heroMoviesProcessed = useMemo(() => {
     return initialHeroMovies.map((m) => {
-      // 1. Tách rating từ TMDB/IMDb chuẩn
+      // 1. Tách rating từ TMDB/IMDb chuẩn (Fallback Cách 1)
       const rating = getMovieRating(m);
 
       // 2. Xử lý ngôn ngữ / Vietsub / Thuyết minh
@@ -505,9 +509,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }
   }, [currentHero, heroMoviesProcessed]);
 
-  // Auto Hero Slider với Pause on Hover
+  // Auto Hero Slider chạy liên tục (Bỏ tạm ngưng khi rê chuột)
   useEffect(() => {
-    if (heroMoviesProcessed.length <= 1 || isHoveredHero) return;
+    if (heroMoviesProcessed.length <= 1) return;
 
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -516,7 +520,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }, 4000);
 
     return () => clearInterval(timer);
-  }, [heroMoviesProcessed.length, isHoveredHero]);
+  }, [heroMoviesProcessed.length]);
 
   // Sync initialSections khi Revalidate
   useEffect(() => {
@@ -780,11 +784,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
       {/* Hero Banner: Desktop hiển thị Thumb, Mobile hiển thị Poster */}
       {heroMoviesProcessed.length > 0 && (
-        <section 
-          className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 h-[62vh] md:h-screen transform-gpu"
-          onMouseEnter={() => setIsHoveredHero(true)}
-          onMouseLeave={() => setIsHoveredHero(false)}
-        >
+        <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 h-[62vh] md:h-screen transform-gpu">
           {heroMoviesProcessed.map((m, index) => {
             const total = heroMoviesProcessed.length;
             const isActive = index === currentHero;
@@ -835,7 +835,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                  
                   {/* HERO CONTENT */}
                   <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 px-6 md:pb-32 md:px-20 text-center md:text-left items-center md:items-start">
-                    {/* Tăng max-w lên 3xl / 4xl để câu chữ dài tự do mở rộng ngang */}
                     <div className="max-w-xl md:max-w-3xl lg:max-w-4xl space-y-2.5 md:space-y-4">
                       
                       <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
@@ -844,12 +843,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      {/* Tiêu đề tự điều chỉnh kích thước mượt mà, không bị gãy dòng đột ngột */}
-                      <h2 className="text-[18px] md:text-[32px] lg:text-[40px] xl:text-[44px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2 md:line-clamp-2">
+                      {/* Tiêu đề điều chỉnh cỡ chữ nhỏ gọn hơn */}
+                      <h2 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2 md:line-clamp-2">
                         {m.name || "..."}
                       </h2>
 
-                      {/* Thông tin phụ: Badge Chất lượng, Thuyết minh, IMDb, Thể loại, Năm */}
+                      {/* Thông tin phụ: Badge Chất lượng, Thuyết minh, Năm, IMDb, Thể loại */}
                       <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2.5 text-[10px] md:text-sm font-semibold">
                         <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] md:text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                           {m.displayQuality}
@@ -861,14 +860,24 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                           </span>
                         )}
 
-                        {/* Điểm IMDb / TMDB */}
-                        {m.rating && (
-                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1 shadow-sm">
-                            ⭐ {m.rating}
+                        {/* Năm phát hành đặt ngay cạnh Lang */}
+                        {m.year && (
+                          <span className="px-1.5 py-0.5 bg-white/20 text-white rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                            {m.year}
                           </span>
                         )}
 
-                        {/* Thể loại (Sửa từ movie -> m) */}
+                        {/* Badge IMDb màu vàng chuẩn */}
+                        {m.rating && (
+                          <span className="px-2 py-0.5 bg-amber-500 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1 shadow-md">
+                            <span className="bg-black text-amber-400 px-1 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-wider">
+                              {m.rating.label}
+                            </span>
+                            <span>⭐ {m.rating.score}</span>
+                          </span>
+                        )}
+
+                        {/* Thể loại */}
                         {m?.category && m.category.length > 0 && (
                           <div className="flex items-center gap-1.5">
                             <span className="w-1 h-1 rounded-full bg-white/40" />
@@ -876,12 +885,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                               {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
                             </span>
                           </div>
-                        )}
-
-                        {m.year && (
-                          <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.year}
-                          </span>
                         )}
                       </div>
 
