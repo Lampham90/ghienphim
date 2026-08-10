@@ -63,21 +63,16 @@ const sortServersByPriority = (rawServers: any[]) => {
   });
 };
 
-// --- CÁC HÀM XỬ LÝ CHUẨN HÓA DỮ LIỆU TỪ NHIỀU API --- //
-
-// 1. Chuẩn hóa mảng danh sách tập (KKPhim dùng server_data, Nguồn C dùng items)
 const getEpisodesArray = (server: any) => {
   if (!server) return [];
   return server.episodes || server.server_data || server.items || [];
 };
 
-// 2. Chuẩn hóa link video (KKPhim dùng link_m3u8, Nguồn C dùng embed)
 const getEpisodeLink = (ep: any) => {
   if (!ep) return "";
   return ep.link || ep.link_m3u8 || ep.embed || ep.link_embed || "";
 };
 
-// 3. Xử lý triệt để số tập: Chuyển "01" và "1" về cùng giá trị "1"
 const extractNumber = (val: any) => {
   if (!val) return "1";
   const str = String(val);
@@ -85,7 +80,6 @@ const extractNumber = (val: any) => {
   return match ? parseInt(match[0], 10).toString() : str;
 };
 
-// 4. Lấy số tập chính xác từ mọi API
 const getEpNum = (ep: any, fallbackIndex: number) => {
   if (!ep) return String(fallbackIndex + 1);
   return extractNumber(ep.episode_num || ep.name || ep.slug || fallbackIndex + 1);
@@ -398,9 +392,29 @@ export default function MovieDetailClient({
   const activeLink = getEpisodeLink(activeEpisode);
 
   const description = movie?.content || (movie as any)?.description || "";
-  const currentSeasonObj = relatedSeasons.find((s) => s.slug === slug);
 
   const isFullMovie = currentEpisodes.length <= 1;
+
+  // Trích xuất toàn bộ siêu dữ liệu chuẩn hóa đồng bộ với IMDb, Year, Language, Genre
+  const imdbRating = movie?.tmdb?.vote_average
+    ? Number(movie.tmdb.vote_average).toFixed(1)
+    : (movie as any)?.vote_average
+    ? Number((movie as any).vote_average).toFixed(1)
+    : (movie as any)?.imdb?.vote_average
+    ? Number((movie as any).imdb.vote_average).toFixed(1)
+    : null;
+
+  const movieLang = movie?.lang || (movie as any)?.language || "";
+
+  const countryName = Array.isArray(movie?.country)
+    ? movie.country.map((c: any) => c.name).join(", ")
+    : typeof movie?.country === "string"
+    ? movie.country
+    : (movie as any)?.country?.name || "";
+
+  const categories = movie?.category && Array.isArray(movie.category)
+    ? movie.category.map((cat: any) => cat.name).join(", ")
+    : "";
 
   const getWatchButtonLabel = () => {
     if (!mounted || !history[slug]) return "Xem ngay";
@@ -439,50 +453,28 @@ export default function MovieDetailClient({
               onClick={() => router.back()}
               className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
             >
-              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path d="M15.75 19.5L8.25 12l7.5-7.5" />
               </svg>
             </button>
 
-            {/* BANNER SYNCHRONIZED WITH HOME BANNER VISUAL STRUCTURE */}
-            <div className="relative w-full h-[55vh] md:h-[85vh] bg-black overflow-hidden">
+            <div className="relative w-full h-[45vh] md:h-screen bg-black overflow-hidden">
               <div className="absolute inset-0 w-full h-full">
                 {posterSrc && (
                   <div className="block md:hidden relative w-full h-full">
-                    <Image
-                      loader={imageLoader}
-                      src={posterSrc}
-                      alt="Poster"
-                      fill
-                      sizes="100vw"
-                      quality={90}
-                      priority
-                      className="object-cover object-center"
-                    />
+                    <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
                   </div>
                 )}
                 {bannerSrc && (
                   <div className="hidden md:block relative w-full h-full">
-                    <Image
-                      loader={imageLoader}
-                      src={bannerSrc}
-                      alt="Banner"
-                      fill
-                      sizes="100vw"
-                      quality={90}
-                      priority
-                      className="object-cover object-top"
-                    />
+                    <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
                   </div>
                 )}
               </div>
-
-              {/* Ambient Home Banner Gradients */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent z-10" />
-              <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/70 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
             </div>
 
-            {/* DESKTOP INFO OVERLAY */}
+            {/* DESKTOP INFO (Giao diện chuẩn hoá đầy đủ IMDb, Year, Lang, Genre) */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
@@ -490,19 +482,47 @@ export default function MovieDetailClient({
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-3">
+                  {/* IMDb Badge */}
+                  {imdbRating && (
+                    <div className="flex items-center gap-1 bg-[#F5C518] text-black px-2 py-0.5 rounded font-black text-[10px] uppercase tracking-tighter shadow-md">
+                      <span>IMDb</span>
+                      <span className="font-black">{imdbRating}</span>
+                    </div>
+                  )}
+
+                  {/* Quality */}
                   <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
                     {movie?.quality || "FHD"}
                   </span>
 
+                  {/* Year */}
                   <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
                     {movie?.year || "2026"}
                   </span>
 
-                  {movie?.category && movie.category.length > 0 && (
+                  {/* Language */}
+                  {movieLang && (
+                    <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[10px] font-bold rounded border border-white/10 uppercase italic">
+                      {movieLang}
+                    </span>
+                  )}
+
+                  {/* Country */}
+                  {countryName && (
                     <div className="flex items-center gap-2">
                       <span className="w-1 h-1 rounded-full bg-white/30"></span>
                       <span className="text-[12px] font-medium text-white/80 italic">
-                        {movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                        {countryName}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Genre / Category */}
+                  {categories && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                      <span className="text-[12px] font-medium text-white/80 italic">
+                        {categories}
                       </span>
                     </div>
                   )}
@@ -528,7 +548,6 @@ export default function MovieDetailClient({
                   />
                 )}
 
-                {/* DÒNG HIỂN THỊ LANG THEO SERVER - GIỮ NGUYÊN LOGIC */}
                 {servers && servers.length > 0 && (
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     {servers.map((s, idx) => (
@@ -554,26 +573,54 @@ export default function MovieDetailClient({
               </div>
             </div>
             
-            {/* MOBILE INFO OVERLAY */}
+            {/* MOBILE INFO (Đã đồng bộ đầy đủ IMDb, Year, Lang, Genre) */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
               <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
                 {movie?.name || "..."}
               </h1>
 
-              <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {/* IMDb Badge */}
+                {imdbRating && (
+                  <div className="flex items-center gap-1 bg-[#F5C518] text-black px-1.5 py-0.5 rounded font-black text-[9px] uppercase tracking-tighter shadow-md">
+                    <span>IMDb</span>
+                    <span className="font-black">{imdbRating}</span>
+                  </div>
+                )}
+
+                {/* Quality */}
                 <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
                   {movie?.quality || "FHD"}
                 </span>
 
+                {/* Year */}
                 <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
                   {movie?.year || "2026"}
                 </span>
 
-                {movie?.category && movie.category.length > 0 && (
-                  <div className="flex items-center gap-2">
+                {/* Language */}
+                {movieLang && (
+                  <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[9px] font-bold rounded border border-white/10 uppercase italic">
+                    {movieLang}
+                  </span>
+                )}
+
+                {/* Country */}
+                {countryName && (
+                  <div className="flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-white/30"></span>
                     <span className="text-[11px] font-medium text-white/80 italic">
-                      {movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                      {countryName}
+                    </span>
+                  </div>
+                )}
+
+                {/* Categories / Genres */}
+                {categories && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                    <span className="text-[11px] font-medium text-white/80 italic">
+                      {categories}
                     </span>
                   </div>
                 )}
@@ -592,7 +639,6 @@ export default function MovieDetailClient({
                 </button>
               </div>
 
-              {/* DÒNG HIỂN THỊ LANG THEO SERVER (MOBILE) - GIỮ NGUYÊN LOGIC */}
               {servers && servers.length > 0 && (
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
                   {servers.map((s, idx) => (
@@ -626,7 +672,7 @@ export default function MovieDetailClient({
         )}
       </section>
 
-      {/* DROPDOWNS & TABS - DETAIL FEATURES REMAIN INTACT */}
+      {/* DROPDOWNS & TABS */}
       {mounted && (
         <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-8 space-y-6">
           <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-6">
