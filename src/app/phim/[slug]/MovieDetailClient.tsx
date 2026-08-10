@@ -82,7 +82,6 @@ const extractNumber = (val: any) => {
   if (!val) return "1";
   const str = String(val);
   const match = str.match(/\d+/);
-  // Dùng parseInt để xóa số 0 vô nghĩa ở đầu, sau đó chuyển lại thành chuỗi
   return match ? parseInt(match[0], 10).toString() : str;
 };
 
@@ -146,7 +145,6 @@ export default function MovieDetailClient({
 
         if (res.ok) {
           const data = await res.json();
-          // Hỗ trợ mảng episodes của Nguồn C nếu nó trả về thẳng data.episodes
           const serversData = data.servers || data.movie?.episodes || [];
           if (serversData.length > 0) {
             setServers((prev) => {
@@ -231,7 +229,6 @@ export default function MovieDetailClient({
     handleRelatedSeasons();
   }, [movie?.name, slug]);
 
-    // SỬA LẠI ĐOẠN NÀY ĐỂ TỰ ĐỘNG KHỚP CẢ SERVER (AUDIO) VÀ TẬP PHIM TỪ LỊCH SỬ
   useEffect(() => {
     if (isPlaying || !servers || servers.length === 0) return;
 
@@ -247,7 +244,6 @@ export default function MovieDetailClient({
 
     const cleanSavedNum = extractNumber(saved.epNum);
 
-    // 1. Dò xem server nào chứa tập phim mà user đang xem dở dựa trên sub_type hoặc epNum
     if (saved.sub_type) {
       const matchedServerIdx = servers.findIndex(
         (s) => formatServerLabel(s).toLowerCase() === saved.sub_type.toLowerCase()
@@ -257,7 +253,6 @@ export default function MovieDetailClient({
       }
     }
 
-    // 2. Lấy danh sách tập của server đã chọn để tìm chính xác số tập
     const targetServer = servers[targetServerIndex];
     const episodes = getEpisodesArray(targetServer);
 
@@ -268,7 +263,6 @@ export default function MovieDetailClient({
       }
     }
 
-    // 3. Lấy thời gian đã xem của tập đó
     const epHistoryKey = getEpisodeHistoryKey(slug, cleanSavedNum);
     const epSaved = history[epHistoryKey] || saved;
     timeToSet = epSaved.duration && epSaved.seconds > epSaved.duration * 0.95 ? 0 : epSaved.seconds || 0;
@@ -351,7 +345,6 @@ export default function MovieDetailClient({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Logic chuyển Server đã được nâng cấp đồng bộ mạnh mẽ
   const handleServerChange = (newServerIndex: number) => {
     if (newServerIndex === activeServerIndex) return;
 
@@ -363,7 +356,6 @@ export default function MovieDetailClient({
     const targetServer = servers[newServerIndex];
     const targetEpisodes = getEpisodesArray(targetServer);
     
-    // Tìm chính xác tập tương ứng nhờ việc ép chuẩn hóa số 01 -> 1
     let targetEpIdx = targetEpisodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === currentEpNum);
     if (targetEpIdx === -1) targetEpIdx = 0;
 
@@ -373,7 +365,6 @@ export default function MovieDetailClient({
     if (targetEp) {
       const targetEpNum = getEpNum(targetEp, targetEpIdx);
       const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
-      // Lấy lịch sử mới nhất từ state thay vì phụ thuộc vào mảng history lúc render
       const latestHistory = useMovieStore.getState().history;
       const savedEpData = latestHistory[epHistoryKey] || history[epHistoryKey];
       if (savedEpData) {
@@ -425,192 +416,217 @@ export default function MovieDetailClient({
         .scrollbar-hide::-webkit-scrollbar { display: none; }
       ` }} />
 
-     {/* HERO / VIDEO PLAYER */}
-<section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5">
-  {isPlaying && activeLink ? (
-    <div className="relative w-full h-[75vh] md:h-screen">
-      <VideoPlayer
-        key={`${activeServerIndex}_${currentEpIndex}_${activeLink}`}
-        slug={slug}
-        movieName={movie?.name || ""}
-        videoUrl={activeLink}
-        initialTime={initialTime}
-        currentEpIndex={currentEpIndex}
-        totalEpisodes={currentEpisodes.length}
-        onClose={() => setIsPlaying(false)}
-        onEnded={handleNextEpisode}
-        saveProgress={saveProgress}
-      />
-    </div>
-  ) : (
-    <div className="relative w-full">
-      <button
-        onClick={() => router.back()}
-        className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
-      >
-        <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-          <path d="M15.75 19.5L8.25 12l7.5-7.5" />
-        </svg>
-      </button>
-
-      <div className="relative w-full h-[45vh] md:h-screen bg-black overflow-hidden">
-        <div className="absolute inset-0 w-full h-full">
-          {posterSrc && (
-            <div className="block md:hidden relative w-full h-full">
-              <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
-            </div>
-          )}
-          {bannerSrc && (
-            <div className="hidden md:block relative w-full h-full">
-              <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
-            </div>
-          )}
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
-      </div>
-
-      {/* DESKTOP INFO */}
-      <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
-        <div className="max-w-4xl space-y-4">
-          <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
-            {movie?.name || "..."}
-          </h1>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-              {movie?.quality || "FHD"}
-            </span>
-
-            <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-              {movie?.year || "2026"}
-            </span>
-
-            {movie?.category && movie.category.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                <span className="text-[12px] font-medium text-white/80 italic">
-                  {movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
-                </span>
-              </div>
-            )}
-
+      {/* HERO / VIDEO PLAYER */}
+      <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5">
+        {isPlaying && activeLink ? (
+          <div className="relative w-full h-[75vh] md:h-screen">
+            <VideoPlayer
+              key={`${activeServerIndex}_${currentEpIndex}_${activeLink}`}
+              slug={slug}
+              movieName={movie?.name || ""}
+              videoUrl={activeLink}
+              initialTime={initialTime}
+              currentEpIndex={currentEpIndex}
+              totalEpisodes={currentEpisodes.length}
+              onClose={() => setIsPlaying(false)}
+              onEnded={handleNextEpisode}
+              saveProgress={saveProgress}
+            />
+          </div>
+        ) : (
+          <div className="relative w-full">
             <button
-              onClick={toggleFavorite}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border ml-1 ${
-                isFavorite
-                  ? "bg-red-500/20 border-red-500/50 text-red-500"
-                  : "bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40"
-              }`}
+              onClick={() => router.back()}
+              className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
             >
-              <svg className={`w-4 h-4 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-                <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path d="M15.75 19.5L8.25 12l7.5-7.5" />
               </svg>
             </button>
-          </div>
 
-          {description && (
-            <div
-              className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic"
-              dangerouslySetInnerHTML={{ __html: description }}
-            />
-          )}
-
-          {servers && servers.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              {servers.map((s, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
-                  <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                    {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="pt-2 w-full max-w-xl flex justify-start">
-            <button
-              disabled={!isHistoryLoaded || !activeEpisode}
-              onClick={() => setIsPlaying(true)}
-              className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
-            >
-              {getWatchButtonLabel()}
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* MOBILE INFO (Đã đồng bộ đầy đủ như Desktop) */}
-      <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
-        <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
-          {movie?.name || "..."}
-        </h1>
-
-        <div className="flex flex-wrap items-center justify-center gap-2.5">
-          <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
-            {movie?.quality || "FHD"}
-          </span>
-
-          <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
-            {movie?.year || "2026"}
-          </span>
-
-          {movie?.category && movie.category.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-white/30"></span>
-              <span className="text-[11px] font-medium text-white/80 italic">
-                {movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
-              </span>
-            </div>
-          )}
-
-          <button
-            onClick={toggleFavorite}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
-              isFavorite
-                ? "bg-red-500/20 border-red-500/50 text-red-500"
-                : "bg-white/5 border-white/20 text-white/60"
-            }`}
-          >
-            <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
-              <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-          </button>
-        </div>
-
-        {servers && servers.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
-            {servers.map((s, idx) => (
-              <div key={idx} className="flex items-center gap-1.5">
-                {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
-                <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
-                  {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
-                </span>
+            {/* BANNER SYNCHRONIZED WITH HOME BANNER VISUAL STRUCTURE */}
+            <div className="relative w-full h-[55vh] md:h-[85vh] bg-black overflow-hidden">
+              <div className="absolute inset-0 w-full h-full">
+                {posterSrc && (
+                  <div className="block md:hidden relative w-full h-full">
+                    <Image
+                      loader={imageLoader}
+                      src={posterSrc}
+                      alt="Poster"
+                      fill
+                      sizes="100vw"
+                      quality={90}
+                      priority
+                      className="object-cover object-center"
+                    />
+                  </div>
+                )}
+                {bannerSrc && (
+                  <div className="hidden md:block relative w-full h-full">
+                    <Image
+                      loader={imageLoader}
+                      src={bannerSrc}
+                      alt="Banner"
+                      fill
+                      sizes="100vw"
+                      quality={90}
+                      priority
+                      className="object-cover object-top"
+                    />
+                  </div>
+                )}
               </div>
-            ))}
+
+              {/* Ambient Home Banner Gradients */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent z-10" />
+              <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/70 to-transparent z-10" />
+            </div>
+
+            {/* DESKTOP INFO OVERLAY */}
+            <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
+              <div className="max-w-4xl space-y-4">
+                <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                  {movie?.name || "..."}
+                </h1>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                    {movie?.quality || "FHD"}
+                  </span>
+
+                  <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                    {movie?.year || "2026"}
+                  </span>
+
+                  {movie?.category && movie.category.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                      <span className="text-[12px] font-medium text-white/80 italic">
+                        {movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                      </span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={toggleFavorite}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border ml-1 ${
+                      isFavorite
+                        ? "bg-red-500/20 border-red-500/50 text-red-500"
+                        : "bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40"
+                    }`}
+                  >
+                    <svg className={`w-4 h-4 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
+                      <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </button>
+                </div>
+
+                {description && (
+                  <div
+                    className="text-white/60 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic"
+                    dangerouslySetInnerHTML={{ __html: description }}
+                  />
+                )}
+
+                {/* DÒNG HIỂN THỊ LANG THEO SERVER - GIỮ NGUYÊN LOGIC */}
+                {servers && servers.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    {servers.map((s, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
+                        <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                          {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 w-full max-w-xl flex justify-start">
+                  <button
+                    disabled={!isHistoryLoaded || !activeEpisode}
+                    onClick={() => setIsPlaying(true)}
+                    className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
+                  >
+                    {getWatchButtonLabel()}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* MOBILE INFO OVERLAY */}
+            <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
+              <h1 className="text-[26px] sm:text-[30px] font-black uppercase italic leading-[1.1] text-[#F1E5AC]">
+                {movie?.name || "..."}
+              </h1>
+
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
+                  {movie?.quality || "FHD"}
+                </span>
+
+                <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
+                  {movie?.year || "2026"}
+                </span>
+
+                {movie?.category && movie.category.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                    <span className="text-[11px] font-medium text-white/80 italic">
+                      {movie.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  onClick={toggleFavorite}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ml-1 ${
+                    isFavorite
+                      ? "bg-red-500/20 border-red-500/50 text-red-500"
+                      : "bg-white/5 border-white/20 text-white/60"
+                  }`}
+                >
+                  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isFavorite ? 0 : 2}>
+                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* DÒNG HIỂN THỊ LANG THEO SERVER (MOBILE) - GIỮ NGUYÊN LOGIC */}
+              {servers && servers.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                  {servers.map((s, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      {idx > 0 && <span className="w-1 h-1 rounded-full bg-white/20"></span>}
+                      <span className="text-[11px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                        {formatServerLabel(s)}: {getEpisodesArray(s).length} Tập
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {description && (
+                <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-md">
+                  {description.replace(/<[^>]*>?/gm, "")}
+                </p>
+              )}
+
+              <div className="pt-2 w-full flex justify-center">
+                <button
+                  disabled={!isHistoryLoaded || !activeEpisode}
+                  onClick={() => setIsPlaying(true)}
+                  className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
+                >
+                  {getWatchButtonLabel()}
+                </button>
+              </div>
+            </div>
           </div>
         )}
+      </section>
 
-        {description && (
-          <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-md">
-            {description.replace(/<[^>]*>?/gm, "")}
-          </p>
-        )}
-
-        <div className="pt-2 w-full flex justify-center">
-          <button
-            disabled={!isHistoryLoaded || !activeEpisode}
-            onClick={() => setIsPlaying(true)}
-            className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
-          >
-            {getWatchButtonLabel()}
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
-</section>
-      {/* DROPDOWNS & TABS */}
+      {/* DROPDOWNS & TABS - DETAIL FEATURES REMAIN INTACT */}
       {mounted && (
         <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-8 space-y-6">
           <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-6">
