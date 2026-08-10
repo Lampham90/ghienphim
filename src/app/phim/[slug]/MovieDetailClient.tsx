@@ -481,40 +481,51 @@ export default function MovieDetailClient({
                   {movie?.name || "..."}
                 </h1>
 
-                 {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb */}
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
-                        
-                        {m.displayLang && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.displayLang}
-                          </span>
-                        )}
+                <div className="flex flex-wrap items-center gap-3">
+                 {/* Badge IMDb / TMDb (Nền tối dịu mắt, hiệu ứng kính mờ & viền vàng nhạt) */}
+{imdbRating && (
+  <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    <span className="font-black tracking-tight">IMDb</span>
+    <span className="font-extrabold text-white">{imdbRating}</span>
+  </div>
+)}
 
-                        {m.year && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.year}
-                          </span>
-                        )}
+                  {/* Quality */}
+                  <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                    {movie?.quality || "FHD"}
+                  </span>
 
-                        {m.rating && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
-                            <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
-                              {m.rating.label}
-                            </span>
-                            <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
-                          </span>
-                        )}
+                  {/* Year */}
+                  <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase tracking-wider">
+                    {movie?.year || "2026"}
+                  </span>
 
-                        {/* Thể loại */}
-                        {m?.category && m.category.length > 0 && (
-                          <div className="flex items-center gap-1.5 ml-1">
-                            <span className="w-1 h-1 rounded-full bg-white/40" />
-                            <span className="text-[10px] md:text-xs font-medium text-white/80 italic">
-                              {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
-                            </span>
-                          </div>
-                        )}
-                      
+                  {/* Language */}
+                  {movieLang && (
+                    <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[10px] font-bold rounded border border-white/10 uppercase italic">
+                      {movieLang}
+                    </span>
+                  )}
+
+                  {/* Country */}
+                  {countryName && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                      <span className="text-[12px] font-medium text-white/80 italic">
+                        {countryName}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Genre / Category */}
+                  {categories && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                      <span className="text-[12px] font-medium text-white/80 italic">
+                        {categories}
+                      </span>
+                    </div>
+                  )}
 
                   <button
                     onClick={toggleFavorite}
@@ -568,40 +579,51 @@ export default function MovieDetailClient({
                 {movie?.name || "..."}
               </h1>
 
-               {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb */}
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
-                        
-                        {m.displayLang && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.displayLang}
-                          </span>
-                        )}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {/* Badge IMDb / TMDb (Nền tối dịu mắt, hiệu ứng kính mờ & viền vàng nhạt) */}
+{imdbRating && (
+  <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+    <span className="font-black tracking-tight">IMDb</span>
+    <span className="font-extrabold text-white">{imdbRating}</span>
+  </div>
+)}
 
-                        {m.year && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-                            {m.year}
-                          </span>
-                        )}
+                {/* Quality */}
+                <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic shadow-md">
+                  {movie?.quality || "FHD"}
+                </span>
 
-                        {m.rating && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs flex items-center gap-1.5 backdrop-blur-sm">
-                            <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider text-amber-400">
-                              {m.rating.label}
-                            </span>
-                            <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
-                          </span>
-                        )}
+                {/* Year */}
+                <span className="text-[12px] font-black text-[#F1E5AC] italic uppercase">
+                  {movie?.year || "2026"}
+                </span>
 
-                        {/* Thể loại */}
-                        {m?.category && m.category.length > 0 && (
-                          <div className="flex items-center gap-1.5 ml-1">
-                            <span className="w-1 h-1 rounded-full bg-white/40" />
-                            <span className="text-[10px] md:text-xs font-medium text-white/80 italic">
-                              {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
-                            </span>
-                          </div>
-                        )}
-                      
+                {/* Language */}
+                {movieLang && (
+                  <span className="px-2 py-0.5 bg-white/10 text-white/90 text-[9px] font-bold rounded border border-white/10 uppercase italic">
+                    {movieLang}
+                  </span>
+                )}
+
+                {/* Country */}
+                {countryName && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                    <span className="text-[11px] font-medium text-white/80 italic">
+                      {countryName}
+                    </span>
+                  </div>
+                )}
+
+                {/* Categories / Genres */}
+                {categories && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-white/30"></span>
+                    <span className="text-[11px] font-medium text-white/80 italic">
+                      {categories}
+                    </span>
+                  </div>
+                )}
 
                 <button
                   onClick={toggleFavorite}
