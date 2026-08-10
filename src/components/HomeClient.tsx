@@ -14,6 +14,14 @@ import imageLoader from '@/lib/imageLoader';
 
 const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', '900'] });
 
+// ==========================================
+// TYPES & INTERFACES
+// ==========================================
+interface CategoryInfo {
+  name?: string;
+  slug?: string;
+}
+
 interface Movie extends KKPhimMovie {
   content?: string;
   thumb_url?: string;
@@ -26,6 +34,7 @@ interface Movie extends KKPhimMovie {
   duration?: number;
   poster?: string;
   thumb?: string;
+  category?: CategoryInfo[];
 }
 
 interface SectionData {
@@ -35,17 +44,44 @@ interface SectionData {
   items: Movie[];
 }
 
+interface HistoryRecord {
+  name?: string;
+  poster?: string;
+  thumb?: string;
+  last_updated?: number;
+  seconds?: number;
+  duration?: number;
+}
+
 // ==========================================
-// 0. CLIENT IN-MEMORY CACHE & SAFE STORAGE
+// 0. SAFE SESSION STORAGE & CLIENT CACHE
 // ==========================================
+const MAX_CACHE_SIZE = 30;
 const categoryCache = new Map<string, Movie[]>();
 
+const setInCache = (key: string, value: Movie[]) => {
+  if (categoryCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = categoryCache.keys().next().value;
+    if (firstKey) categoryCache.delete(firstKey);
+  }
+  categoryCache.set(key, value);
+};
+
 const safeSessionStorage = {
-  getItem: (key: string) => {
-    try { return sessionStorage.getItem(key); } catch { return null; }
+  getItem: (key: string): string | null => {
+    try {
+      if (typeof window !== 'undefined') {
+        return sessionStorage.getItem(key);
+      }
+    } catch {}
+    return null;
   },
-  setItem: (key: string, value: string) => {
-    try { sessionStorage.setItem(key, value); } catch {}
+  setItem: (key: string, value: string): void => {
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(key, value);
+      }
+    } catch {}
   }
 };
 
@@ -58,7 +94,7 @@ const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
     if (!res.ok) return [];
     const movies = await res.json();
     if (Array.isArray(movies) && movies.length > 0) {
-      categoryCache.set(slug, movies);
+      setInCache(slug, movies);
       return movies;
     }
   } catch (e) {
@@ -67,13 +103,25 @@ const fetchCategoryFromD1 = async (slug: string): Promise<Movie[]> => {
   return [];
 };
 
-const stripHtml = (html: string = '') => html.replace(/<[^>]*>?/gm, '');
+const stripHtml = (html: string = ''): string => {
+  if (!html) return '';
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+};
 
 // ==========================================
 // 1. HELPER COMPONENTS
 // ==========================================
 
-// FIX: Thêm prop forceVisible để hiển thị ngay DOM thật khi khôi phục trang
 const LazyRow = memo(({ 
   children, 
   rootMargin = '200px', 
@@ -109,8 +157,12 @@ const LazyRow = memo(({
   }, [rootMargin, forceVisible]);
 
   return (
-    <div ref={ref} className="min-h-[200px] transform-gpu will-change-transform">
-      {(visible || forceVisible) ? children : <div style={{ height: placeholderHeight }} className="w-full" />}
+    <div 
+      ref={ref} 
+      style={{ minHeight: `${placeholderHeight}px` }}
+      className="w-full transform-gpu will-change-transform"
+    >
+      {(visible || forceVisible) ? children : null}
     </div>
   );
 });
@@ -197,7 +249,7 @@ const HistoryItem = memo(({ m }: { m: Movie }) => {
           <Image
             loader={imageLoader}
             src={imageUrl}
-            alt={m.name}
+            alt={m.name || 'Movie thumbnail'}
             fill
             sizes="(max-width: 768px) 250px, 400px"
             quality={80}
@@ -222,7 +274,15 @@ HistoryItem.displayName = 'HistoryItem';
 // 2. MAIN ROW COMPONENTS
 // ==========================================
 
-const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' }: { section: SectionData, isTrending?: boolean, variant?: 'ranked1' | 'ranked2' | 'ranked3' }) => {
+const RankedMovieRow = memo(({ 
+  section, 
+  isTrending = false, 
+  variant = 'ranked1' 
+}: { 
+  section: SectionData, 
+  isTrending?: boolean, 
+  variant?: 'ranked1' | 'ranked2' | 'ranked3' 
+}) => {
   const rowRef = useRef<HTMLDivElement>(null);
   return (
     <div className="pl-6 md:pl-20 group/row relative mb-18 transform-gpu">
@@ -235,7 +295,7 @@ const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' 
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[300px]">
-          {section.items?.map((movie, index) => movie && <MovieCard key={movie.slug || index} movie={movie} variant={variant} index={index} />)}
+          {section.items?.map((movie, index) => movie && <MovieCard key={movie.slug ? `${section.slug}-${movie.slug}` : `${section.slug}-item-${index}`} movie={movie} variant={variant} index={index} />)}
         </div>
       </div>
     </div>
@@ -243,7 +303,13 @@ const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' 
 });
 RankedMovieRow.displayName = 'RankedMovieRow';
 
-const MovieRow = memo(({ section, variant = 'vertical' }: { section: SectionData, variant?: 'vertical' | 'horizontal' }) => {
+const MovieRow = memo(({ 
+  section, 
+  variant = 'vertical' 
+}: { 
+  section: SectionData, 
+  variant?: 'vertical' | 'horizontal' 
+}) => {
   const rowRef = useRef<HTMLDivElement>(null);
   return (
     <div className="pl-6 md:pl-20 group/row relative mb-14 transform-gpu">
@@ -257,7 +323,7 @@ const MovieRow = memo(({ section, variant = 'vertical' }: { section: SectionData
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[250px]">
           {section.items?.map((movie, index) => movie && (
-             <MovieCard key={movie.slug || index} movie={movie} variant={variant} />
+             <MovieCard key={movie.slug ? `${section.slug}-${movie.slug}` : `${section.slug}-item-${index}`} movie={movie} variant={variant} />
           ))}
         </div>
       </div>
@@ -279,19 +345,20 @@ const HistoryRow = memo(() => {
     
     const uniqueMovies = new Map<string, Movie>();
 
-    Object.entries(storeHistory).forEach(([key, data]: [string, any]) => {
+    Object.entries(storeHistory).forEach(([key, data]) => {
       if (key.includes('_ep_')) return;
 
-      if (data && data.name && (data.poster || data.thumb)) {
-        const cleanName = data.name.trim().toLowerCase();
+      const item = data as HistoryRecord;
+      if (item && item.name && (item.poster || item.thumb)) {
+        const cleanName = item.name.trim().toLowerCase();
 
         if (uniqueMovies.has(cleanName)) {
           const existing = uniqueMovies.get(cleanName)!;
-          if ((data.last_updated || 0) > (existing.last_updated || 0)) {
-            uniqueMovies.set(cleanName, { slug: key, ...data });
+          if ((item.last_updated || 0) > (existing.last_updated || 0)) {
+            uniqueMovies.set(cleanName, { slug: key, ...item });
           }
         } else {
-          uniqueMovies.set(cleanName, { slug: key, ...data });
+          uniqueMovies.set(cleanName, { slug: key, ...item });
         }
       }
     });
@@ -301,10 +368,10 @@ const HistoryRow = memo(() => {
       .slice(0, 10);
   }, [mounted, storeHistory]);
 
-  if (historyMovies.length === 0) return null;
+  if (!mounted || historyMovies.length === 0) return null;
 
   return (
-    <div className="pl-6 md:pl-20 group/row relative mb-20">
+    <div className="pl-6 md:pl-20 group/row relative mb-20 animate-fade-in">
       <div className="flex items-end justify-between pr-8 md:pr-24 mb-8 border-b border-white/[0.03] pb-3">
         <div className="flex flex-col text-left">
           <span className="text-[7.5px] font-black text-red-600 tracking-[0.5em] uppercase mb-1 italic">Continue Watching</span>
@@ -313,7 +380,7 @@ const HistoryRow = memo(() => {
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth">
+        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[180px]">
           {historyMovies.map((m) => <HistoryItem key={m.slug} m={m} />)}
         </div>
       </div>
@@ -336,72 +403,177 @@ interface HomeClientProps {
 export default function HomeClient({ initialSections, initialHeroMovies, allCategoriesData = {}, initialLoadedCount }: HomeClientProps) {
   const [sections, setSections] = useState<SectionData[]>(initialSections);
   const [currentHero, setCurrentHero] = useState(0);
-  
+  const [isHoveredHero, setIsHoveredHero] = useState(false);
+
   const loadedIndexRef = useRef(initialLoadedCount);
   const [loadedIndex, setLoadedIndex] = useState(initialLoadedCount);
-  
-  const updateLoadedIndex = useCallback((newIndex: number) => {
-    setLoadedIndex(newIndex);
-    loadedIndexRef.current = newIndex;
-  }, []);
 
   const [isRestoring, setIsRestoring] = useState(true);
   const pendingRestoreRef = useRef(false);
   const isFetching = useRef(false);
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
-  const scrollRafRef = useRef<number | null>(null);
 
-  // Khởi tạo Cache từ Props
+  // Memoize Hero Movies
+  const heroMoviesProcessed = useMemo(() => {
+    return initialHeroMovies.map((m) => {
+      const langText = [
+        m?.lang,
+        m?.language,
+        m?.quality,
+        m?.episode_current,
+        m?.current_episode,
+        m?.sub_type 
+      ]
+        .filter((val): val is string => typeof val === 'string')
+        .join(' ')
+        .toLowerCase();
+
+      let displayLang = m.sub_type || "";
+      if (langText.includes("lồng")) {
+        displayLang = "L.Tiếng";
+      } else if (langText.includes("thuyết")) {
+        displayLang = "T.Minh";
+      }
+
+      let displayQuality = m.quality || 'FHD';
+      if (displayQuality.toLowerCase().includes("lồng") || displayQuality.toLowerCase().includes("thuyết")) {
+         displayQuality = "FHD";
+      }
+
+      return {
+        ...m,
+        displayLang,
+        displayQuality,
+        cleanDescription: stripHtml(m.content || m.description),
+        heroImageUrl: getImageUrl(m.thumb_url || m.thumb || m.poster)
+      };
+    });
+  }, [initialHeroMovies]);
+
+  // Preload Next Hero Image thông qua imageLoader chuẩn Next.js
+  useEffect(() => {
+    if (typeof window === 'undefined' || heroMoviesProcessed.length <= 1) return;
+    const nextIdx = (currentHero + 1) % heroMoviesProcessed.length;
+    const nextImgUrl = heroMoviesProcessed[nextIdx]?.heroImageUrl;
+    if (nextImgUrl) {
+      const img = new window.Image();
+      img.src = imageLoader({ src: nextImgUrl, width: 1920, quality: 80 });
+    }
+  }, [currentHero, heroMoviesProcessed]);
+
+  // Auto Hero Slider với Pause on Hover
+  useEffect(() => {
+    if (heroMoviesProcessed.length <= 1 || isHoveredHero) return;
+
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        setCurrentHero((p) => (p + 1) % heroMoviesProcessed.length);
+      }
+    }, 7000);
+
+    return () => clearInterval(timer);
+  }, [heroMoviesProcessed.length, isHoveredHero]);
+
+  // Đồng bộ initialSections khi Server Revalidate mà không làm mất danh mục cuộn
+  useEffect(() => {
+    setSections(prev => {
+      if (prev.length === 0) return initialSections;
+      const dynamicSections = prev.filter(s => !initialSections.some(init => init.slug === s.slug));
+      const updatedInit = initialSections.map(init => {
+        const match = prev.find(p => p.slug === init.slug);
+        return match ? { ...match, items: init.items } : init;
+      });
+      return [...updatedInit, ...dynamicSections];
+    });
+  }, [initialSections]);
+
+  // Init Cache từ Props
   useEffect(() => {
     Object.entries(allCategoriesData).forEach(([slug, movies]) => {
       if (movies && movies.length > 0) {
-        categoryCache.set(slug, movies as Movie[]);
+        setInCache(slug, movies as Movie[]);
       }
     });
   }, [allCategoriesData]);
 
-  // Tắt Scroll Restoration mặc định của trình duyệt
+  // Sync Session Slugs
   useEffect(() => {
-    if ('scrollRestoration' in history) {
+    if (isRestoring) return;
+    const dynamicSlugs = sections
+      .filter(s => !initialSections.some(init => init.slug === s.slug))
+      .map(s => s.slug);
+    safeSessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs));
+  }, [sections, initialSections, isRestoring]);
+
+  // Disable Browser Native Scroll Restoration
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
   }, []);
 
-  // --- 1. LƯU VỊ TRÍ CUỘN & HÀNG PHIM DANG XEM ---
+  // Save Scroll Position
   useEffect(() => {
-    const handleScroll = () => {
-      if (isRestoring) return;
-      
-      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
-      scrollRafRef.current = requestAnimationFrame(() => {
-        const currentScrollY = window.scrollY;
-        if (currentScrollY > 20) {
-          safeSessionStorage.setItem("home_scroll_pos", currentScrollY.toString());
-
-          // Tìm slug hàng phim đang nằm ở vị trí hiển thị chính
-          const sectionEls = document.querySelectorAll('[data-section-slug]');
-          let currentSlug = "";
-          sectionEls.forEach((el) => {
-            const rect = el.getBoundingClientRect();
-            if (rect.top <= window.innerHeight / 2 && rect.bottom >= 0) {
-              currentSlug = el.getAttribute('data-section-slug') || "";
-            }
-          });
-          if (currentSlug) {
-            safeSessionStorage.setItem("home_target_slug", currentSlug);
-          }
-        }
-      });
+    if (isRestoring) return;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    const saveScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > 20) {
+        safeSessionStorage.setItem("home_scroll_pos", currentScrollY.toString());
+      }
     };
+
+    const handleScroll = () => {
+      if (timeoutId) return;
+      timeoutId = setTimeout(() => {
+        saveScroll();
+        timeoutId = null;
+      }, 100);
+    };
+
+    const handleUnload = () => {
+      saveScroll();
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", handleUnload);
+
     return () => {
-      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+      if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", handleUnload);
     };
   }, [isRestoring]);
 
-  // --- 2. TẢI LẠI SESSION ĐÃ LƯU ---
+  // Observe Active Section
+  useEffect(() => {
+    if (isRestoring) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const slug = entry.target.getAttribute('data-section-slug');
+          if (slug) {
+            safeSessionStorage.setItem("home_target_slug", slug);
+          }
+        }
+      });
+    }, {
+      rootMargin: '-20% 0px -50% 0px',
+      threshold: 0
+    });
+
+    const elements = document.querySelectorAll('[data-section-slug]');
+    elements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [sections, isRestoring]);
+
+  // Restore Session Data
   useEffect(() => {
     if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
@@ -410,8 +582,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       try {
         const savedSlugsStr = safeSessionStorage.getItem("home_loaded_slugs");
         const savedScrollPos = safeSessionStorage.getItem("home_scroll_pos");
+        const savedTargetSlug = safeSessionStorage.getItem("home_target_slug");
 
-        if (!savedSlugsStr && !savedScrollPos) {
+        if (!savedSlugsStr && !savedScrollPos && !savedTargetSlug) {
           setIsRestoring(false);
           return;
         }
@@ -438,7 +611,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           if (dynamicSections.length > 0) {
             setSections(prev => {
               const combined = [...initialSections, ...dynamicSections];
-              const uniqueMap = new Map();
+              const uniqueMap = new Map<string, SectionData>();
               combined.forEach(s => uniqueMap.set(s.slug, s));
               return Array.from(uniqueMap.values());
             });
@@ -446,7 +619,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             const lastSlug = savedSlugs[savedSlugs.length - 1];
             const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
             if (foundIdx !== -1) {
-              updateLoadedIndex(foundIdx + 1);
+              const newIndex = foundIdx + 1;
+              loadedIndexRef.current = newIndex;
+              setLoadedIndex(newIndex);
             }
           }
         }
@@ -460,9 +635,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
 
     restoreSession();
-  }, [initialSections, updateLoadedIndex]);
+  }, [initialSections]);
 
-  // --- 3. KHÔI PHỤC CUỘN CHUẨN XÁC SAU KHI REACT RENDER DOM THẬT ---
+  // Restore Scroll Position
   useEffect(() => {
     if (!isRestoring || !pendingRestoreRef.current) return;
 
@@ -470,45 +645,40 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     const savedTargetSlug = safeSessionStorage.getItem("home_target_slug");
     const targetScroll = savedScrollPos ? parseInt(savedScrollPos, 10) : 0;
 
-    let rafId: number;
+    let timerId: ReturnType<typeof setTimeout>;
     let attempts = 0;
 
     const performScroll = () => {
       attempts++;
-      const currentDocHeight = document.body.scrollHeight;
 
-      // Đợi DOM trang có đủ chiều cao thực tế hoặc thử lại tối đa 15 frames
-      if (currentDocHeight >= targetScroll || attempts > 15) {
-        // 1. Định vị chuẩn vào Slug hàng phim đã lưu
-        if (savedTargetSlug) {
-          const targetEl = document.querySelector(`[data-section-slug="${savedTargetSlug}"]`);
-          if (targetEl) {
-            targetEl.scrollIntoView({ block: 'start', behavior: 'instant' });
-            pendingRestoreRef.current = false;
-            requestAnimationFrame(() => setIsRestoring(false));
-            return;
-          }
+      if (savedTargetSlug) {
+        const targetEl = document.querySelector(`[data-section-slug="${savedTargetSlug}"]`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ block: 'start', behavior: 'instant' });
+          pendingRestoreRef.current = false;
+          setIsRestoring(false);
+          return;
         }
+      }
 
-        // 2. Dự phòng theo Pixel tuyệt đối
+      if (document.body.scrollHeight >= targetScroll || attempts >= 15) {
         if (targetScroll > 0) {
           window.scrollTo({ top: targetScroll, behavior: 'instant' });
         }
         pendingRestoreRef.current = false;
-        requestAnimationFrame(() => setIsRestoring(false));
-      } else {
-        rafId = requestAnimationFrame(performScroll);
+        setIsRestoring(false);
+        return;
       }
+
+      timerId = setTimeout(performScroll, 50);
     };
 
-    rafId = requestAnimationFrame(performScroll);
+    timerId = setTimeout(performScroll, 50);
 
-    return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-    };
+    return () => clearTimeout(timerId);
   }, [sections, isRestoring]);
 
-  // --- 4. TẢI TIẾP KHI CUỘN ĐẾN CUỐI ---
+  // Infinite Scroll Trigger
   const loadNextCategory = useCallback(async () => {
     const currentIndex = loadedIndexRef.current;
     
@@ -526,19 +696,16 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       if (movies && movies.length > 0) {
         setSections(prev => {
           if (prev.some(s => s.slug === currentCat.slug)) return prev;
-
-          const next = [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
-          const dynamicSlugs = next.filter(s => !initialSections.some(init => init.slug === s.slug)).map(s => s.slug);
-          safeSessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs));
-          return next;
+          return [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
         });
       }
 
-      updateLoadedIndex(currentIndex + 1);
+      const nextIndex = currentIndex + 1;
+      loadedIndexRef.current = nextIndex;
+      setLoadedIndex(nextIndex);
 
-      const nextNextIdx = currentIndex + 1;
-      if (nextNextIdx < HOME_CATEGORIES.length) {
-         const futureCat = HOME_CATEGORIES[nextNextIdx];
+      if (nextIndex < HOME_CATEGORIES.length) {
+         const futureCat = HOME_CATEGORIES[nextIndex];
          if (futureCat && !categoryCache.has(futureCat.slug)) {
             fetchCategoryFromD1(futureCat.slug);
          }
@@ -548,7 +715,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     } finally {
       isFetching.current = false;
     }
-  }, [initialSections, updateLoadedIndex]);
+  }, []);
 
   useEffect(() => {
     if (isRestoring) return;
@@ -564,176 +731,114 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => observer.disconnect();
   }, [loadNextCategory, isRestoring, loadedIndex]);
 
-  // Automatic Hero Slider
-  useEffect(() => {
-    if (initialHeroMovies.length > 0) {
-      const timer = setInterval(() => setCurrentHero(p => (p + 1) % initialHeroMovies.length), 7000);
-      return () => clearInterval(timer);
-    }
-  }, [initialHeroMovies.length]);
-
   return (
     <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white selection:bg-red-600`}>
-      {initialHeroMovies.length > 0 && (
-        <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
-          {initialHeroMovies.map((m, i) => {
-            const langText = [
-              m?.lang,
-              m?.language,
-              m?.quality,
-              m?.episode_current,
-              m?.current_episode,
-              m?.sub_type 
-            ]
-              .filter((val) => typeof val === 'string')
-              .join(' ')
-              .toLowerCase();
+      {/* Fixed SR-Only H1 for SEO */}
+      <h1 className="sr-only">Xem Phim Mới Cập Nhật - Phim Hay Vietsub Thuyết Minh HD</h1>
 
-            let displayLang = m.sub_type || "";
-            if (langText.includes("lồng")) {
-              displayLang = "L.Tiếng";
-            } else if (langText.includes("thuyết")) {
-              displayLang = "T.Minh";
+      {/* Hero Banner: Tối ưu DOM cực đại (Chỉ render 3 slides prev/active/next) + Responsive H2 hợp nhất */}
+      {heroMoviesProcessed.length > 0 && (
+        <section 
+          className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 h-[55vh] md:h-screen transform-gpu"
+          onMouseEnter={() => setIsHoveredHero(true)}
+          onMouseLeave={() => setIsHoveredHero(false)}
+        >
+          {heroMoviesProcessed.map((m, index) => {
+            const total = heroMoviesProcessed.length;
+            const isActive = index === currentHero;
+            const isPrev = index === (currentHero - 1 + total) % total;
+            const isNext = index === (currentHero + 1) % total;
+
+            // Chỉ render đúng 3 slide (Prev, Active, Next)
+            if (!isActive && !isNext && !isPrev) {
+              return null;
             }
-
-            let displayQuality = m.quality || 'FHD';
-            if (displayQuality.toLowerCase().includes("lồng") || displayQuality.toLowerCase().includes("thuyết")) {
-               displayQuality = "FHD";
-            }
-
-            const year = m.year;
-            const rating = m.imdb_score || m.vote_average || m.tmdb?.vote_average;
-            const heroImageUrl = getImageUrl(m.thumb_url || m.thumb || m.poster);
 
             return (
-              <div
-                key={m.slug || i}
-                className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
+              <div 
+                key={m.slug || index} 
+                className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}
               >
-                <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
-                  <div className="absolute inset-0 w-full h-full">
-                    {heroImageUrl && (
-                      <Image
-                        loader={imageLoader}
-                        src={heroImageUrl}
-                        alt={m.name}
-                        fill
-                        sizes="100vw"
-                        priority={i === currentHero}
-                        className="w-full h-full object-cover transform-gpu"
-                        style={{ objectPosition: 'center 20%' }}
-                      />
-                    )}
-                  </div>
+                <div className="relative w-full h-full bg-black">
+                  {m.heroImageUrl && (
+                    <Image
+                      loader={imageLoader}
+                      src={m.heroImageUrl}
+                      alt={m.name || 'Hero Banner'}
+                      fill
+                      sizes="100vw"
+                      priority={index === 0}
+                      className="w-full h-full object-cover transform-gpu"
+                      style={{ objectPosition: 'center 20%' }}
+                    />
+                  )}
 
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/20 to-transparent z-10 hidden md:block" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-10 md:hidden" />
                  
-                  {/* DESKTOP HERO CONTENT */}
-                  <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end md:pb-32 md:px-20 text-left items-start">
-                    <div className="max-w-2xl space-y-4 relative z-20">
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
-                        <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
-                        <span className="w-8 h-[3px] bg-red-600 rounded-full"></span>
+                  {/* UNIFIED HERO CONTENT (Hợp nhất Desktop & Mobile, loại bỏ trùng h2) */}
+                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-8 px-6 md:pb-32 md:px-20 text-center md:text-left items-center md:items-start bg-gradient-to-t from-black via-black/40 md:via-transparent to-transparent">
+                    <div className="max-w-2xl space-y-2 md:space-y-4">
+                      <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
+                        <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
+                        <span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] md:tracking-[0.5em] uppercase italic">Hot Premiere</span>
+                        <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      <h1 className="text-[35px] md:text-[45px] font-black uppercase italic leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)]">
+                      {/* Thẻ H2 duy nhất cho cả Mobile lẫn Desktop */}
+                      <h2 className="text-[22px] md:text-[45px] font-black uppercase italic leading-[1.1] md:leading-[1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-1 md:line-clamp-none">
                         {m.name || "..."}
-                      </h1>
+                      </h2>
 
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-sm font-semibold">
-                        <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
-                          {displayQuality}
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
+                        <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] md:text-[9px] font-black uppercase rounded italic tracking-widest shadow-lg">
+                          {m.displayQuality}
                         </span>
-                        {displayLang && (
-                          <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-xs">
-                            {displayLang}
+                        {m.displayLang && (
+                          <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px] md:text-xs">
+                            {m.displayLang}
                           </span>
                         )}
-                        {rating && (
-                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-xs flex items-center gap-1">
-                            ⭐ {rating}
+                        {(m.imdb_score || m.vote_average || m.tmdb?.vote_average) && (
+                          <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] md:text-xs flex items-center gap-1">
+                            ⭐ {m.imdb_score || m.vote_average || m.tmdb?.vote_average}
                           </span>
                         )}
-                        {year && (
-                          <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-xs backdrop-blur-sm">
-                            {year}
-                          </span>
-                        )}
-                        {Array.isArray(m.category) && m.category.length > 0 && (
-                          <span className="text-white/70 text-[11px] italic">
-                            {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
+                        {m.year && (
+                          <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] md:text-xs backdrop-blur-sm">
+                            {m.year}
                           </span>
                         )}
                       </div>
 
-                      <p className="text-white/70 text-[13px] md:text-[14px] font-medium line-clamp-3 leading-relaxed max-w-xl italic">
-                        {stripHtml(m.content || m.description)}
+                      <p className="text-white/70 text-[11px] md:text-[14px] font-medium line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed max-w-xl italic">
+                        {m.cleanDescription}
                       </p>
 
-                      <div className="pt-2">
-                        <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-8 md:px-10 py-3.5 rounded-full font-black text-[11px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 hover:bg-red-600 hover:text-white">
-                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      <div className="pt-1 md:pt-2">
+                        <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-6 md:px-10 py-2 md:py-3.5 rounded-full font-black text-[10px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-2 md:gap-3 hover:bg-red-600 hover:text-white">
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                           <span>Xem ngay</span>
                         </Link>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                {/* MOBILE HERO COVER */}
-                <div className="flex md:hidden flex-col items-center text-center px-6 py-4 bg-black space-y-3">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-                    <span className="text-red-500 font-black text-[9px] tracking-[0.4em] uppercase italic">Hot Premiere</span>
-                    <span className="w-6 h-[2px] bg-red-600 rounded-full"></span>
-                  </div>
-
-                  <h1 className="text-[24px] font-black uppercase italic leading-[1.1] text-[#F1E5AC] drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
-                    {m.name || "..."}
-                  </h1>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold">
-                    <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase rounded italic tracking-widest shadow">
-                      {displayQuality}
-                    </span>
-                    {displayLang && (
-                      <span className="px-1.5 py-0.5 bg-red-600/80 text-white rounded font-bold text-[9px]">
-                        {displayLang}
-                      </span>
-                    )}
-                    {rating && (
-                      <span className="px-1.5 py-0.5 bg-amber-500/90 text-black rounded font-black text-[9px] flex items-center gap-1">
-                        ⭐ {rating}
-                      </span>
-                    )}
-                    {year && (
-                      <span className="px-1.5 py-0.5 bg-white/20 text-white rounded text-[9px] backdrop-blur-sm">
-                        {year}
-                      </span>
-                    )}
-                    {Array.isArray(m.category) && m.category.length > 0 && (
-                      <span className="text-white/70 text-[11px] italic">
-                        {m.category.slice(0, 2).map((c: any) => c.name || c.slug).join(" • ")}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-white/70 text-[11px] font-medium line-clamp-2 leading-snug italic max-w-xl">
-                    {stripHtml(m.content || m.description)}
-                  </p>
-
-                  <div className="pt-1">
-                    <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-7 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest inline-flex items-center gap-2 hover:bg-red-600 hover:text-white">
-                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                      <span>Xem ngay</span>
-                    </Link>
-                  </div>
-                </div>
               </div>
             );
           })}
+
+          {/* Slide Navigation Dots */}
+          <div className="absolute bottom-3 right-1/2 translate-x-1/2 md:translate-x-0 md:bottom-10 md:right-20 z-30 flex items-center gap-2">
+            {heroMoviesProcessed.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentHero(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentHero ? 'w-8 bg-red-600' : 'w-2 bg-white/30 hover:bg-white/60'}`}
+              />
+            ))}
+          </div>
         </section>
       )}
       
@@ -751,9 +856,16 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             <div key={s.slug} data-section-slug={s.slug}>
               <LazyRow forceVisible={isRestoring} placeholderHeight={isRanked ? 450 : 350}>
                 {isRanked ? (
-                  <RankedMovieRow section={s} variant={rowVariant as any} isTrending={s.slug === 'phim-bo'} />
+                  <RankedMovieRow 
+                    section={s} 
+                    variant={rowVariant as 'ranked1' | 'ranked2' | 'ranked3'} 
+                    isTrending={s.slug === 'phim-bo'} 
+                  />
                 ) : (
-                  <MovieRow section={s} variant={rowVariant as any} />
+                  <MovieRow 
+                    section={s} 
+                    variant={rowVariant as 'vertical' | 'horizontal'} 
+                  />
                 )}
               </LazyRow>
             </div>
