@@ -73,12 +73,27 @@ const stripHtml = (html: string = '') => html.replace(/<[^>]*>?/gm, '');
 // 1. HELPER COMPONENTS
 // ==========================================
 
-// FIX: Giảm rootMargin từ 1000px xuống 200px để Lazy load thực sự hoạt động hiệu quả
-const LazyRow = memo(({ children, rootMargin = '200px', placeholderHeight = 350 }: { children: React.ReactNode, rootMargin?: string, placeholderHeight?: number }) => {
-  const [visible, setVisible] = useState(false);
+// FIX: Thêm prop forceVisible để hiển thị ngay DOM thật khi khôi phục trang
+const LazyRow = memo(({ 
+  children, 
+  rootMargin = '200px', 
+  placeholderHeight = 350,
+  forceVisible = false 
+}: { 
+  children: React.ReactNode, 
+  rootMargin?: string, 
+  placeholderHeight?: number,
+  forceVisible?: boolean 
+}) => {
+  const [visible, setVisible] = useState(forceVisible);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (forceVisible) {
+      setVisible(true);
+      return;
+    }
+
     const el = ref.current;
     if (!el) return;
 
@@ -91,11 +106,11 @@ const LazyRow = memo(({ children, rootMargin = '200px', placeholderHeight = 350 
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [rootMargin]);
+  }, [rootMargin, forceVisible]);
 
   return (
     <div ref={ref} className="min-h-[200px] transform-gpu will-change-transform">
-      {visible ? children : <div style={{ height: placeholderHeight }} className="w-full" />}
+      {(visible || forceVisible) ? children : <div style={{ height: placeholderHeight }} className="w-full" />}
     </div>
   );
 });
@@ -171,7 +186,6 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | n
 });
 ScrollNav.displayName = 'ScrollNav';
 
-// FIX: Khai báo Type rõ ràng cho Prop m
 const HistoryItem = memo(({ m }: { m: Movie }) => {
   const imageUrl = getImageUrl(m.thumb || m.poster);
   const progress = (m.duration && m.duration > 0 && m.seconds) ? Math.min((m.seconds / m.duration) * 100, 100) : 0;
@@ -221,7 +235,6 @@ const RankedMovieRow = memo(({ section, isTrending = false, variant = 'ranked1' 
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[300px]">
-          {/* FIX: Dùng movie.slug chuẩn làm key thay vì cộng index */}
           {section.items?.map((movie, index) => movie && <MovieCard key={movie.slug || index} movie={movie} variant={variant} index={index} />)}
         </div>
       </div>
@@ -243,7 +256,6 @@ const MovieRow = memo(({ section, variant = 'vertical' }: { section: SectionData
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[250px]">
-          {/* FIX: Dùng movie.slug làm key */}
           {section.items?.map((movie, index) => movie && (
              <MovieCard key={movie.slug || index} movie={movie} variant={variant} />
           ))}
@@ -302,7 +314,6 @@ const HistoryRow = memo(() => {
       </div>
       <div className="relative">
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth">
-          {/* FIX: Dùng m.slug chuẩn làm key */}
           {historyMovies.map((m) => <HistoryItem key={m.slug} m={m} />)}
         </div>
       </div>
@@ -335,14 +346,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   }, []);
 
   const [isRestoring, setIsRestoring] = useState(true);
+  const pendingRestoreRef = useRef(false);
   const isFetching = useRef(false);
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
-
-  // FIX: Dùng useRef lưu ID timer để cleanup triệt để tránh memory leak
-  const timer1Ref = useRef<NodeJS.Timeout | null>(null);
-  const timer2Ref = useRef<NodeJS.Timeout | null>(null);
 
   // Khởi tạo Cache từ Props
   useEffect(() => {
@@ -353,14 +361,14 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // Tắt Scroll Restoration mặc định
+  // Tắt Scroll Restoration mặc định của trình duyệt
   useEffect(() => {
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
   }, []);
 
-  // --- 1. LƯU VỊ TRÍ CUỘN ---
+  // --- 1. LƯU VỊ TRÍ CUỘN & HÀNG PHIM DANG XEM ---
   useEffect(() => {
     const handleScroll = () => {
       if (isRestoring) return;
@@ -370,6 +378,19 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         const currentScrollY = window.scrollY;
         if (currentScrollY > 20) {
           safeSessionStorage.setItem("home_scroll_pos", currentScrollY.toString());
+
+          // Tìm slug hàng phim đang nằm ở vị trí hiển thị chính
+          const sectionEls = document.querySelectorAll('[data-section-slug]');
+          let currentSlug = "";
+          sectionEls.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            if (rect.top <= window.innerHeight / 2 && rect.bottom >= 0) {
+              currentSlug = el.getAttribute('data-section-slug') || "";
+            }
+          });
+          if (currentSlug) {
+            safeSessionStorage.setItem("home_target_slug", currentSlug);
+          }
         }
       });
     };
@@ -380,7 +401,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
   }, [isRestoring]);
 
-  // --- 2. KHÔI PHỤC SESSION VÀ SCROLL ---
+  // --- 2. TẢI LẠI SESSION ĐÃ LƯU ---
   useEffect(() => {
     if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
@@ -390,61 +411,47 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         const savedSlugsStr = safeSessionStorage.getItem("home_loaded_slugs");
         const savedScrollPos = safeSessionStorage.getItem("home_scroll_pos");
 
-        if (!savedSlugsStr) {
-          setIsRestoring(false);
-          return;
-        }
-        
-        const savedSlugs: string[] = JSON.parse(savedSlugsStr);
-        if (savedSlugs.length === 0) {
+        if (!savedSlugsStr && !savedScrollPos) {
           setIsRestoring(false);
           return;
         }
 
-        const fetchPromises = savedSlugs.map(async (slug) => {
-          const cat = HOME_CATEGORIES.find(c => c.slug === slug);
-          if (!cat) return null;
+        const savedSlugs: string[] = savedSlugsStr ? JSON.parse(savedSlugsStr) : [];
 
-          let movies = categoryCache.get(slug);
-          if (!movies || movies.length === 0) {
-            movies = await fetchCategoryFromD1(slug);
-          }
-          if (!movies || movies.length === 0) return null;
+        if (savedSlugs.length > 0) {
+          const fetchPromises = savedSlugs.map(async (slug) => {
+            const cat = HOME_CATEGORIES.find(c => c.slug === slug);
+            if (!cat) return null;
 
-          return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 15) };
-        });
+            let movies = categoryCache.get(slug);
+            if (!movies || movies.length === 0) {
+              movies = await fetchCategoryFromD1(slug);
+            }
+            if (!movies || movies.length === 0) return null;
 
-        const results = await Promise.all(fetchPromises);
-        const dynamicSections = results.filter((s): s is SectionData => s !== null);
-
-        if (dynamicSections.length > 0) {
-          setSections(prev => {
-            const combined = [...initialSections, ...dynamicSections];
-            const uniqueMap = new Map();
-            combined.forEach(s => uniqueMap.set(s.slug, s));
-            return Array.from(uniqueMap.values());
+            return { title: cat.title, type: "category", slug: slug, items: movies.slice(0, 15) };
           });
 
-          const lastSlug = savedSlugs[savedSlugs.length - 1];
-          const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
-          if (foundIdx !== -1) {
-            updateLoadedIndex(foundIdx + 1);
+          const results = await Promise.all(fetchPromises);
+          const dynamicSections = results.filter((s): s is SectionData => s !== null);
+
+          if (dynamicSections.length > 0) {
+            setSections(prev => {
+              const combined = [...initialSections, ...dynamicSections];
+              const uniqueMap = new Map();
+              combined.forEach(s => uniqueMap.set(s.slug, s));
+              return Array.from(uniqueMap.values());
+            });
+
+            const lastSlug = savedSlugs[savedSlugs.length - 1];
+            const foundIdx = HOME_CATEGORIES.findIndex(c => c.slug === lastSlug);
+            if (foundIdx !== -1) {
+              updateLoadedIndex(foundIdx + 1);
+            }
           }
         }
 
-        // FIX: Lưu đúng ID timer vào Ref
-        timer1Ref.current = setTimeout(() => {
-          const targetScroll = savedScrollPos ? parseInt(savedScrollPos, 10) : 0;
-          if (targetScroll > 0) {
-            window.scrollTo({ top: targetScroll, behavior: 'instant' });
-            timer2Ref.current = setTimeout(() => {
-               window.scrollTo({ top: targetScroll, behavior: 'instant' });
-               setIsRestoring(false);
-            }, 100);
-          } else {
-            setIsRestoring(false);
-          }
-        }, 150);
+        pendingRestoreRef.current = true;
 
       } catch (e) {
         console.error("Failed to restore session storage", e);
@@ -453,14 +460,55 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
 
     restoreSession();
-
-    return () => {
-      if (timer1Ref.current) clearTimeout(timer1Ref.current);
-      if (timer2Ref.current) clearTimeout(timer2Ref.current);
-    };
   }, [initialSections, updateLoadedIndex]);
 
-  // --- 3. TẢI TIẾP KHI CUỘN ĐẾN CUỐI ---
+  // --- 3. KHÔI PHỤC CUỘN CHUẨN XÁC SAU KHI REACT RENDER DOM THẬT ---
+  useEffect(() => {
+    if (!isRestoring || !pendingRestoreRef.current) return;
+
+    const savedScrollPos = safeSessionStorage.getItem("home_scroll_pos");
+    const savedTargetSlug = safeSessionStorage.getItem("home_target_slug");
+    const targetScroll = savedScrollPos ? parseInt(savedScrollPos, 10) : 0;
+
+    let rafId: number;
+    let attempts = 0;
+
+    const performScroll = () => {
+      attempts++;
+      const currentDocHeight = document.body.scrollHeight;
+
+      // Đợi DOM trang có đủ chiều cao thực tế hoặc thử lại tối đa 15 frames
+      if (currentDocHeight >= targetScroll || attempts > 15) {
+        // 1. Định vị chuẩn vào Slug hàng phim đã lưu
+        if (savedTargetSlug) {
+          const targetEl = document.querySelector(`[data-section-slug="${savedTargetSlug}"]`);
+          if (targetEl) {
+            targetEl.scrollIntoView({ block: 'start', behavior: 'instant' });
+            pendingRestoreRef.current = false;
+            requestAnimationFrame(() => setIsRestoring(false));
+            return;
+          }
+        }
+
+        // 2. Dự phòng theo Pixel tuyệt đối
+        if (targetScroll > 0) {
+          window.scrollTo({ top: targetScroll, behavior: 'instant' });
+        }
+        pendingRestoreRef.current = false;
+        requestAnimationFrame(() => setIsRestoring(false));
+      } else {
+        rafId = requestAnimationFrame(performScroll);
+      }
+    };
+
+    rafId = requestAnimationFrame(performScroll);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [sections, isRestoring]);
+
+  // --- 4. TẢI TIẾP KHI CUỘN ĐẾN CUỐI ---
   const loadNextCategory = useCallback(async () => {
     const currentIndex = loadedIndexRef.current;
     
@@ -526,8 +574,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
   return (
     <main className={`${montserrat.className} min-h-screen bg-[var(--background)] text-white selection:bg-red-600`}>
-      {/* FIX: Đã gỡ bỏ thẻ <style dangerouslySetInnerHTML> vì đã chuyển sang globals.css */}
-
       {initialHeroMovies.length > 0 && (
         <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5 transform-gpu">
           {initialHeroMovies.map((m, i) => {
@@ -565,7 +611,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                 className={`transition-opacity duration-1000 ease-in-out ${i === currentHero ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 pointer-events-none'}`}
               >
                 <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
-                  {/* FIX: Gộp 2 thẻ <Image> Mobile và Desktop làm 1 để tránh tải đôi ảnh */}
                   <div className="absolute inset-0 w-full h-full">
                     {heroImageUrl && (
                       <Image
@@ -703,14 +748,15 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
           const rowVariant = config?.rowVariant || (isRanked ? "ranked1" : "vertical");
 
           return (
-            <LazyRow key={s.slug} placeholderHeight={isRanked ? 450 : 350}>
-              {isRanked ? (
-                <RankedMovieRow section={s} variant={rowVariant as any} isTrending={s.slug === 'phim-bo'} />
-              ) : (
-                <MovieRow section={s} variant={rowVariant as any} />
-              )}
-            </LazyRow>
-
+            <div key={s.slug} data-section-slug={s.slug}>
+              <LazyRow forceVisible={isRestoring} placeholderHeight={isRanked ? 450 : 350}>
+                {isRanked ? (
+                  <RankedMovieRow section={s} variant={rowVariant as any} isTrending={s.slug === 'phim-bo'} />
+                ) : (
+                  <MovieRow section={s} variant={rowVariant as any} />
+                )}
+              </LazyRow>
+            </div>
           );
         })}
       </section>
