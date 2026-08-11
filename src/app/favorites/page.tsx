@@ -118,7 +118,7 @@ export default function FavoritesPage() {
                 <div key={movie.slug} className="group relative">
                   <button 
                     onClick={(e) => removeFavorite(e, movie.slug)}
-                    className="absolute -top-3 -right-3 z-[30] p-3 rounded-xl bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-2xl border-4 border-[#050505]"
+                    className="absolute -top-3 -right-3 z-[30] p-2 md:p-3 rounded-xl bg-red-600 text-white opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all hover:scale-110 shadow-2xl border-4 border-[#050505]"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
