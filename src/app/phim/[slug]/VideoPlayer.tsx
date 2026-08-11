@@ -307,9 +307,12 @@ export default function VideoPlayer({
       }
 
       const remaining = video.duration - video.currentTime;
-      if (remaining <= 30 && remaining > 20 && video.duration > 60) {
+      const hasNextEpisode = currentEpIndex + 1 < totalEpisodes;
+
+      // Chỉ kích hoạt thông báo đếm ngược nếu còn tập tiếp theo
+      if (hasNextEpisode && remaining <= 30 && remaining > 20 && video.duration > 60) {
         if (!showNextNotify) setShowNextNotify(true);
-      } else if (remaining > 30 || remaining <= 0) {
+      } else {
         if (showNextNotify) {
           setShowNextNotify(false);
           setCountdown(10);
@@ -697,23 +700,37 @@ export default function VideoPlayer({
                 </div>
 
                 {/* Row nút bấm và thời gian */}
-                <div className="flex items-center gap-6 pb-2">
+                <div className="flex items-center gap-3 md:gap-4 pb-2">
                   <div className="text-[11px] font-bold font-mono tracking-widest text-white/80">
                     {formatTime(currentPos)} <span className="text-white/20 mx-1">/</span> {formatTime(totalDuration)}
                   </div>
 
                   <div className="flex-1" />
 
-                  {/* Nút tập tiếp theo */}
+                  {/* Nút Bỏ qua giới thiệu (1 phút 30s) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = Math.min(
+                          videoRef.current.duration || 0,
+                          videoRef.current.currentTime + 90
+                        );
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-white/90 border border-white/30 rounded-lg bg-black/20 hover:bg-white/10 hover:border-white transition-all flex items-center justify-center whitespace-nowrap"
+                  >
+                    Bỏ qua giới thiệu (1 phút 30s)
+                  </button>
+
+                  {/* Nút Chuyển Tập */}
                   {currentEpIndex + 1 < totalEpisodes && (
                     <button
                       onClick={handleNextEpisode}
-                      className="text-white hover:text-red-600 transition-colors flex items-center justify-center p-1 group/next-btn relative"
-                      title="Tập tiếp theo"
+                      className="px-3 py-1.5 text-xs font-semibold text-white/90 border border-white/30 rounded-lg bg-black/20 hover:bg-white/10 hover:border-white hover:text-red-500 transition-all flex items-center justify-center whitespace-nowrap"
+                      title="Chuyển Tập"
                     >
-                      <svg className="w-7 h-7 fill-current" viewBox="0 0 24 24">
-                        <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-                      </svg>
+                      Chuyển Tập
                     </button>
                   )}
 
@@ -785,7 +802,7 @@ export default function VideoPlayer({
           </div>
 
           {/* Thông báo chuyển tập tiếp theo */}
-          {showNextNotify && (
+          {showNextNotify && currentEpIndex + 1 < totalEpisodes && (
             <div className="absolute bottom-28 right-6 md:right-12 z-[200] animate-in slide-in-from-right-10 duration-500">
               <div className="bg-white/[0.07] backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_20px_rgba(255,255,255,0.05)] min-w-[240px] relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.03] to-white/[0.08] pointer-events-none" />
@@ -796,7 +813,7 @@ export default function VideoPlayer({
                       <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     </div>
                     <h4 className="text-xs font-black uppercase italic leading-none text-white">
-                      {currentEpIndex + 1 < totalEpisodes ? `Tiếp theo tập ${currentEpIndex + 2}` : "Kết thúc phim"}
+                      Tiếp theo tập {currentEpIndex + 2}
                     </h4>
                   </div>
 
