@@ -307,12 +307,9 @@ export default function VideoPlayer({
       }
 
       const remaining = video.duration - video.currentTime;
-      const hasNextEpisode = currentEpIndex + 1 < totalEpisodes;
-
-      // Chỉ kích hoạt thông báo đếm ngược nếu còn tập tiếp theo
-      if (hasNextEpisode && remaining <= 30 && remaining > 20 && video.duration > 60) {
+      if (remaining <= 30 && remaining > 20 && video.duration > 60) {
         if (!showNextNotify) setShowNextNotify(true);
-      } else {
+      } else if (remaining > 30 || remaining <= 0) {
         if (showNextNotify) {
           setShowNextNotify(false);
           setCountdown(10);
@@ -802,7 +799,7 @@ export default function VideoPlayer({
           </div>
 
           {/* Thông báo chuyển tập tiếp theo */}
-          {showNextNotify && currentEpIndex + 1 < totalEpisodes && (
+          {showNextNotify && (
             <div className="absolute bottom-28 right-6 md:right-12 z-[200] animate-in slide-in-from-right-10 duration-500">
               <div className="bg-white/[0.07] backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_20px_rgba(255,255,255,0.05)] min-w-[240px] relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.03] to-white/[0.08] pointer-events-none" />
@@ -813,7 +810,7 @@ export default function VideoPlayer({
                       <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     </div>
                     <h4 className="text-xs font-black uppercase italic leading-none text-white">
-                      Tiếp theo tập {currentEpIndex + 2}
+                      {currentEpIndex + 1 < totalEpisodes ? `Tiếp theo tập ${currentEpIndex + 2}` : "Kết thúc phim"}
                     </h4>
                   </div>
 
