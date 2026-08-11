@@ -717,7 +717,7 @@ export default function VideoPlayer({
                     }}
                     className="px-3 py-1.5 text-xs font-semibold text-white/90 border border-white/30 rounded-lg bg-black/20 hover:bg-white/10 hover:border-white transition-all flex items-center justify-center whitespace-nowrap"
                   >
-                    Bỏ qua giới thiệu (1 phút 30s)
+                    Bỏ qua giới thiệu
                   </button>
 
                   {/* Nút Chuyển Tập */}
