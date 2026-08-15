@@ -155,7 +155,7 @@ const LazyRow = memo(({
   children, 
   rootMargin = '200px', 
   placeholderHeight = 350,
-  forceVisible = false 
+  forceVisible = false
 }: { 
   children: React.ReactNode, 
   rootMargin?: string, 
