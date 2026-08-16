@@ -489,8 +489,8 @@ export default function MovieDetailClient({
 <MovieLogoTitle
   tmdbId={movie?.tmdb?.id}
   tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}                    // Tên tiếng Việt
-  subTitle={(movie as any)?.origin_name || ""}   // Tên gốc / tiếng Anh
+  title={movie?.name || "..."}
+  subTitle={(movie as any)?.origin_name || movie?.name}
 />
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -512,7 +512,7 @@ export default function MovieDetailClient({
                     {movie?.year || "2026"}
                   </span>
 
-                  {/* Language */}   
+                  {/* Language */}
                   {movieLang && (
                     <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                       {movieLang}

@@ -838,11 +838,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       </div>
                      
                       {/* Tiêu đề */}
-                      <MovieLogoTitle
-  tmdbId={movie?.tmdb?.id}
-  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}                    // Tên tiếng Việt
-  subTitle={(movie as any)?.origin_name || ""}   // Tên gốc / tiếng Anh
+                      {/* Tiêu đề */}
+<MovieLogoTitle
+  tmdbId={m?.tmdb?.id}
+  tmdbType={m?.tmdb?.type || (m as any)?.type}
+  title={m?.name || "..."}                       // Tên tiếng Việt
+  subTitle={(m as any)?.origin_name || ""}       // Tên gốc / tiếng Anh
 />
 
                       {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}
