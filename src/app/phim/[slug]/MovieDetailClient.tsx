@@ -140,6 +140,24 @@ export default function MovieDetailClient({
 
         if (res.ok) {
           const data = await res.json();
+          
+          // 🌟 FIX DETAIL FALLBACK: Nếu movie state đang null (KKPhim sập), dùng data Nguồn C đắp vào!
+          setMovie((prev) => {
+            if ((!prev || !prev.name) && data.movieInfo) {
+              return {
+                ...data.movieInfo,
+                name: data.movieInfo.name,
+                origin_name: data.original_name || data.movieInfo.original_name || data.movieInfo.name,
+                poster: data.movieInfo.poster_url || data.movieInfo.poster || previewPoster,
+                thumb: data.movieInfo.thumb_url || data.movieInfo.thumb || previewThumb,
+                content: data.movieInfo.description || data.movieInfo.content || "",
+                year: data.movieInfo.year || new Date().getFullYear(),
+              } as KKPhimDetail;
+            }
+            return prev;
+          });
+
+          // Logic xử lý Server cũ giữ nguyên
           const serversData = data.servers || data.movie?.episodes || [];
           if (serversData.length > 0) {
             setServers((prev) => {
@@ -154,7 +172,7 @@ export default function MovieDetailClient({
         console.error("Lỗi fetch Nguồn C:", e);
       }
     },
-    [slug]
+    [slug, previewPoster, previewThumb]
   );
 
   useEffect(() => {
@@ -574,8 +592,9 @@ export default function MovieDetailClient({
 <MovieLogoTitle
   tmdbId={movie?.tmdb?.id}
   tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}                    // Tên tiếng Việt
-  subTitle={(movie as any)?.origin_name || ""}   // Tên gốc / tiếng Anh
+  title={movie?.name || "..."}
+  // Fix fallback cho Mobile
+  subTitle={(movie as any)?.origin_name || movie?.name || ""}
 />
 
               <div className="flex flex-wrap items-center justify-center gap-2">

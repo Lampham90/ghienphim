@@ -841,8 +841,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 <MovieLogoTitle
   tmdbId={m?.tmdb?.id}
   tmdbType={m?.tmdb?.type || (m as any)?.type}
-  title={m?.name || "..."}                       // Tên tiếng Việt
-  subTitle={(m as any)?.origin_name || ""}       // Tên gốc / tiếng Anh
+  title={m?.name || "..."}
+  // Thêm fallback sang m?.name giống hệt bên Detail
+  subTitle={(m as any)?.origin_name || m?.name || ""} 
 />
 
                       {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}
