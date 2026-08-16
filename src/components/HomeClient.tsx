@@ -838,7 +838,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       </div>
                      
                       {/* Tiêu đề */}
-                      {/* Tiêu đề */}
 <MovieLogoTitle
   tmdbId={m?.tmdb?.id}
   tmdbType={m?.tmdb?.type || (m as any)?.type}
