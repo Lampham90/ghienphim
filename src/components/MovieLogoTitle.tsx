@@ -5,8 +5,8 @@ import { useState, useEffect } from "react";
 interface MovieLogoTitleProps {
   tmdbId?: string | number;
   tmdbType?: "movie" | "tv" | string;
-  title: string;
-  subTitle?: string;
+  title: string;        // Tên tiếng Việt (movie.name)
+  subTitle?: string;    // Tên gốc / Tiếng Anh (movie.origin_name)
   className?: string;
 }
 
@@ -52,25 +52,35 @@ export default function MovieLogoTitle({
 
   return (
     <div className={`flex flex-col items-center md:items-start gap-1.5 ${className}`}>
-      {/* 1. HIỂN THỊ LOGO HOẶC TỰA ĐỀ CHÍNH */}
       {logoUrl ? (
-        <img
-          src={logoUrl}
-          alt={title}
-          className="h-12 sm:h-16 md:h-20 max-w-[280px] sm:max-w-[360px] md:max-w-[480px] object-contain object-center md:object-left drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
-          loading="lazy"
-        />
+        <>
+          {/* 1. KHI CÓ LOGO: Hiển thị Logo ảnh */}
+          <img
+            src={logoUrl}
+            alt={title}
+            className="h-12 sm:h-16 md:h-20 max-w-[280px] sm:max-w-[360px] md:max-w-[480px] object-contain object-center md:object-left drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+            loading="lazy"
+          />
+          {/* HÀNG DƯỚI LOGO: TỰA TIẾNG VIỆT */}
+          {title && (
+            <p className="text-[13px] sm:text-[14px] md:text-[15px] font-bold tracking-wide text-[#F1E5AC] uppercase italic line-clamp-1 drop-shadow-md">
+              {title}
+            </p>
+          )}
+        </>
       ) : (
-        <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
-          {title || "..."}
-        </h1>
-      )}
-
-      {/* 2. HÀNG TỰA ĐỀ NHỎ Ở DƯỚI LOGO (ORIGIN NAME / TÊN GỐC TIẾNG ANH) */}
-      {subTitle && (
-        <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold tracking-wider text-white/60 uppercase italic line-clamp-1 drop-shadow-md">
-          {subTitle}
-        </p>
+        <>
+          {/* 2. KHI CHƯA CÓ LOGO: Tiêu đề chính là Tựa tiếng Việt */}
+          <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
+            {title || "..."}
+          </h1>
+          {/* Hàng dưới: Tên gốc / Tiếng Anh */}
+          {subTitle && (
+            <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold tracking-wider text-white/60 uppercase italic line-clamp-1 drop-shadow-md">
+              {subTitle}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

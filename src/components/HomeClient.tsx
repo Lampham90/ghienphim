@@ -8,10 +8,11 @@ import { type KKPhimMovie, getImageUrl } from '@/lib/kkphim';
 import { HOME_CATEGORIES, getCategoryConfig } from '@/lib/categories';
 import MovieBadge from '@/components/MovieBadge';
 import MovieCard from '@/components/MovieCard';
+import MovieLogoTitle from "@/components/MovieLogoTitle";
 import InterestedSection from '@/components/InterestedSection';
 import { useMovieStore } from "@/lib/useMovieStore";
 import imageLoader from '@/lib/imageLoader';
-import MovieLogoTitle from "@/components/MovieLogoTitle";
+
 
 const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', '900'] });
 
@@ -836,12 +837,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
+                      {/* Tiêu đề */}
                       <MovieLogoTitle
-  tmdbId={(m as any)?.tmdb?.id}
-  tmdbType={(m as any)?.tmdb?.type || (m as any)?.type}
-  title={m.name || "..."}
-  subTitle={(m as any)?.origin_name}
-  className="mb-1"
+  tmdbId={movie?.tmdb?.id}
+  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
+  title={movie?.name || "..."}                    // Tên tiếng Việt
+  subTitle={(movie as any)?.origin_name || ""}   // Tên gốc / tiếng Anh
 />
 
                       {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}

@@ -485,12 +485,12 @@ export default function MovieDetailClient({
             {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
-                // --- Vị trí DESKTOP INFO (Dòng 480) ---
+                
 <MovieLogoTitle
   tmdbId={movie?.tmdb?.id}
   tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}
-  subTitle={(movie as any)?.origin_name || movie?.name}
+  title={movie?.name || "..."}                    // Tên tiếng Việt
+  subTitle={(movie as any)?.origin_name || ""}   // Tên gốc / tiếng Anh
 />
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -570,12 +570,12 @@ export default function MovieDetailClient({
             
             {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
-              // --- Vị trí MOBILE INFO (Dòng 550) ---
+              
 <MovieLogoTitle
   tmdbId={movie?.tmdb?.id}
   tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}
-  subTitle={(movie as any)?.origin_name || movie?.name}
+  title={movie?.name || "..."}                    // Tên tiếng Việt
+  subTitle={(movie as any)?.origin_name || ""}   // Tên gốc / tiếng Anh
 />
 
               <div className="flex flex-wrap items-center justify-center gap-2">
