@@ -512,7 +512,7 @@ export default function MovieDetailClient({
                     {movie?.year || "2026"}
                   </span>
 
-                  {/* Language */}
+                  {/* Language */}   
                   {movieLang && (
                     <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                       {movieLang}
