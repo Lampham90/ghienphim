@@ -5,8 +5,8 @@ import { useState, useEffect } from "react";
 interface MovieLogoTitleProps {
   tmdbId?: string | number;
   tmdbType?: "movie" | "tv" | string;
-  title: string;        // Tên tiếng Việt (movie.name)
-  subTitle?: string;    // Tên gốc / Tiếng Anh (movie.origin_name)
+  title: string;
+  subTitle?: string;
   className?: string;
 }
 
@@ -21,7 +21,8 @@ export default function MovieLogoTitle({
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!tmdbId || tmdbId === "0" || tmdbId === 0) {
+    // Kể cả khi trang chủ không có tmdbId, vẫn chạy nếu có tên phim (title/subTitle)
+    if ((!tmdbId || tmdbId === "0" || tmdbId === "undefined") && !subTitle && !title) {
       setLoading(false);
       return;
     }
@@ -30,7 +31,11 @@ export default function MovieLogoTitle({
     const fetchLogo = async () => {
       try {
         const typeParam = tmdbType === "single" || tmdbType === "phimle" ? "movie" : tmdbType;
-        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${typeParam}`);
+        
+        // Encode Tên tiếng Anh (ưu tiên) hoặc Tên tiếng Việt để gửi lên API tìm kiếm
+        const searchQuery = encodeURIComponent(subTitle || title || "");
+        
+        const res = await fetch(`/api/tmdb-logo?id=${tmdbId || ""}&type=${typeParam}&query=${searchQuery}`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.logoUrl) {
@@ -48,35 +53,36 @@ export default function MovieLogoTitle({
     return () => {
       isMounted = false;
     };
-  }, [tmdbId, tmdbType]);
+  }, [tmdbId, tmdbType, title, subTitle]);
 
   return (
-    <div className={`flex flex-col items-center md:items-start gap-1.5 ${className}`}>
+    <div className={`flex flex-col items-center md:items-start gap-1.5 w-full ${className}`}>
       {logoUrl ? (
         <>
-          {/* 1. KHI CÓ LOGO: Hiển thị Logo ảnh */}
+          {/* Logo */}
           <img
             src={logoUrl}
             alt={title}
-            className="h-12 sm:h-16 md:h-20 max-w-[280px] sm:max-w-[360px] md:max-w-[480px] object-contain object-center md:object-left drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+            className="h-16 sm:h-20 md:h-28 max-w-full md:max-w-[85%] object-contain object-center md:object-left drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
             loading="lazy"
           />
-          {/* HÀNG DƯỚI LOGO: TỰA TIẾNG VIỆT */}
+          {/* Tên tiếng Việt dưới Logo (break-words để không bị lẹm chữ) */}
           {title && (
-            <p className="text-[13px] sm:text-[14px] md:text-[15px] font-bold tracking-wide text-[#F1E5AC] uppercase italic line-clamp-1 drop-shadow-md">
+            <p className="text-[13px] sm:text-[14px] md:text-[15px] font-bold tracking-wide text-[#F1E5AC] uppercase italic drop-shadow-md break-words whitespace-normal text-center md:text-left w-full">
               {title}
             </p>
           )}
         </>
       ) : (
         <>
-          {/* 2. KHI CHƯA CÓ LOGO: Tiêu đề chính là Tựa tiếng Việt */}
-          <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
+          {/* Tựa Tiếng Việt nổi bật (Đã xóa line-clamp, thêm break-words chống lẹm chữ) */}
+          <h1 className="text-[18px] md:text-[28px] lg:text-[36px] font-black uppercase italic leading-[1.2] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] break-words whitespace-normal text-center md:text-left w-full">
             {title || "..."}
           </h1>
-          {/* Hàng dưới: Tên gốc / Tiếng Anh */}
+          
+          {/* Subtitle tiếng Anh (Nếu bạn không thích hiển thị tiếng Anh có thể xóa thẻ <p> này) */}
           {subTitle && (
-            <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold tracking-wider text-white/60 uppercase italic line-clamp-1 drop-shadow-md">
+            <p className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold tracking-wider text-white/60 uppercase italic drop-shadow-md break-words whitespace-normal mt-1 text-center md:text-left w-full">
               {subTitle}
             </p>
           )}
