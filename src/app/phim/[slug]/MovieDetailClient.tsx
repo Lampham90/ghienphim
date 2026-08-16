@@ -12,6 +12,7 @@ import { KKPhimDetail, getImageUrl, searchMovies } from "@/lib/kkphim";
 import { useAuth } from "@/lib/useAuth";
 import { useMovieStore } from "@/lib/useMovieStore";
 import imageLoader from "@/lib/imageLoader";
+import MovieLogoTitle from "@/components/MovieLogoTitle";
 
 const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
   ssr: false,
@@ -484,9 +485,13 @@ export default function MovieDetailClient({
             {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
-                <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
-  {movie?.name || "..."}
-</h1>
+                // --- Vị trí DESKTOP INFO (Dòng 480) ---
+<MovieLogoTitle
+  tmdbId={movie?.tmdb?.id}
+  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
+  title={movie?.name || "..."}
+  subTitle={(movie as any)?.origin_name || movie?.name}
+/>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Badge IMDb */}
@@ -565,9 +570,13 @@ export default function MovieDetailClient({
             
             {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
-              <h1 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
-  {movie?.name || "..."}
-</h1>
+              // --- Vị trí MOBILE INFO (Dòng 550) ---
+<MovieLogoTitle
+  tmdbId={movie?.tmdb?.id}
+  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
+  title={movie?.name || "..."}
+  subTitle={(movie as any)?.origin_name || movie?.name}
+/>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {/* Badge IMDb */}

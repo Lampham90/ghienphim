@@ -7,6 +7,7 @@
 
 export interface KKPhimMovie {
   name: string;
+  origin_name?: string; // 🆕 Thêm trường tên gốc
   year: number;
   slug: string;
   thumb: string;
@@ -22,6 +23,7 @@ export interface KKPhimMovie {
 
 export interface KKPhimDetail {
   name: string;
+  origin_name?: string; // 🆕 Thêm trường tên gốc
   slug: string;
   poster: string;
   thumb: string;
@@ -77,6 +79,7 @@ export function transformD1Result(m: any): KKPhimMovie {
   return {
     ...m,
     // ✅ Đảm bảo khớp tên biến để UI (Search/Card) hiện được ảnh
+    origin_name: m.origin_name || "", // 🆕 Đảm bảo nhận origin_name từ D1
     thumb: m.thumb_url || m.thumb || "",
     poster: m.poster_url || m.poster || "",
     country: m.country_name || m.country || "",

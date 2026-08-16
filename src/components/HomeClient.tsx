@@ -11,6 +11,7 @@ import MovieCard from '@/components/MovieCard';
 import InterestedSection from '@/components/InterestedSection';
 import { useMovieStore } from "@/lib/useMovieStore";
 import imageLoader from '@/lib/imageLoader';
+import MovieLogoTitle from "@/components/MovieLogoTitle";
 
 const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', '900'] });
 
@@ -835,10 +836,13 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      {/* Tiêu đề */}
-                      <h2 className="text-[16px] md:text-[26px] lg:text-[32px] xl:text-[36px] font-black uppercase italic leading-[1.15] md:leading-[1.1] text-[#F1E5AC] drop-shadow-[0_5px_15px_rgba(0,0,0,0.9)] line-clamp-2">
-                        {m.name || "..."}
-                      </h2>
+                      <MovieLogoTitle
+  tmdbId={(m as any)?.tmdb?.id}
+  tmdbType={(m as any)?.tmdb?.type || (m as any)?.type}
+  title={m.name || "..."}
+  subTitle={(m as any)?.origin_name}
+  className="mb-1"
+/>
 
                       {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}
 <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
