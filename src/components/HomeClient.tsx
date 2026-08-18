@@ -36,8 +36,15 @@ interface Movie extends KKPhimMovie {
   description?: string;
   imdb_score?: number | string;
   vote_average?: number | string;
-  tmdb?: { vote_average?: number | string };
-  imdb?: { vote_average?: number | string; score?: number | string };
+  tmdb?: {
+    id?: number | string;
+    type?: string;
+    vote_average?: number | string
+  };
+  imdb?: {
+    vote_average?: number | string;
+    score?: number | string
+  };
   rating?: RatingResult | null;
   last_updated?: number;
   seconds?: number;
@@ -67,11 +74,14 @@ interface HistoryRecord {
 // HELPER FUNCTIONS
 // ==========================================
 const getMovieRating = (m: any): RatingResult => {
-  const realScore = Number(m?.imdb_score || m?.imdb?.vote_average || m?.tmdb?.vote_average || m?.vote_average);
+  // Ưu tiên IMDb thật từ m.imdb hoặc m.tmdb hoặc điểm số trực tiếp
+  const realScore = Number(m?.imdb?.vote_average || m?.tmdb?.vote_average || m?.imdb_score || m?.vote_average);
+
   if (!isNaN(realScore) && realScore > 0) {
     return { score: realScore.toFixed(1), label: "IMDb" };
   }
 
+  // Fallback sang random theo slug nếu hoàn toàn không có dữ liệu
   if (m?.slug) {
     let hash = 0;
     for (let i = 0; i < m.slug.length; i++) {
@@ -378,25 +388,15 @@ const HistoryRow = memo(() => {
 
     Object.entries(storeHistory).forEach(([key, data]) => {
       if (key.includes('_ep_')) return;
-
       const item = data as HistoryRecord;
-      if (item && item.name && (item.poster || item.thumb)) {
-        const cleanName = item.name.trim().toLowerCase();
-
-        if (uniqueMovies.has(cleanName)) {
-          const existing = uniqueMovies.get(cleanName)!;
-          if ((item.last_updated || 0) > (existing.last_updated || 0)) {
-            uniqueMovies.set(cleanName, { slug: key, ...item });
-          }
-        } else {
-          uniqueMovies.set(cleanName, { slug: key, ...item });
-        }
+      if (item && item.name) {
+        uniqueMovies.set(key, { ...item, slug: key } as Movie);
       }
     });
 
     return Array.from(uniqueMovies.values())
       .sort((a, b) => (b.last_updated || 0) - (a.last_updated || 0))
-      .slice(0, 10);
+      .slice(0, 15);
   }, [mounted, storeHistory]);
 
   if (!mounted || historyMovies.length === 0) return null;
@@ -837,46 +837,43 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
-                      {/* Tiêu đề */}
-<MovieLogoTitle
-  tmdbId={m?.tmdb?.id}
-  tmdbType={m?.tmdb?.type || (m as any)?.type}
-  title={m?.name || "..."}
-  // Thêm fallback sang m?.name giống hệt bên Detail
-  subTitle={(m as any)?.origin_name || m?.name || ""} 
-/>
+                      {/* Tiêu đề Logo chuẩn TMDB */}
+                      <MovieLogoTitle
+                        tmdbId={m?.tmdb?.id}
+                        tmdbType={m?.tmdb?.type || (m as any)?.type}
+                        title={m?.name || "..."}
+                        subTitle={(m as any)?.origin_name || m?.name || ""}
+                      />
 
-                      {/* Thông tin phụ: Đồng bộ 1 khung vàng nhẹ mượt mắt cho Lang, Year, IMDb, Category */}
-<div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
-  
-  {m.rating && (
-    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-      <span className="font-black text-amber-300">⭐ {m.rating.score}</span>
-    </span>
-  )}
+                      {/* Thông tin phụ: Sử dụng điểm IMDb thật */}
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
 
-  {m.displayLang && (
-    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-      {m.displayLang}
-    </span>
-  )}
+                        {m.rating && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                            <span className="font-black text-amber-300">⭐ {m.rating.score} {m.rating.label}</span>
+                          </span>
+                        )}
 
-  {m.year && (
-    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-      {m.year}
-    </span>
-  )}
+                        {m.displayLang && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                            {m.displayLang}
+                          </span>
+                        )}
 
-  
+                        {m.year && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                            {m.year}
+                          </span>
+                        )}
 
-  {/* Thể loại (Chung khung phong cách) */}
-  {m?.category && m.category.length > 0 && (
-    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
-      {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
-    </span>
-  )}
+                        {/* Thể loại */}
+                        {m?.category && m.category.length > 0 && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                            {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                          </span>
+                        )}
 
-</div>
+                      </div>
 
                       <p className="text-white/70 text-[11px] md:text-[14px] font-medium line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed max-w-2xl italic">
                         {m.cleanDescription}

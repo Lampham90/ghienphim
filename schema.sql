@@ -1,6 +1,5 @@
 -- ============================================================
--- SCHEMA D1 - ĐÃ SỬA (v3)
--- Cập nhật: Thêm cột api_modified để check cập nhật từ nguồn chính xác hơn
+-- SCHEMA D1 - ĐÃ ĐỒNG BỘ TMDB & IMDB (v4)
 -- ============================================================
 
 -- 1. Bảng Phim chính
@@ -25,8 +24,13 @@ CREATE TABLE movies (
   actor_json TEXT,
   category_json TEXT,
   alternative_names_json TEXT,
+  tmdb_json TEXT,        -- Lưu Object TMDB (id, type...)
+  imdb_json TEXT,        -- Lưu Object IMDb (vote_average...)
   last_updated INTEGER,
-  api_modified TEXT -- Lưu thời gian modified.time từ nguồn để check update
+  modified TEXT,
+  episodes_json TEXT,
+  api_modified TEXT,
+  trailer_url TEXT
 );
 
 CREATE INDEX idx_movies_type ON movies(type);
