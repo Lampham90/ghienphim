@@ -97,9 +97,8 @@ export default function VideoPlayer({
   const [countdown, setCountdown] = useState(10);
   const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(true);
-
+  
   const lastSavedTimeRef = useRef<number>(0);
-  const lastTapRef = useRef<number>(0); // Phục vụ tính năng Double Tap
   const isDraggingRef = useRef(false);
   const isDraggingVolumeRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -120,24 +119,29 @@ export default function VideoPlayer({
       );
 
       if (!isFull || forceEnter === true) {
-        if (container.requestFullscreen) {
-          await container.requestFullscreen();
-        } else if ((container as any).webkitRequestFullscreen) {
-          await (container as any).webkitRequestFullscreen();
-        } else if ((video as any).webkitEnterFullscreen) {
-          (video as any).webkitEnterFullscreen();
+        if (!isFull) {
+          if (container.requestFullscreen) {
+            await container.requestFullscreen();
+          } else if ((container as any).webkitRequestFullscreen) {
+            await (container as any).webkitRequestFullscreen();
+          } else if ((video as any).webkitEnterFullscreen) {
+            (video as any).webkitEnterFullscreen();
+          }
         }
         setIsFullscreen(true);
+        
+        // Luôn cố gắng ép xoay màn hình nếu đang vào mode Fullscreen
         const orientation = (screen as any).orientation || (screen as any).msOrientation;
         if (orientation && orientation.lock) {
-          setTimeout(async () => {
-            await orientation.lock('landscape').catch((err: any) => {
-              console.warn("Orientation lock failed:", err);
-            });
-          }, 200);
+          await orientation.lock('landscape').catch(() => {});
         }
-      } else if (isFull) {
+      } else if (isFull && !forceEnter) {
         setIsFullscreen(false);
+        // Trả lại quyền xoay dọc cho trình duyệt
+        const orientation = (screen as any).orientation || (screen as any).msOrientation;
+        if (orientation && orientation.unlock) {
+          orientation.unlock();
+        }
         if (document.exitFullscreen) await document.exitFullscreen();
         else if ((document as any).webkitExitFullscreen) await (document as any).webkitExitFullscreen();
         else if ((video as any).webkitExitFullscreen) (video as any).webkitExitFullscreen();
@@ -185,8 +189,8 @@ export default function VideoPlayer({
     setInteractionTime(Date.now());
 
     if (video.paused) {
-      if (window.innerWidth < 1024 && !document.fullscreenElement) {
-        toggleFullscreen(true);
+      if (window.innerWidth < 1024) {
+        await toggleFullscreen(true);
       }
       await video.play();
     } else {
@@ -207,18 +211,19 @@ export default function VideoPlayer({
     if (isFinal) video.currentTime = newTime;
   };
 
-  const handleNextEpisode = useCallback(async () => {
+  // PHÂN BIỆT RÕ RÀNG LUỒNG CHUYỂN TẬP: Bấm tay hay tự động đếm ngược
+  const handleNextEpisode = useCallback(async (isUserInteraction = false) => {
     const nextIndex = currentEpIndex + 1;
     if (nextIndex < totalEpisodes) {
       if (videoRef.current) {
         saveProgress(currentEpIndex, 0, videoRef.current.duration, true);
       }
-
-      // FIX 1: Ép xoay màn hình ngang và khóa chiều trên di động trước khi chuyển tập
-      if (window.innerWidth < 1024) {
+      
+      // Nếu là người dùng chạm nút -> Có User Gesture hợp lệ -> Ép xoay và Fullscreen ngay
+      if (isUserInteraction && window.innerWidth < 1024) {
         await toggleFullscreen(true);
       }
-
+      
       onEnded(nextIndex);
     }
   }, [currentEpIndex, totalEpisodes, onEnded, saveProgress, toggleFullscreen]);
@@ -230,33 +235,11 @@ export default function VideoPlayer({
     setInteractionTime(Date.now());
   }, []);
 
-  // TÍNH NĂNG MỚI: Xử lý Overlay, chạm đúp để tua như Youtube
-  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
+  // Chỉ dùng để ẩn/hiện Controls, không còn double tap
+  const toggleControls = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-
-    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // Xác định vị trí chạm để tua tới/lùi
-      const rect = e.currentTarget.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-
-      if (videoRef.current) {
-        if (clickX < rect.width / 3) {
-          // Nửa trái: Lùi 10s
-          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
-        } else if (clickX > (rect.width * 2) / 3) {
-          // Nửa phải: Tiến 10s
-          videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 10);
-        }
-      }
-      lastTapRef.current = 0; // Reset
-    } else {
-      // Chạm 1 lần: Ẩn/hiện controls
-      lastTapRef.current = now;
-      setShowControls(prev => !prev);
-      setInteractionTime(now);
-    }
+    setShowControls(prev => !prev);
+    setInteractionTime(Date.now());
   }, []);
 
   useEffect(() => {
@@ -420,7 +403,7 @@ export default function VideoPlayer({
     if (showNextNotify && countdown > 0) {
       timer = setTimeout(() => setCountdown(prev => prev - 1), 1000);
     } else if (showNextNotify && countdown === 0) {
-      handleNextEpisode();
+      handleNextEpisode(false); // Gọi chuyển tập tự động (Không có user gesture)
     }
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
@@ -488,10 +471,10 @@ export default function VideoPlayer({
 
       if (!video) return;
 
-      // FIX 2: Hàm chung xử lý xoay màn hình tự động và Play
       const handleVideoReady = async () => {
         if (initialTime > 0) video.currentTime = initialTime;
-        if (window.innerWidth < 1024 && !document.fullscreenElement) {
+        // Đảm bảo xoay ngang ngay khi video tải lên (nếu điều kiện cho phép)
+        if (window.innerWidth < 1024) {
           await toggleFullscreen(true);
         }
         video.play().catch((e) => {
@@ -559,7 +542,7 @@ export default function VideoPlayer({
         const originHeader = new URL(directLink).origin;
         const finalSrc = `${getWorker()}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
         video.src = finalSrc;
-
+        
         video.addEventListener('loadedmetadata', handleVideoReady);
       }
     };
@@ -603,12 +586,12 @@ export default function VideoPlayer({
           />
 
           <div
-            onClick={handleOverlayClick}
+            onClick={toggleControls}
             className={`absolute inset-0 z-20 bg-gradient-to-t from-black/90 via-transparent to-black/40 transition-opacity duration-500 ${showControls || isPaused ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           >
             <div
               className="player-controls absolute inset-0 flex flex-col justify-between p-4 md:p-6"
-              onClick={(e) => e.stopPropagation()} // Click vào các vùng menu bar sẽ không trigger double tap
+              onClick={(e) => e.stopPropagation()} 
             >
               <div className="flex justify-between items-start">
                 <h3 className="text-xs md:text-lg font-black uppercase italic tracking-tighter text-white/90 truncate pr-4 flex-1 mr-4">
@@ -669,7 +652,7 @@ export default function VideoPlayer({
                 className="flex flex-col gap-3 relative z-[160]"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* TỐI ƯU PROGRESS BAR: Tăng độ cao hitbox h-10 để dễ chạm hơn */}
+                {/* TỐI ƯU PROGRESS BAR: Vùng chạm rộng hơn h-10 */}
                 <div
                   className="w-full h-10 cursor-pointer group/progress flex items-center touch-none relative z-[170] -my-1"
                   style={{ touchAction: 'none' }}
@@ -724,7 +707,10 @@ export default function VideoPlayer({
 
                   {currentEpIndex + 1 < totalEpisodes && (
                     <button
-                      onClick={handleNextEpisode}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        handleNextEpisode(true); // Tham số true báo hiệu đây là người dùng tự tay bấm
+                      }}
                       className="px-3 py-1.5 text-xs font-semibold text-white/90 border border-white/30 rounded-lg bg-black/20 hover:bg-white/10 hover:border-white hover:text-red-500 transition-all flex items-center justify-center whitespace-nowrap"
                       title="Chuyển Tập"
                     >
@@ -732,7 +718,7 @@ export default function VideoPlayer({
                     </button>
                   )}
 
-                  {/* TỐI ƯU THÔNG MINH VOLUME TRÊN MOBILE */}
+                  {/* THIẾT KẾ ÂM LƯỢNG KÉO THẢ MOBILE */}
                   <div
                     className="flex items-center group/volume h-8"
                     onMouseEnter={() => setShowVolumeBar(true)}
@@ -751,13 +737,12 @@ export default function VideoPlayer({
                     </button>
 
                     <div className={`overflow-hidden transition-all duration-300 flex items-center ${showVolumeBar || isDraggingVolume ? 'w-44 ml-3 opacity-100' : 'w-0 opacity-0'}`}>
-                      {/* Tăng hit box kéo thả h-8 thay vì h-1.5 */}
                       <div
                         className="relative w-24 h-8 flex items-center cursor-pointer group/v-slider"
                         style={{ touchAction: 'none' }}
                         onPointerDown={(e) => {
                           setIsDraggingVolume(true);
-                          setShowVolumeBar(true); // Cố định hiển thị khi kéo
+                          setShowVolumeBar(true); 
                           isDraggingVolumeRef.current = true;
                           const rect = e.currentTarget.getBoundingClientRect();
                           const update = (clientX: number) => {
@@ -797,7 +782,7 @@ export default function VideoPlayer({
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
                   </button>
 
-                  <button onClick={toggleFullscreen} className="text-white hover:text-red-600 transition-colors">
+                  <button onClick={() => toggleFullscreen(true)} className="text-white hover:text-red-600 transition-colors">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" /></svg>
                   </button>
                 </div>
