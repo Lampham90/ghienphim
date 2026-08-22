@@ -130,14 +130,12 @@ export default function VideoPlayer({
         }
         setIsFullscreen(true);
         
-        // Luôn cố gắng ép xoay màn hình nếu đang vào mode Fullscreen
         const orientation = (screen as any).orientation || (screen as any).msOrientation;
         if (orientation && orientation.lock) {
           await orientation.lock('landscape').catch(() => {});
         }
       } else if (isFull && !forceEnter) {
         setIsFullscreen(false);
-        // Trả lại quyền xoay dọc cho trình duyệt
         const orientation = (screen as any).orientation || (screen as any).msOrientation;
         if (orientation && orientation.unlock) {
           orientation.unlock();
@@ -181,6 +179,7 @@ export default function VideoPlayer({
     }
   }, []);
 
+  // ĐIỂM QUAN TRỌNG: Mọi thao tác Play đều kèm kích hoạt Fullscreen/Xoay ngang trên mobile
   const togglePlay = useCallback(async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
@@ -211,7 +210,6 @@ export default function VideoPlayer({
     if (isFinal) video.currentTime = newTime;
   };
 
-  // PHÂN BIỆT RÕ RÀNG LUỒNG CHUYỂN TẬP: Bấm tay hay tự động đếm ngược
   const handleNextEpisode = useCallback(async (isUserInteraction = false) => {
     const nextIndex = currentEpIndex + 1;
     if (nextIndex < totalEpisodes) {
@@ -219,7 +217,6 @@ export default function VideoPlayer({
         saveProgress(currentEpIndex, 0, videoRef.current.duration, true);
       }
       
-      // Nếu là người dùng chạm nút -> Có User Gesture hợp lệ -> Ép xoay và Fullscreen ngay
       if (isUserInteraction && window.innerWidth < 1024) {
         await toggleFullscreen(true);
       }
@@ -235,7 +232,6 @@ export default function VideoPlayer({
     setInteractionTime(Date.now());
   }, []);
 
-  // Chỉ dùng để ẩn/hiện Controls, không còn double tap
   const toggleControls = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     setShowControls(prev => !prev);
@@ -403,7 +399,7 @@ export default function VideoPlayer({
     if (showNextNotify && countdown > 0) {
       timer = setTimeout(() => setCountdown(prev => prev - 1), 1000);
     } else if (showNextNotify && countdown === 0) {
-      handleNextEpisode(false); // Gọi chuyển tập tự động (Không có user gesture)
+      handleNextEpisode(false); 
     }
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
@@ -473,10 +469,10 @@ export default function VideoPlayer({
 
       const handleVideoReady = async () => {
         if (initialTime > 0) video.currentTime = initialTime;
-        // Đảm bảo xoay ngang ngay khi video tải lên (nếu điều kiện cho phép)
-        if (window.innerWidth < 1024) {
-          await toggleFullscreen(true);
-        }
+        
+        // Khi tự động chuyển tập, ta cố gắng gọi play. 
+        // Nếu trình duyệt chặn auto-fullscreen/xoay ngầm, người dùng chỉ cần chạm 1 lần vào nút Play 
+        // là hệ thống sẽ tự động ép xoay ngang mượt mà nhờ hàm togglePlay.
         video.play().catch((e) => {
           console.warn("[VideoPlayer] Autoplay prevented by browser", e);
         });
@@ -538,7 +534,6 @@ export default function VideoPlayer({
         });
 
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari iOS / MacOS
         const originHeader = new URL(directLink).origin;
         const finalSrc = `${getWorker()}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
         video.src = finalSrc;
@@ -558,7 +553,7 @@ export default function VideoPlayer({
         video.removeEventListener('loadedmetadata', () => {});
       }
     };
-  }, [videoUrl, initialTime, toggleFullscreen]);
+  }, [videoUrl, initialTime]);
 
   return (
     <div
@@ -609,6 +604,7 @@ export default function VideoPlayer({
                 </button>
               </div>
 
+              {/* KHUNG NÚT ĐIỀU KHIỂN GIỮA MÀN HÌNH (GỌI HÀM togglePlay ĐÃ CÓ TÍCH HỢP ÉP XOAY MÀN HÌNH) */}
               <div className="absolute inset-0 flex items-center justify-center gap-10 md:gap-24 pointer-events-none">
                 <button
                   onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10); }}
@@ -652,7 +648,6 @@ export default function VideoPlayer({
                 className="flex flex-col gap-3 relative z-[160]"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* TỐI ƯU PROGRESS BAR: Vùng chạm rộng hơn h-10 */}
                 <div
                   className="w-full h-10 cursor-pointer group/progress flex items-center touch-none relative z-[170] -my-1"
                   style={{ touchAction: 'none' }}
@@ -709,7 +704,7 @@ export default function VideoPlayer({
                     <button
                       onClick={(e) => { 
                         e.stopPropagation(); 
-                        handleNextEpisode(true); // Tham số true báo hiệu đây là người dùng tự tay bấm
+                        handleNextEpisode(true); 
                       }}
                       className="px-3 py-1.5 text-xs font-semibold text-white/90 border border-white/30 rounded-lg bg-black/20 hover:bg-white/10 hover:border-white hover:text-red-500 transition-all flex items-center justify-center whitespace-nowrap"
                       title="Chuyển Tập"
@@ -718,7 +713,6 @@ export default function VideoPlayer({
                     </button>
                   )}
 
-                  {/* THIẾT KẾ ÂM LƯỢNG KÉO THẢ MOBILE */}
                   <div
                     className="flex items-center group/volume h-8"
                     onMouseEnter={() => setShowVolumeBar(true)}
