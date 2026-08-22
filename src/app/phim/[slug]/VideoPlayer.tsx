@@ -179,7 +179,6 @@ export default function VideoPlayer({
     }
   }, []);
 
-  // ĐIỂM QUAN TRỌNG: Mọi thao tác Play đều kèm kích hoạt Fullscreen/Xoay ngang trên mobile
   const togglePlay = useCallback(async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
@@ -217,6 +216,8 @@ export default function VideoPlayer({
         saveProgress(currentEpIndex, 0, videoRef.current.duration, true);
       }
       
+      // Nếu là người dùng chủ động bấm nút chuyển tập, ta ép lại Fullscreen/Xoay ngang.
+      // Nếu là tự động hết tập, giữ nguyên khung Fullscreen hiện tại và không làm gián đoạn.
       if (isUserInteraction && window.innerWidth < 1024) {
         await toggleFullscreen(true);
       }
@@ -470,9 +471,7 @@ export default function VideoPlayer({
       const handleVideoReady = async () => {
         if (initialTime > 0) video.currentTime = initialTime;
         
-        // Khi tự động chuyển tập, ta cố gắng gọi play. 
-        // Nếu trình duyệt chặn auto-fullscreen/xoay ngầm, người dùng chỉ cần chạm 1 lần vào nút Play 
-        // là hệ thống sẽ tự động ép xoay ngang mượt mà nhờ hàm togglePlay.
+        // Khi đổi tập, player tiếp tục phát tự động bên trong chế độ Fullscreen hiện có
         video.play().catch((e) => {
           console.warn("[VideoPlayer] Autoplay prevented by browser", e);
         });
@@ -604,7 +603,6 @@ export default function VideoPlayer({
                 </button>
               </div>
 
-              {/* KHUNG NÚT ĐIỀU KHIỂN GIỮA MÀN HÌNH (GỌI HÀM togglePlay ĐÃ CÓ TÍCH HỢP ÉP XOAY MÀN HÌNH) */}
               <div className="absolute inset-0 flex items-center justify-center gap-10 md:gap-24 pointer-events-none">
                 <button
                   onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10); }}
