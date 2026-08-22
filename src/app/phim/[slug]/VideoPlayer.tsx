@@ -22,7 +22,7 @@ const WORKER_POOL = [
   "https://pro4.phuonglam56971.workers.dev/",
   "https://pro5.phuonglam56972.workers.dev/"
 ];
-// Hàm lấy ngẫu nhiên 1 worker mỗi khi gọi để chia tải
+
 const getWorker = () => WORKER_POOL[Math.floor(Math.random() * WORKER_POOL.length)];
 
 const formatTime = (seconds: number) => {
@@ -51,15 +51,12 @@ export default function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [videoRes, setVideoRes] = useState("0x0");
   const [currentPos, setCurrentPos] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
 
-  // States quản lý Bóc Tách & Lỗi
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // KHỞI TẠO STATE ÂM LƯỢNG AN TOÀN
   const [volume, setVolume] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const savedVol = localStorage.getItem('video_player_volume');
@@ -89,7 +86,6 @@ export default function VideoPlayer({
     });
   }, []);
 
-  // ĐỒNG BỘ ĐỒ THỊ PARABOL TAI NGƯỜI
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = Math.pow(volume, 2);
@@ -101,7 +97,9 @@ export default function VideoPlayer({
   const [countdown, setCountdown] = useState(10);
   const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(true);
+
   const lastSavedTimeRef = useRef<number>(0);
+  const lastTapRef = useRef<number>(0); // Phục vụ tính năng Double Tap
   const isDraggingRef = useRef(false);
   const isDraggingVolumeRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -209,17 +207,22 @@ export default function VideoPlayer({
     if (isFinal) video.currentTime = newTime;
   };
 
-  const handleNextEpisode = useCallback(() => {
+  const handleNextEpisode = useCallback(async () => {
     const nextIndex = currentEpIndex + 1;
     if (nextIndex < totalEpisodes) {
       if (videoRef.current) {
         saveProgress(currentEpIndex, 0, videoRef.current.duration, true);
       }
+
+      // FIX 1: Ép xoay màn hình ngang và khóa chiều trên di động trước khi chuyển tập
+      if (window.innerWidth < 1024) {
+        await toggleFullscreen(true);
+      }
+
       onEnded(nextIndex);
     }
-  }, [currentEpIndex, totalEpisodes, onEnded, saveProgress]);
+  }, [currentEpIndex, totalEpisodes, onEnded, saveProgress, toggleFullscreen]);
 
-  // AUTO-HIDE CONTROLS ENGINE
   const [interactionTime, setInteractionTime] = useState(0);
 
   const handleMouseMove = useCallback(() => {
@@ -227,10 +230,33 @@ export default function VideoPlayer({
     setInteractionTime(Date.now());
   }, []);
 
-  const toggleControls = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  // TÍNH NĂNG MỚI: Xử lý Overlay, chạm đúp để tua như Youtube
+  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowControls(prev => !prev);
-    setInteractionTime(Date.now());
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Xác định vị trí chạm để tua tới/lùi
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+
+      if (videoRef.current) {
+        if (clickX < rect.width / 3) {
+          // Nửa trái: Lùi 10s
+          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+        } else if (clickX > (rect.width * 2) / 3) {
+          // Nửa phải: Tiến 10s
+          videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 10);
+        }
+      }
+      lastTapRef.current = 0; // Reset
+    } else {
+      // Chạm 1 lần: Ẩn/hiện controls
+      lastTapRef.current = now;
+      setShowControls(prev => !prev);
+      setInteractionTime(now);
+    }
   }, []);
 
   useEffect(() => {
@@ -269,13 +295,8 @@ export default function VideoPlayer({
     const handleVideoTouch = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest('.player-controls')) return;
-
       if (e.touches.length > 1) return;
-
       setInteractionTime(Date.now());
-      if (!isDraggingRef.current) {
-        setShowControls(prev => !prev);
-      }
     };
 
     const handleTouchInteraction = () => setInteractionTime(Date.now());
@@ -362,7 +383,6 @@ export default function VideoPlayer({
   const handleSaveOnQuit = useCallback((shouldSync = true) => {
     const v = videoRef.current;
     if (!v) return;
-
     const time = v.currentTime;
     const duration = v.duration;
 
@@ -375,11 +395,8 @@ export default function VideoPlayer({
     const currentVideo = videoRef.current;
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handleSaveOnQuit(true);
-      }
+      if (document.visibilityState === 'hidden') handleSaveOnQuit(true);
     };
-
     const handleBeforeUnload = () => handleSaveOnQuit(true);
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -408,7 +425,6 @@ export default function VideoPlayer({
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
 
-  // --- 1. HÀM BÓC TÁCH LINK M3U9 TỪ TRANG EMBED (ĐỒNG BỘ 100% CHUẨN CODE GỐC INDEX.HTML) ---
   const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
     try {
       setIsResolving(true);
@@ -436,9 +452,7 @@ export default function VideoPlayer({
           if (jsonObj && jsonObj.sUb) {
             decodedSub = jsonObj.sUb;
           }
-        } catch (e) {
-          // Chuỗi không phải JSON, dùng raw string
-        }
+        } catch (e) {}
 
         decodedSub = decodedSub.replace(/\/hd$/i, '');
         decodedSub = decodedSub.replace(/\.m3u9$/i, '');
@@ -454,7 +468,6 @@ export default function VideoPlayer({
     return null;
   };
 
-  // --- 2. LUỒNG KHỞI TẠO PLAYER VÀ CUSTOM HLS LOADER ---
   useEffect(() => {
     const video = videoRef.current;
     setErrorMessage(null);
@@ -475,6 +488,17 @@ export default function VideoPlayer({
 
       if (!video) return;
 
+      // FIX 2: Hàm chung xử lý xoay màn hình tự động và Play
+      const handleVideoReady = async () => {
+        if (initialTime > 0) video.currentTime = initialTime;
+        if (window.innerWidth < 1024 && !document.fullscreenElement) {
+          await toggleFullscreen(true);
+        }
+        video.play().catch((e) => {
+          console.warn("[VideoPlayer] Autoplay prevented by browser", e);
+        });
+      };
+
       if (Hls.isSupported()) {
         if (hlsRef.current) {
           hlsRef.current.destroy();
@@ -487,23 +511,15 @@ export default function VideoPlayer({
 
             this.load = function (context: any, config: any, callbacks: any) {
               let targetUrl = context.url;
-
               if (isNguoncStream) {
-                // Đảm bảo URL tuyệt đối
                 if (!targetUrl.startsWith('http')) {
                   targetUrl = new URL(targetUrl, directLink).href;
                 }
-
                 const originHeader = new URL(directLink).origin;
-
-                // Bọc qua Worker để bypass Referer restriction của CDN
-                // Kiểm tra xem targetUrl đã được bọc bởi bất kỳ worker nào trong pool chưa
                 if (!WORKER_POOL.some(w => targetUrl.startsWith(w))) {
                   context.url = `${getWorker()}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
                 }
               }
-
-              // Lọc Quảng cáo trong Playlist
               if (context.type === 'manifest' || context.type === 'level') {
                 const originalOnSuccess = callbacks.onSuccess;
                 callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
@@ -515,7 +531,6 @@ export default function VideoPlayer({
                   originalOnSuccess(response, stats, ctx, networkDetails);
                 };
               }
-
               load(context, config, callbacks);
             };
           }
@@ -530,13 +545,7 @@ export default function VideoPlayer({
         hls.loadSource(directLink);
         hls.attachMedia(video);
 
-        hls.on(Hls.Events.MANIFEST_PARSED, async () => {
-          if (initialTime > 0) video.currentTime = initialTime;
-          if (window.innerWidth < 1024 && !document.fullscreenElement) {
-            await toggleFullscreen(true);
-          }
-          video.play().catch(() => {});
-        });
+        hls.on(Hls.Events.MANIFEST_PARSED, handleVideoReady);
 
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
@@ -550,10 +559,8 @@ export default function VideoPlayer({
         const originHeader = new URL(directLink).origin;
         const finalSrc = `${getWorker()}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
         video.src = finalSrc;
-        video.addEventListener('loadedmetadata', () => {
-          if (initialTime > 0) video.currentTime = initialTime;
-          video.play().catch(() => {});
-        });
+
+        video.addEventListener('loadedmetadata', handleVideoReady);
       }
     };
 
@@ -564,6 +571,9 @@ export default function VideoPlayer({
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      if (video) {
+        video.removeEventListener('loadedmetadata', () => {});
+      }
     };
   }, [videoUrl, initialTime, toggleFullscreen]);
 
@@ -572,7 +582,6 @@ export default function VideoPlayer({
       ref={containerRef}
       className={`relative w-full h-full bg-black group overflow-hidden flex items-center justify-center ${(!showControls && !isPaused) ? 'cursor-none' : ''}`}
     >
-      {/* ⏳ MÀN HÌNH ĐỜI BÓC TÁCH LINK */}
       {isResolving && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white">
           <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -580,7 +589,6 @@ export default function VideoPlayer({
         </div>
       )}
 
-      {/* ⚠️ THÔNG BÁO LỖI NẾU KHÔNG BÓC ĐƯỢC LINK */}
       {errorMessage ? (
         <div className="text-red-500 font-semibold p-4 text-center z-[100]">
           <p>{errorMessage}</p>
@@ -594,16 +602,14 @@ export default function VideoPlayer({
             onClick={handleMouseMove}
           />
 
-          {/* Overlay điều khiển */}
           <div
-            onClick={toggleControls}
+            onClick={handleOverlayClick}
             className={`absolute inset-0 z-20 bg-gradient-to-t from-black/90 via-transparent to-black/40 transition-opacity duration-500 ${showControls || isPaused ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           >
             <div
               className="player-controls absolute inset-0 flex flex-col justify-between p-4 md:p-6"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()} // Click vào các vùng menu bar sẽ không trigger double tap
             >
-              {/* Top Info */}
               <div className="flex justify-between items-start">
                 <h3 className="text-xs md:text-lg font-black uppercase italic tracking-tighter text-white/90 truncate pr-4 flex-1 mr-4">
                   {movieName}{totalEpisodes > 1 ? ` - Tập ${currentEpIndex + 1}` : ""}
@@ -620,7 +626,6 @@ export default function VideoPlayer({
                 </button>
               </div>
 
-              {/* Điều khiển trung tâm */}
               <div className="absolute inset-0 flex items-center justify-center gap-10 md:gap-24 pointer-events-none">
                 <button
                   onClick={(e) => { e.stopPropagation(); if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10); }}
@@ -660,14 +665,13 @@ export default function VideoPlayer({
                 </button>
               </div>
 
-              {/* Bottom controls area */}
               <div
                 className="flex flex-col gap-3 relative z-[160]"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Progress bar */}
+                {/* TỐI ƯU PROGRESS BAR: Tăng độ cao hitbox h-10 để dễ chạm hơn */}
                 <div
-                  className="w-full h-8 cursor-pointer group/progress flex items-center touch-none relative z-[170]"
+                  className="w-full h-10 cursor-pointer group/progress flex items-center touch-none relative z-[170] -my-1"
                   style={{ touchAction: 'none' }}
                   onPointerDown={(e) => {
                     setIsDragging(true);
@@ -683,7 +687,7 @@ export default function VideoPlayer({
                     handleSeek(e, true);
                   }}
                 >
-                  <div className={`w-full bg-white/20 rounded-full relative ${isDragging ? 'h-[6px]' : 'h-[3px] group-hover/progress:h-[6px]'} transition-all`}>
+                  <div className={`w-full bg-white/20 rounded-full relative ${isDragging ? 'h-[6px]' : 'h-[3px] group-hover/progress:h-[6px]'} transition-all pointer-events-none`}>
                     <div
                       className="absolute top-0 left-0 h-full bg-red-600 rounded-full pointer-events-none"
                       style={{
@@ -696,7 +700,6 @@ export default function VideoPlayer({
                   </div>
                 </div>
 
-                {/* Row nút bấm và thời gian */}
                 <div className="flex items-center gap-3 md:gap-4 pb-2">
                   <div className="text-[11px] font-bold font-mono tracking-widest text-white/80">
                     {formatTime(currentPos)} <span className="text-white/20 mx-1">/</span> {formatTime(totalDuration)}
@@ -704,7 +707,6 @@ export default function VideoPlayer({
 
                   <div className="flex-1" />
 
-                  {/* Nút Bỏ qua giới thiệu (1 phút 30s) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -720,7 +722,6 @@ export default function VideoPlayer({
                     Bỏ qua giới thiệu
                   </button>
 
-                  {/* Nút Chuyển Tập */}
                   {currentEpIndex + 1 < totalEpisodes && (
                     <button
                       onClick={handleNextEpisode}
@@ -731,11 +732,13 @@ export default function VideoPlayer({
                     </button>
                   )}
 
-                  {/* Âm lượng nằm ngang */}
+                  {/* TỐI ƯU THÔNG MINH VOLUME TRÊN MOBILE */}
                   <div
                     className="flex items-center group/volume h-8"
                     onMouseEnter={() => setShowVolumeBar(true)}
-                    onMouseLeave={() => setShowVolumeBar(false)}
+                    onMouseLeave={() => {
+                      if (!isDraggingVolumeRef.current) setShowVolumeBar(false);
+                    }}
                   >
                     <button onClick={toggleMute} className="text-white hover:text-red-600 transition-colors relative z-10">
                       {(isMuted || volume === 0) ? (
@@ -747,11 +750,14 @@ export default function VideoPlayer({
                       )}
                     </button>
 
-                    <div className={`overflow-hidden transition-all duration-300 flex items-center ${showVolumeBar ? 'w-44 ml-3 opacity-100' : 'w-0 opacity-0'}`}>
+                    <div className={`overflow-hidden transition-all duration-300 flex items-center ${showVolumeBar || isDraggingVolume ? 'w-44 ml-3 opacity-100' : 'w-0 opacity-0'}`}>
+                      {/* Tăng hit box kéo thả h-8 thay vì h-1.5 */}
                       <div
-                        className="relative w-24 h-1.5 bg-white/20 rounded-full cursor-pointer group/v-slider"
+                        className="relative w-24 h-8 flex items-center cursor-pointer group/v-slider"
+                        style={{ touchAction: 'none' }}
                         onPointerDown={(e) => {
                           setIsDraggingVolume(true);
+                          setShowVolumeBar(true); // Cố định hiển thị khi kéo
                           isDraggingVolumeRef.current = true;
                           const rect = e.currentTarget.getBoundingClientRect();
                           const update = (clientX: number) => {
@@ -772,11 +778,13 @@ export default function VideoPlayer({
                           window.addEventListener('pointercancel', onUp);
                         }}
                       >
-                        <div
-                          className="absolute top-0 left-0 h-full bg-red-600 rounded-full pointer-events-none"
-                          style={{ width: `${isMuted ? 0 : volume * 100}%` }}
-                        >
-                          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg scale-0 group-hover/v-slider:scale-100 transition-transform" />
+                        <div className="w-full h-1.5 bg-white/20 rounded-full relative pointer-events-none">
+                          <div
+                            className="absolute top-0 left-0 h-full bg-red-600 rounded-full"
+                            style={{ width: `${isMuted ? 0 : volume * 100}%` }}
+                          >
+                            <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg transition-transform ${isDraggingVolume ? 'scale-100' : 'scale-0 group-hover/v-slider:scale-100'}`} />
+                          </div>
                         </div>
                       </div>
                       <span className={`text-[10px] font-black ml-3 transition-all select-none whitespace-nowrap ${isDraggingVolume ? 'text-red-600 scale-110' : 'text-white/60'}`}>
@@ -785,7 +793,6 @@ export default function VideoPlayer({
                     </div>
                   </div>
 
-                  {/* Nút kích thước & Fullscreen */}
                   <button onClick={toggleVideoFit} className="text-white hover:text-red-600 transition-colors">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
                   </button>
@@ -798,7 +805,6 @@ export default function VideoPlayer({
             </div>
           </div>
 
-          {/* Thông báo chuyển tập tiếp theo */}
           {showNextNotify && (
             <div className="absolute bottom-28 right-6 md:right-12 z-[200] animate-in slide-in-from-right-10 duration-500">
               <div className="bg-white/[0.07] backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_20px_rgba(255,255,255,0.05)] min-w-[240px] relative overflow-hidden">
