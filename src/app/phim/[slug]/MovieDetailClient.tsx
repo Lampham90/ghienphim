@@ -141,7 +141,6 @@ export default function MovieDetailClient({
         if (res.ok) {
           const data = await res.json();
           
-          // 🌟 FIX DETAIL FALLBACK: Nếu movie state đang null (KKPhim sập), dùng data Nguồn C đắp vào!
           setMovie((prev) => {
             if ((!prev || !prev.name) && data.movieInfo) {
               return {
@@ -157,7 +156,6 @@ export default function MovieDetailClient({
             return prev;
           });
 
-          // Logic xử lý Server cũ giữ nguyên
           const serversData = data.servers || data.movie?.episodes || [];
           if (serversData.length > 0) {
             setServers((prev) => {
@@ -337,6 +335,24 @@ export default function MovieDetailClient({
     [slug, servers, activeServerIndex, movie, user, storeSaveProgress, bannerSrc, posterSrc]
   );
 
+  // === HÀM ÉP TỰ ĐỘNG XOAY NGANG Ở MOBILE ===
+  const forceMobileFullscreen = async () => {
+    if (window.innerWidth < 1024) {
+      const container = document.documentElement; 
+      try {
+        if (container.requestFullscreen) await container.requestFullscreen();
+        else if ((container as any).webkitRequestFullscreen) await (container as any).webkitRequestFullscreen();
+        
+        const orientation = (screen as any).orientation || (screen as any).msOrientation;
+        if (orientation && orientation.lock) {
+          await orientation.lock('landscape').catch(() => {});
+        }
+      } catch (e) {
+        console.log("Không thể ép fullscreen:", e);
+      }
+    }
+  };
+
   const handleEpisodeSelect = (index: number) => {
     const currentServer = servers[activeServerIndex];
     const currentEpisodes = getEpisodesArray(currentServer);
@@ -354,7 +370,7 @@ export default function MovieDetailClient({
     setCurrentEpIndex(index);
     setInitialTime(timeToSet);
     setIsPlaying(true);
-    forceMobileFullscreen(); // <--- GỌI TẠI ĐÂY
+    forceMobileFullscreen(); // Gọi xoay màn hình
     saveProgress(index, timeToSet, savedEpData?.duration || 0, true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -415,7 +431,6 @@ export default function MovieDetailClient({
 
   const isFullMovie = currentEpisodes.length <= 1;
 
-  // Trích xuất toàn bộ siêu dữ liệu chuẩn hóa đồng bộ với IMDb, Year, Language, Genre
   const imdbRating = movie?.tmdb?.vote_average
     ? Number(movie.tmdb.vote_average).toFixed(1)
     : (movie as any)?.vote_average
@@ -424,7 +439,7 @@ export default function MovieDetailClient({
     ? Number((movie as any).imdb.vote_average).toFixed(1)
     : null;
 
-    const displayImdb = useMemo(() => {
+  const displayImdb = useMemo(() => {
     if (imdbRating) return imdbRating;
     const hash = slug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const randomScore = 7.1 + (hash % 15) * 0.1; 
@@ -442,24 +457,6 @@ export default function MovieDetailClient({
   const categories = movie?.category && Array.isArray(movie.category)
     ? movie.category.map((cat: any) => cat.name).join(", ")
     : "";
-
-    // Thêm hàm này vào trong component MovieDetailClient
-const forceMobileFullscreen = async () => {
-  if (window.innerWidth < 1024) {
-    const container = document.documentElement; // Hoặc id của thẻ div bọc video
-    try {
-      if (container.requestFullscreen) await container.requestFullscreen();
-      else if ((container as any).webkitRequestFullscreen) await (container as any).webkitRequestFullscreen();
-      
-      const orientation = (screen as any).orientation || (screen as any).msOrientation;
-      if (orientation && orientation.lock) {
-        await orientation.lock('landscape').catch(() => {});
-      }
-    } catch (e) {
-      console.log("Không thể ép fullscreen:", e);
-    }
-  }
-};
 
   const getWatchButtonLabel = () => {
     if (!mounted || !history[slug]) return "Xem ngay";
@@ -480,17 +477,17 @@ const forceMobileFullscreen = async () => {
         {isPlaying && activeLink ? (
           <div className="relative w-full h-[75vh] md:h-screen">
             <VideoPlayer
-  key={slug} 
-  slug={slug}
-  movieName={movie?.name || ""}
-  videoUrl={activeLink}
-  initialTime={initialTime}
-  currentEpIndex={currentEpIndex}
-  totalEpisodes={currentEpisodes.length}
-  onClose={() => setIsPlaying(false)}
-  onEnded={handleNextEpisode}
-  saveProgress={saveProgress}
-/>
+              key={slug} // Chỉ giữ lại key={slug} để không bị reload khi chuyển tập
+              slug={slug}
+              movieName={movie?.name || ""}
+              videoUrl={activeLink}
+              initialTime={initialTime}
+              currentEpIndex={currentEpIndex}
+              totalEpisodes={currentEpisodes.length}
+              onClose={() => setIsPlaying(false)}
+              onEnded={handleNextEpisode}
+              saveProgress={saveProgress}
+            />
           </div>
         ) : (
           <div className="relative w-full">
@@ -519,7 +516,7 @@ const forceMobileFullscreen = async () => {
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
             </div>
 
-           {/* DESKTOP INFO */}
+            {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 
@@ -597,7 +594,7 @@ const forceMobileFullscreen = async () => {
                     disabled={!isHistoryLoaded || !activeEpisode}
                     onClick={() => {
                       setIsPlaying(true);
-                      forceMobileFullscreen(); 
+                      forceMobileFullscreen(); // Gọi xoay màn hình
                     }}
                     className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
                   >
@@ -605,7 +602,7 @@ const forceMobileFullscreen = async () => {
                   </button>
                 </div>
               </div> 
-            </div> {/* <-- BỔ SUNG THẺ ĐÓNG Ở ĐÂY */}
+            </div> 
             
             {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
@@ -683,7 +680,7 @@ const forceMobileFullscreen = async () => {
                   disabled={!isHistoryLoaded || !activeEpisode}
                   onClick={() => { 
                     setIsPlaying(true);
-                    forceMobileFullscreen(); 
+                    forceMobileFullscreen(); // Gọi xoay màn hình
                   }}
                   className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
                 >
@@ -691,7 +688,7 @@ const forceMobileFullscreen = async () => {
                 </button>
               </div>
             </div> 
-          </div> {/* <-- BỔ SUNG THẺ ĐÓNG Ở ĐÂY */}
+          </div> 
         )}
       </section>
 
