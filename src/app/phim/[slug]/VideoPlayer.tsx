@@ -130,15 +130,20 @@ export default function VideoPlayer({
         }
         setIsFullscreen(true);
         
-        const orientation = (screen as any).orientation || (screen as any).msOrientation;
-        if (orientation && orientation.lock) {
+        // Cải tiến: Ép xoay ngang màn hình an toàn với user gesture trực tiếp
+        const screenAny = screen as any;
+        const orientation = screenAny.orientation || screenAny.msOrientation || screenAny.mozOrientation;
+        if (orientation && typeof orientation.lock === 'function') {
           await orientation.lock('landscape').catch(() => {});
         }
       } else if (isFull && !forceEnter) {
         setIsFullscreen(false);
-        const orientation = (screen as any).orientation || (screen as any).msOrientation;
-        if (orientation && orientation.unlock) {
-          orientation.unlock();
+        const screenAny = screen as any;
+        const orientation = screenAny.orientation || screenAny.msOrientation || screenAny.mozOrientation;
+        if (orientation && typeof orientation.unlock === 'function') {
+          try {
+            orientation.unlock();
+          } catch (e) {}
         }
         if (document.exitFullscreen) await document.exitFullscreen();
         else if ((document as any).webkitExitFullscreen) await (document as any).webkitExitFullscreen();
@@ -216,8 +221,6 @@ export default function VideoPlayer({
         saveProgress(currentEpIndex, 0, videoRef.current.duration, true);
       }
       
-      // Nếu là người dùng chủ động bấm nút chuyển tập, ta ép lại Fullscreen/Xoay ngang.
-      // Nếu là tự động hết tập, giữ nguyên khung Fullscreen hiện tại và không làm gián đoạn.
       if (isUserInteraction && window.innerWidth < 1024) {
         await toggleFullscreen(true);
       }
@@ -471,7 +474,6 @@ export default function VideoPlayer({
       const handleVideoReady = async () => {
         if (initialTime > 0) video.currentTime = initialTime;
         
-        // Khi đổi tập, player tiếp tục phát tự động bên trong chế độ Fullscreen hiện có
         video.play().catch((e) => {
           console.warn("[VideoPlayer] Autoplay prevented by browser", e);
         });
