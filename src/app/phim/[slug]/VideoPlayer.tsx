@@ -564,7 +564,7 @@ export default function VideoPlayer({
       {isResolving && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white">
           <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-xs font-black uppercase italic tracking-widest">Đang bóc tách luồng m3u9...</p>
+          <p className="text-xs font-black uppercase italic tracking-widest"> </p>
         </div>
       )}
 
