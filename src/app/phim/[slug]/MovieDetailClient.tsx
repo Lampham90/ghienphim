@@ -354,6 +354,7 @@ export default function MovieDetailClient({
     setCurrentEpIndex(index);
     setInitialTime(timeToSet);
     setIsPlaying(true);
+    forceMobileFullscreen(); // <--- GỌI TẠI ĐÂY
     saveProgress(index, timeToSet, savedEpData?.duration || 0, true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -442,6 +443,24 @@ export default function MovieDetailClient({
     ? movie.category.map((cat: any) => cat.name).join(", ")
     : "";
 
+    // Thêm hàm này vào trong component MovieDetailClient
+const forceMobileFullscreen = async () => {
+  if (window.innerWidth < 1024) {
+    const container = document.documentElement; // Hoặc id của thẻ div bọc video
+    try {
+      if (container.requestFullscreen) await container.requestFullscreen();
+      else if ((container as any).webkitRequestFullscreen) await (container as any).webkitRequestFullscreen();
+      
+      const orientation = (screen as any).orientation || (screen as any).msOrientation;
+      if (orientation && orientation.lock) {
+        await orientation.lock('landscape').catch(() => {});
+      }
+    } catch (e) {
+      console.log("Không thể ép fullscreen:", e);
+    }
+  }
+};
+
   const getWatchButtonLabel = () => {
     if (!mounted || !history[slug]) return "Xem ngay";
     if (isFullMovie) return "Xem tiếp";
@@ -461,17 +480,17 @@ export default function MovieDetailClient({
         {isPlaying && activeLink ? (
           <div className="relative w-full h-[75vh] md:h-screen">
             <VideoPlayer
-              key={`${activeServerIndex}_${currentEpIndex}_${activeLink}`}
-              slug={slug}
-              movieName={movie?.name || ""}
-              videoUrl={activeLink}
-              initialTime={initialTime}
-              currentEpIndex={currentEpIndex}
-              totalEpisodes={currentEpisodes.length}
-              onClose={() => setIsPlaying(false)}
-              onEnded={handleNextEpisode}
-              saveProgress={saveProgress}
-            />
+  key={slug} 
+  slug={slug}
+  movieName={movie?.name || ""}
+  videoUrl={activeLink}
+  initialTime={initialTime}
+  currentEpIndex={currentEpIndex}
+  totalEpisodes={currentEpisodes.length}
+  onClose={() => setIsPlaying(false)}
+  onEnded={handleNextEpisode}
+  saveProgress={saveProgress}
+/>
           </div>
         ) : (
           <div className="relative w-full">
@@ -500,16 +519,16 @@ export default function MovieDetailClient({
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
             </div>
 
-            {/* DESKTOP INFO */}
+           {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 
-<MovieLogoTitle
-  tmdbId={movie?.tmdb?.id}
-  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}
-  subTitle={(movie as any)?.origin_name || movie?.name}
-/>
+                <MovieLogoTitle
+                  tmdbId={movie?.tmdb?.id}
+                  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
+                  title={movie?.name || "..."}
+                  subTitle={(movie as any)?.origin_name || movie?.name}
+                />
 
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Badge IMDb */}
@@ -545,26 +564,25 @@ export default function MovieDetailClient({
                   )}
 
                   {/* Số tập đã cập nhật / Tổng số tập (Ví dụ: 7/12 Tập) */}
-{currentEpisodes && currentEpisodes.length > 0 && (
-  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
-    {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
-  </span>
-)}
-
+                  {currentEpisodes && currentEpisodes.length > 0 && (
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                      {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
+                    </span>
+                  )}
                   
                   {/* Nút yêu thích */}
-<button
-  onClick={toggleFavorite}
-  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
-    isFavorite
-      ? "bg-red-500/20 border-red-500/50 text-red-500"
-      : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
-  }`}
->
-  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-  </svg>
-</button>
+                  <button
+                    onClick={toggleFavorite}
+                    className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
+                      isFavorite
+                        ? "bg-red-500/20 border-red-500/50 text-red-500"
+                        : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
+                    }`}
+                  >
+                    <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </button>
                 </div>
 
                 {description && (
@@ -577,25 +595,27 @@ export default function MovieDetailClient({
                 <div className="pt-2 w-full max-w-xl flex justify-start">
                   <button
                     disabled={!isHistoryLoaded || !activeEpisode}
-                    onClick={() => setIsPlaying(true)}
+                    onClick={() => {
+                      setIsPlaying(true);
+                      forceMobileFullscreen(); 
+                    }}
                     className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
                   >
                     {getWatchButtonLabel()}
                   </button>
                 </div>
-              </div>
-            </div>
+              </div> 
+            </div> {/* <-- BỔ SUNG THẺ ĐÓNG Ở ĐÂY */}
             
             {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
               
-<MovieLogoTitle
-  tmdbId={movie?.tmdb?.id}
-  tmdbType={movie?.tmdb?.type || (movie as any)?.type}
-  title={movie?.name || "..."}
-  // Fix fallback cho Mobile
-  subTitle={(movie as any)?.origin_name || movie?.name || ""}
-/>
+              <MovieLogoTitle
+                tmdbId={movie?.tmdb?.id}
+                tmdbType={movie?.tmdb?.type || (movie as any)?.type}
+                title={movie?.name || "..."}
+                subTitle={(movie as any)?.origin_name || movie?.name || ""}
+              />
 
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {/* Badge IMDb */}
@@ -631,25 +651,25 @@ export default function MovieDetailClient({
                 )}
 
                 {/* Số tập đã cập nhật / Tổng số tập (Ví dụ: 7/12 Tập) */}
-{currentEpisodes && currentEpisodes.length > 0 && (
-  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
-    {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
-  </span>
-)}
+                {currentEpisodes && currentEpisodes.length > 0 && (
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                    {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
+                  </span>
+                )}
 
                 {/* Nút yêu thích */}
-<button
-  onClick={toggleFavorite}
-  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
-    isFavorite
-      ? "bg-red-500/20 border-red-500/50 text-red-500"
-      : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
-  }`}
->
-  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-  </svg>
-</button>
+                <button
+                  onClick={toggleFavorite}
+                  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
+                    isFavorite
+                      ? "bg-red-500/20 border-red-500/50 text-red-500"
+                      : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
+                  }`}
+                >
+                  <svg className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : "fill-none"}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </button>
               </div>
 
               {description && (
@@ -661,14 +681,17 @@ export default function MovieDetailClient({
               <div className="pt-2 w-full flex justify-center">
                 <button
                   disabled={!isHistoryLoaded || !activeEpisode}
-                  onClick={() => setIsPlaying(true)}
+                  onClick={() => { 
+                    setIsPlaying(true);
+                    forceMobileFullscreen(); 
+                  }}
                   className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
                 >
                   {getWatchButtonLabel()}
                 </button>
               </div>
-            </div>
-          </div>
+            </div> 
+          </div> {/* <-- BỔ SUNG THẺ ĐÓNG Ở ĐÂY */}
         )}
       </section>
 
