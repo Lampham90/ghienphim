@@ -10,7 +10,7 @@ const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', 
 
 export const metadata: Metadata = {
   title: "Ghiền Phim - Xem phim mọi lúc mọi nơi",
-  description: "",
+  description: "  ",
   verification: {
     google: "googlefbc84cd2aca112c0",
   },
