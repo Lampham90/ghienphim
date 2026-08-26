@@ -126,7 +126,12 @@ export default function MovieDetailClient({
   });
 
   // Effect chạy ngầm để lấy ảnh chất lượng cao từ TMDB
+  // ⚠️ CHỈ gọi API này khi KHÔNG có sẵn ảnh preview truyền thẳng từ HomeClient.
+  // Nếu người dùng bấm banner/poster từ trang chủ, ảnh TMDB đã có sẵn (previewPoster/previewThumb)
+  // -> hiển thị tức thời, không cần gọi lại API tmdb-logo (tránh lãng phí request + tránh ảnh bị đổi/nháy).
   useEffect(() => {
+    if (previewPoster && previewThumb) return; // Đã có đủ ảnh TMDB từ Home rồi, khỏi fetch lại
+
     const fetchTmdbImages = async () => {
       if (!movie) return;
       
@@ -149,33 +154,38 @@ export default function MovieDetailClient({
     };
 
     fetchTmdbImages();
-  }, [movie?.tmdb?.id, movie?.name]);
+  }, [movie?.tmdb?.id, movie?.name, previewPoster, previewThumb]);
 
-  // Đồng bộ Banner/Backdrop (Ưu tiên TMDB có sẵn -> TMDB fetch ngầm -> Preview TMDB từ trang chủ -> KKPhim)
+  // Đồng bộ Banner/Backdrop
+  // ƯU TIÊN TUYỆT ĐỐI: ảnh TMDB đã truyền thẳng từ HomeClient (previewThumb) -> hiển thị TỨC THÌ, không chờ.
+  // Chỉ khi KHÔNG có preview (vào thẳng link chi tiết, không qua Home) mới xét tới:
+  // ảnh tmdb có sẵn trong data phim -> ảnh tmdb fetch ngầm -> cuối cùng mới fallback KKPhim (ảnh mờ).
   const bannerSrc = useMemo(() => {
+    if (previewThumb) return previewThumb;
     if (movie?.tmdb?.backdrop_path) {
       return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
     }
-    if (tmdbImages.backdrop) return tmdbImages.backdrop; 
-    if (previewThumb) return previewThumb; 
+    if (tmdbImages.backdrop) return tmdbImages.backdrop;
     if (!movie) return "";
 
+    // Fallback cuối cùng: nguồn KKPhim (ảnh mờ) - chỉ dùng khi không có ảnh TMDB nào
     const rawThumb = (movie as any).thumb_url || movie.thumb || movie.poster;
     return getImageUrl(rawThumb);
-  }, [previewThumb, tmdbImages.backdrop, movie]);
+  }, [previewThumb, movie, tmdbImages.backdrop]);
 
-  // Đồng bộ Poster (Ưu tiên TMDB có sẵn -> TMDB fetch ngầm -> Preview TMDB từ trang chủ -> KKPhim)
+  // Đồng bộ Poster - cùng thứ tự ưu tiên như Banner ở trên
   const posterSrc = useMemo(() => {
+    if (previewPoster) return previewPoster;
     if (movie?.tmdb?.poster_path) {
       return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
     }
-    if (tmdbImages.poster) return tmdbImages.poster; 
-    if (previewPoster) return previewPoster; 
+    if (tmdbImages.poster) return tmdbImages.poster;
     if (!movie) return "";
 
+    // Fallback cuối cùng: nguồn KKPhim (ảnh mờ) - chỉ dùng khi không có ảnh TMDB nào
     const rawPoster = movie.poster || (movie as any).poster_url;
     return getImageUrl(rawPoster);
-  }, [previewPoster, tmdbImages.poster, movie]);
+  }, [previewPoster, movie, tmdbImages.poster]);
 
   const fetchedNguoncKeyRef = useRef<string | null>(null);
 
