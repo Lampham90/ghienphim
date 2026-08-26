@@ -38,7 +38,9 @@ interface Movie extends KKPhimMovie {
   tmdb?: {
     id?: number | string;
     type?: string;
-    vote_average?: number | string
+    vote_average?: number | string;
+    poster_path?: string;
+    backdrop_path?: string;
   };
   imdb?: {
     vote_average?: number | string;
@@ -67,11 +69,28 @@ interface HistoryRecord {
   last_updated?: number;
   seconds?: number;
   duration?: number;
+  tmdb?: any;
 }
 
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
+const getTmdbOrRawPoster = (movie: any) => {
+  if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
+  if (movie?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+  const p = movie?.poster_url || movie?.poster;
+  if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) return p;
+  return getImageUrl(p);
+};
+
+const getTmdbOrRawThumb = (movie: any) => {
+  if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.tmdb.backdrop_path}`;
+  if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`;
+  const t = movie?.thumb_url || movie?.thumb;
+  if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) return t;
+  return getImageUrl(t);
+};
+
 const getMovieRating = (m: any): RatingResult => {
   const realScore = Number(m?.imdb?.vote_average || m?.tmdb?.vote_average || m?.imdb_score || m?.vote_average);
 
@@ -277,12 +296,14 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | n
 ScrollNav.displayName = 'ScrollNav';
 
 const HistoryItem = memo(({ m }: { m: Movie }) => {
-  const imageUrl = getImageUrl(m.thumb || m.poster);
+  const posterUrl = getTmdbOrRawPoster(m);
+  const thumbUrl = getTmdbOrRawThumb(m);
+  const imageUrl = thumbUrl || posterUrl;
   const progress = (m.duration && m.duration > 0 && m.seconds) ? Math.min((m.seconds / m.duration) * 100, 100) : 0;
 
   return (
     <div className="min-w-[240px] md:min-w-[320px] snap-start group relative flex flex-col transform-gpu">
-      <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(m.poster || m.thumb || '')}&thumb=${encodeURIComponent(m.thumb || m.poster || '')}`} prefetch={false} className="relative aspect-video w-full rounded-2xl md:rounded-[1.5rem] overflow-hidden border border-white/5 bg-[#0a0a0a] transition-[transform,border-color] duration-300 group-hover:border-red-600/50 group-hover:-translate-y-2 shadow-2xl transform-gpu">
+      <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(posterUrl)}&thumb=${encodeURIComponent(thumbUrl)}`} prefetch={false} className="relative aspect-video w-full rounded-2xl md:rounded-[1.5rem] overflow-hidden border border-white/5 bg-[#0a0a0a] transition-[transform,border-color] duration-300 group-hover:border-red-600/50 group-hover:-translate-y-2 shadow-2xl transform-gpu">
         {imageUrl && (
           <Image
             loader={imageLoader}
@@ -504,8 +525,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
       }
 
       const tmdbData = tmdbHeroImages[m.slug];
-      const heroThumbUrl = tmdbData?.backdropUrl || getImageUrl(m.thumb_url || m.thumb || m.poster);
-      const heroPosterUrl = tmdbData?.posterUrl || getImageUrl(m.poster || m.poster_url || m.thumb_url || m.thumb);
+      const heroThumbUrl = tmdbData?.backdropUrl || getTmdbOrRawThumb(m);
+      const heroPosterUrl = tmdbData?.posterUrl || getTmdbOrRawPoster(m);
 
       return {
         ...m,
@@ -525,15 +546,13 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     const nextMovie = heroMoviesProcessed[nextIdx];
 
     if (nextMovie.heroThumbUrl) {
-  const imgDesktop = new window.Image();
-  // Đưa tất cả qua imageLoader và giảm quality xuống 65
-  imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 70 });
-}
-if (nextMovie.heroPosterUrl) {
-  const imgMobile = new window.Image();
-  // Tương tự cho ảnh mobile
-  imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 70 });
-}
+      const imgDesktop = new window.Image();
+      imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 70 });
+    }
+    if (nextMovie.heroPosterUrl) {
+      const imgMobile = new window.Image();
+      imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 70 });
+    }
   }, [currentHero, heroMoviesProcessed]);
 
   // Auto Hero Slider
@@ -822,9 +841,6 @@ if (nextMovie.heroPosterUrl) {
               return null;
             }
 
-            const isTmdbThumb = m.heroThumbUrl?.includes('tmdb.org');
-            const isTmdbPoster = m.heroPosterUrl?.includes('tmdb.org');
-
             return (
               <div 
                 key={m.slug || index} 
@@ -832,34 +848,34 @@ if (nextMovie.heroPosterUrl) {
               >
                 <div className="relative w-full h-full bg-black">
                   {/* DESKTOP THUMB IMAGE */}
-{m.heroThumbUrl && (
-  <Image
-    loader={imageLoader} // Bắt buộc dùng imageLoader cho mọi nguồn
-    src={m.heroThumbUrl}
-    alt={m.name || 'Hero Banner'}
-    fill
-    sizes="100vw"
-    quality={70} // <-- Thêm chất lượng 65% ở đây
-    priority={index === 0}
-    className="hidden md:block w-full h-full object-cover transform-gpu"
-    style={{ objectPosition: 'center 20%' }}
-  />
-)}
+                  {m.heroThumbUrl && (
+                    <Image
+                      loader={imageLoader}
+                      src={m.heroThumbUrl}
+                      alt={m.name || 'Hero Banner'}
+                      fill
+                      sizes="100vw"
+                      quality={70}
+                      priority={index === 0}
+                      className="hidden md:block w-full h-full object-cover transform-gpu"
+                      style={{ objectPosition: 'center 20%' }}
+                    />
+                  )}
 
-{/* MOBILE POSTER IMAGE */}
-{m.heroPosterUrl && (
-  <Image
-    loader={imageLoader} // Bắt buộc dùng imageLoader
-    src={m.heroPosterUrl}
-    alt={m.name || 'Hero Banner Mobile'}
-    fill
-    sizes="100vw"
-    quality={70} // <-- Thêm chất lượng 65% ở đây
-    priority={index === 0}
-    className="block md:hidden w-full h-full object-cover transform-gpu"
-    style={{ objectPosition: 'center top' }}
-  />
-)}
+                  {/* MOBILE POSTER IMAGE */}
+                  {m.heroPosterUrl && (
+                    <Image
+                      loader={imageLoader}
+                      src={m.heroPosterUrl}
+                      alt={m.name || 'Hero Banner Mobile'}
+                      fill
+                      sizes="100vw"
+                      quality={70}
+                      priority={index === 0}
+                      className="block md:hidden w-full h-full object-cover transform-gpu"
+                      style={{ objectPosition: 'center top' }}
+                    />
+                  )}
 
                   {/* Gradient Overlays tương phản nội dung */}
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
@@ -921,7 +937,8 @@ if (nextMovie.heroPosterUrl) {
                       </p>
 
                       <div className="pt-1 md:pt-2">
-                        <Link href={`/phim/${m.slug}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-6 md:px-10 py-2 md:py-3.5 rounded-full font-black text-[10px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-2 md:gap-3 hover:bg-red-600 hover:text-white">
+                        {/* TRUYỀN THẲNG ẢNH TMDB SANG DETAIL KHI BẤM HERO BANNER */}
+                        <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(m.heroPosterUrl || '')}&thumb=${encodeURIComponent(m.heroThumbUrl || '')}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-6 md:px-10 py-2 md:py-3.5 rounded-full font-black text-[10px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-2 md:gap-3 hover:bg-red-600 hover:text-white">
                           <svg className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                           <span>Xem ngay</span>
                         </Link>

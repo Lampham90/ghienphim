@@ -119,7 +119,7 @@ export default function MovieDetailClient({
   const previewPoster = searchParams.get("poster") || "";
   const previewThumb = searchParams.get("thumb") || "";
 
-  // Thêm State để lưu trữ hình ảnh lấy từ API TMDB
+  // State để lưu trữ hình ảnh lấy từ API TMDB
   const [tmdbImages, setTmdbImages] = useState<{ backdrop: string | null; poster: string | null }>({
     backdrop: null,
     poster: null,
@@ -132,11 +132,9 @@ export default function MovieDetailClient({
       
       const tmdbId = movie.tmdb?.id || (movie as any)?.id || "";
       const queryName = (movie as any).origin_name || movie.name || "";
-      // THÊM BIẾN TYPE Ở ĐÂY
       const tmdbType = movie.tmdb?.type || (movie as any)?.type || "movie"; 
       
       try {
-        // SỬA LẠI URL FETCH
         const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${tmdbType}&query=${encodeURIComponent(queryName)}`);
         if (res.ok) {
           const data = await res.json();
@@ -153,15 +151,12 @@ export default function MovieDetailClient({
     fetchTmdbImages();
   }, [movie?.tmdb?.id, movie?.name]);
 
-  // Đồng bộ logic lấy Banner/Backdrop (Ưu tiên ảnh TMDB có sẵn trong object -> Ảnh mới fetch -> Preview -> KKPhim)
+  // Đồng bộ Banner/Backdrop (Ưu tiên TMDB có sẵn -> TMDB fetch ngầm -> Preview TMDB từ trang chủ -> KKPhim)
   const bannerSrc = useMemo(() => {
-    // 1. Lấy thẳng từ dữ liệu TMDB có sẵn của phim ngay từ frame đầu tiên (Chống nhảy hình)
     if (movie?.tmdb?.backdrop_path) {
       return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
     }
-    // 2. Ảnh lấy từ API fetch ngầm (nếu có sau đó)
     if (tmdbImages.backdrop) return tmdbImages.backdrop; 
-    // 3. Ảnh truyền qua URL
     if (previewThumb) return previewThumb; 
     if (!movie) return "";
 
@@ -169,15 +164,12 @@ export default function MovieDetailClient({
     return getImageUrl(rawThumb);
   }, [previewThumb, tmdbImages.backdrop, movie]);
 
-  // Đồng bộ logic lấy Poster
+  // Đồng bộ Poster (Ưu tiên TMDB có sẵn -> TMDB fetch ngầm -> Preview TMDB từ trang chủ -> KKPhim)
   const posterSrc = useMemo(() => {
-    // 1. Lấy thẳng từ dữ liệu TMDB có sẵn của phim ngay từ frame đầu tiên (Chống nhảy hình)
     if (movie?.tmdb?.poster_path) {
       return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
     }
-    // 2. Ảnh lấy từ API fetch ngầm
     if (tmdbImages.poster) return tmdbImages.poster; 
-    // 3. Ảnh truyền qua URL
     if (previewPoster) return previewPoster; 
     if (!movie) return "";
 
@@ -205,8 +197,8 @@ export default function MovieDetailClient({
                 ...data.movieInfo,
                 name: data.movieInfo.name,
                 origin_name: data.original_name || data.movieInfo.original_name || data.movieInfo.name,
-                poster: data.movieInfo.poster_url || data.movieInfo.poster || previewPoster,
-                thumb: data.movieInfo.thumb_url || data.movieInfo.thumb || previewThumb,
+                poster: previewPoster || data.movieInfo.poster_url || data.movieInfo.poster,
+                thumb: previewThumb || data.movieInfo.thumb_url || data.movieInfo.thumb,
                 content: data.movieInfo.description || data.movieInfo.content || "",
                 year: data.movieInfo.year || new Date().getFullYear(),
               } as KKPhimDetail;

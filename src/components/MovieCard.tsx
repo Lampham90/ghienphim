@@ -14,6 +14,24 @@ interface MovieCardProps {
   isDragging?: boolean;
 }
 
+// Helper ưu tiên lấy ảnh Poster từ TMDB
+const getTmdbOrRawPoster = (movie: any) => {
+  if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
+  if (movie?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+  const p = movie?.poster_url || movie?.poster;
+  if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) return p;
+  return getImageUrl(p);
+};
+
+// Helper ưu tiên lấy ảnh Backdrop/Thumb từ TMDB
+const getTmdbOrRawThumb = (movie: any) => {
+  if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.tmdb.backdrop_path}`;
+  if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`;
+  const t = movie?.thumb_url || movie?.thumb;
+  if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) return t;
+  return getImageUrl(t);
+};
+
 const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = false, isDragging = false }: MovieCardProps) => {
   const [imgError, setImgError] = useState(false);
   const isHorizontal = variant === 'horizontal';
@@ -23,8 +41,9 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   const floatingEffect = "transition-[transform,box-shadow] duration-300 ease-out transform-gpu group-hover:-translate-y-2 group-hover:shadow-[0_10px_20px_rgba(220,38,38,0.4)] group-hover:z-50";
   const imageZoomEffect = "transition-transform duration-500 ease-out transform-gpu group-hover:scale-105";
 
-  const rawPoster = getImageUrl(movie.poster_url || movie.poster);
-  const rawThumb = getImageUrl(movie.thumb_url || movie.thumb);
+  // Lấy ảnh ưu tiên TMDB
+  const rawPoster = getTmdbOrRawPoster(movie);
+  const rawThumb = getTmdbOrRawThumb(movie);
 
   const fallbackImg = "https://phimimg.com/upload/poster/dang-cap-nhat.jpg";
   const computedPriority = priority && (index ?? 0) < 3;
@@ -57,14 +76,13 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
     );
   }
 
-  // ✅ 2. KIỂU RANKED & DỌC (NÂNG CẤP KÍCH THƯỚC TO HƠN NỮA)
+  // ✅ 2. KIỂU RANKED & DỌC
   const isSpecial = isRanked1 || isRanked3;
   const isRanked3Variant = variant === 'ranked3';
   const isEven = index % 2 === 0;
 
-  // Tăng min-w cực mạnh cho các hàng Ranked (isSpecial)
   const containerClass = isSpecial
-    ? 'min-w-[240px] md:min-w-[calc(100%/4.2)]' // To hơn nữa theo yêu cầu
+    ? 'min-w-[240px] md:min-w-[calc(100%/4.2)]'
     : 'min-w-[160px] md:min-w-[calc(100%/7)]';
 
   const maskPath = !isEven ? `M 0,40 Q 0,25 15,25 L 190,0 Q 200,0 200,10 L 200,300 Q 200,310 190,310 L 10,310 Q 0,310 0,300 Z` : `M 10,0 Q 0,0 0,10 L 0,300 Q 0,310 10,310 L 190,310 Q 200,310 200,300 L 200,40 Q 200,25 185,25 L 10,0 Z`;
@@ -96,7 +114,6 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
       <div className={`mt-5 px-2 ${isSpecial ? 'w-full text-left' : 'w-full text-center'}`}>
         {isSpecial ? (
           <div className="mt-1 flex gap-5 items-start pr-2">
-            {/* Con số cực to */}
             <span className="text-[55px] md:text-[90px] font-black italic leading-[0.7] text-red-600 transition-transform drop-shadow-[0_4px_15px_rgba(220,38,38,0.4)]">
               {index + 1}
             </span>
