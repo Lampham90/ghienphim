@@ -153,21 +153,6 @@ export default function MovieDetailClient({
     fetchTmdbImages();
   }, [movie?.tmdb?.id, movie?.name]);
 
-  // Đồng bộ logic lấy Banner/Backdrop (Ưu tiên TMDB backdrop (mới fetch) -> TMDB sẵn có -> KKPhim)
-  const bannerSrc = useMemo(() => {
-    if (previewThumb) return previewThumb;
-    if (tmdbImages.backdrop) return tmdbImages.backdrop; // Ưu tiên 1: Ảnh TMDB fetch được
-    if (!movie) return "";
-
-    if (movie.tmdb?.backdrop_path) {
-      return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
-    }
-
-    const rawThumb = (movie as any).thumb_url || movie.thumb || movie.poster;
-    return getImageUrl(rawThumb);
-  }, [previewThumb, tmdbImages.backdrop, movie]);
-
-  // Đồng bộ logic lấy Poster (Ưu tiên TMDB poster (mới fetch) -> TMDB sẵn có -> KKPhim)
   // Đồng bộ logic lấy Banner/Backdrop 
   const bannerSrc = useMemo(() => {
     if (tmdbImages.backdrop) return tmdbImages.backdrop; // Ưu tiên số 1: Ảnh TMDB mới fetch
