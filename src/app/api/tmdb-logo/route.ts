@@ -55,11 +55,15 @@ export async function GET(req: Request) {
       logos.find((l: any) => l.iso_639_1 === null) ||
       logos[0];
 
-    // 2. Lấy ảnh backdrop chất lượng nhất cho Banner PC
-    const bestBackdrop = backdrops[0];
+    // 2. Backdrop cho Banner PC: ưu tiên bản có ngôn ngữ tiếng Việt (vi) nếu TMDB có,
+    // không thì lấy ảnh xếp hạng cao nhất mặc định (TMDB đã sort theo vote_average/vote_count giảm dần)
+    const bestBackdrop =
+      backdrops.find((b: any) => b.iso_639_1 === 'vi') || backdrops[0];
 
-    // 3. Lấy ảnh poster chất lượng nhất cho Banner Mobile
-    const bestPoster = posters[0];
+    // 3. Poster cho Banner Mobile: ưu tiên bản có ngôn ngữ tiếng Việt (vi) nếu TMDB có,
+    // không thì lấy ảnh xếp hạng cao nhất mặc định
+    const bestPoster =
+      posters.find((p: any) => p.iso_639_1 === 'vi') || posters[0];
 
     const logoUrl = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : null;
     const backdropUrl = bestBackdrop ? `https://image.tmdb.org/t/p/original${bestBackdrop.file_path}` : null;
