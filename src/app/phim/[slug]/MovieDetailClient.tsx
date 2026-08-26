@@ -119,12 +119,30 @@ export default function MovieDetailClient({
   const previewPoster = searchParams.get("poster") || "";
   const previewThumb = searchParams.get("thumb") || "";
 
+  // Đồng bộ logic lấy Banner/Backdrop (Ưu tiên TMDB backdrop -> thumb -> poster)
   const bannerSrc = useMemo(() => {
-    return previewThumb || (movie ? getImageUrl((movie as any).thumb_url || movie.thumb) : "");
+    if (previewThumb) return previewThumb;
+    if (!movie) return "";
+
+    if (movie.tmdb?.backdrop_path) {
+      return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
+    }
+
+    const rawThumb = (movie as any).thumb_url || movie.thumb || movie.poster;
+    return getImageUrl(rawThumb);
   }, [previewThumb, movie]);
 
+  // Đồng bộ logic lấy Poster (Ưu tiên TMDB poster -> poster gốc)
   const posterSrc = useMemo(() => {
-    return previewPoster || (movie ? getImageUrl(movie.poster) : "");
+    if (previewPoster) return previewPoster;
+    if (!movie) return "";
+
+    if (movie.tmdb?.poster_path) {
+      return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
+    }
+
+    const rawPoster = movie.poster || (movie as any).poster_url;
+    return getImageUrl(rawPoster);
   }, [previewPoster, movie]);
 
   const fetchedNguoncKeyRef = useRef<string | null>(null);
@@ -335,7 +353,6 @@ export default function MovieDetailClient({
     [slug, servers, activeServerIndex, movie, user, storeSaveProgress, bannerSrc, posterSrc]
   );
 
-  // === HÀM ÉP TỰ ĐỘNG XOAY NGANG Ở MOBILE ===
   const forceMobileFullscreen = async () => {
     if (window.innerWidth < 1024) {
       const container = document.documentElement; 
@@ -370,7 +387,7 @@ export default function MovieDetailClient({
     setCurrentEpIndex(index);
     setInitialTime(timeToSet);
     setIsPlaying(true);
-    forceMobileFullscreen(); // Gọi xoay màn hình
+    forceMobileFullscreen();
     saveProgress(index, timeToSet, savedEpData?.duration || 0, true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -428,7 +445,6 @@ export default function MovieDetailClient({
   const activeLink = getEpisodeLink(activeEpisode);
 
   const description = movie?.content || (movie as any)?.description || "";
-
   const isFullMovie = currentEpisodes.length <= 1;
 
   const imdbRating = movie?.tmdb?.vote_average
@@ -447,16 +463,6 @@ export default function MovieDetailClient({
   }, [imdbRating, slug]);
 
   const movieLang = movie?.lang || (movie as any)?.language || "";
-
-  const countryName = Array.isArray(movie?.country)
-    ? movie.country.map((c: any) => c.name).join(", ")
-    : typeof movie?.country === "string"
-    ? movie.country
-    : (movie as any)?.country?.name || "";
-
-  const categories = movie?.category && Array.isArray(movie.category)
-    ? movie.category.map((cat: any) => cat.name).join(", ")
-    : "";
 
   const getWatchButtonLabel = () => {
     if (!mounted || !history[slug]) return "Xem ngay";
@@ -477,7 +483,7 @@ export default function MovieDetailClient({
         {isPlaying && activeLink ? (
           <div className="relative w-full h-[75vh] md:h-screen">
             <VideoPlayer
-              key={slug} // Chỉ giữ lại key={slug} để không bị reload khi chuyển tập
+              key={slug}
               slug={slug}
               movieName={movie?.name || ""}
               videoUrl={activeLink}
@@ -502,18 +508,21 @@ export default function MovieDetailClient({
 
             <div className="relative w-full h-[45vh] md:h-screen bg-black overflow-hidden">
               <div className="absolute inset-0 w-full h-full">
-                {posterSrc && (
-                  <div className="block md:hidden relative w-full h-full">
-                    <Image loader={imageLoader} src={posterSrc} alt="Poster" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
-                  </div>
-                )}
-                {bannerSrc && (
-                  <div className="hidden md:block relative w-full h-full">
-                    <Image loader={imageLoader} src={bannerSrc} alt="Banner" fill sizes="100vw" quality={90} priority className="object-cover" style={{ objectPosition: "center 20%" }} />
-                  </div>
+                {(bannerSrc || posterSrc) && (
+                  <Image
+                    loader={imageLoader}
+                    src={bannerSrc || posterSrc}
+                    alt={movie?.name || "Banner"}
+                    fill
+                    sizes="100vw"
+                    quality={90}
+                    priority
+                    className="object-cover"
+                    style={{ objectPosition: "center 20%" }}
+                  />
                 )}
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/30 z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-black/30 z-10" />
             </div>
 
             {/* DESKTOP INFO */}
@@ -528,7 +537,6 @@ export default function MovieDetailClient({
                 />
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Badge IMDb */}
                   <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -536,38 +544,32 @@ export default function MovieDetailClient({
                     <span className="font-extrabold text-white">{displayImdb}</span>
                   </div>
 
-                  {/* Quality */}
                   <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movie?.quality || "FHD"}
                   </span>
 
-                  {/* Year */}
                   <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movie?.year || "2026"}
                   </span>
 
-                  {/* Language */}
                   {movieLang && (
                     <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                       {movieLang}
                     </span>
                   )}
 
-                  {/* Categories */}
                   {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
                     <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                       {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
                     </span>
                   )}
 
-                  {/* Số tập đã cập nhật / Tổng số tập (Ví dụ: 7/12 Tập) */}
                   {currentEpisodes && currentEpisodes.length > 0 && (
                     <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                       {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
                     </span>
                   )}
                   
-                  {/* Nút yêu thích */}
                   <button
                     onClick={toggleFavorite}
                     className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
@@ -594,7 +596,7 @@ export default function MovieDetailClient({
                     disabled={!isHistoryLoaded || !activeEpisode}
                     onClick={() => {
                       setIsPlaying(true);
-                      forceMobileFullscreen(); // Gọi xoay màn hình
+                      forceMobileFullscreen();
                     }}
                     className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
                   >
@@ -615,7 +617,6 @@ export default function MovieDetailClient({
               />
 
               <div className="flex flex-wrap items-center justify-center gap-2">
-                {/* Badge IMDb */}
                 <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                   <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -623,38 +624,32 @@ export default function MovieDetailClient({
                   <span className="font-extrabold text-white">{displayImdb}</span>
                 </div>
 
-                {/* Quality */}
                 <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                   {movie?.quality || "FHD"}
                 </span>
 
-                {/* Year */}
                 <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                   {movie?.year || "2026"}
                 </span>
 
-                {/* Language */}
                 {movieLang && (
                   <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movieLang}
                   </span>
                 )}
 
-                {/* Categories */}
                 {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
                   <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
                   </span>
                 )}
 
-                {/* Số tập đã cập nhật / Tổng số tập (Ví dụ: 7/12 Tập) */}
                 {currentEpisodes && currentEpisodes.length > 0 && (
                   <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
                     {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
                   </span>
                 )}
 
-                {/* Nút yêu thích */}
                 <button
                   onClick={toggleFavorite}
                   className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
@@ -680,7 +675,7 @@ export default function MovieDetailClient({
                   disabled={!isHistoryLoaded || !activeEpisode}
                   onClick={() => { 
                     setIsPlaying(true);
-                    forceMobileFullscreen(); // Gọi xoay màn hình
+                    forceMobileFullscreen();
                   }}
                   className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
                 >
