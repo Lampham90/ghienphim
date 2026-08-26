@@ -524,20 +524,16 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     const nextIdx = (currentHero + 1) % heroMoviesProcessed.length;
     const nextMovie = heroMoviesProcessed[nextIdx];
 
-    if (nextMovie) {
-      if (nextMovie.heroThumbUrl) {
-        const imgDesktop = new window.Image();
-        imgDesktop.src = nextMovie.heroThumbUrl.includes('tmdb.org')
-          ? nextMovie.heroThumbUrl
-          : imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 80 });
-      }
-      if (nextMovie.heroPosterUrl) {
-        const imgMobile = new window.Image();
-        imgMobile.src = nextMovie.heroPosterUrl.includes('tmdb.org')
-          ? nextMovie.heroPosterUrl
-          : imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 80 });
-      }
-    }
+    if (nextMovie.heroThumbUrl) {
+  const imgDesktop = new window.Image();
+  // Đưa tất cả qua imageLoader và giảm quality xuống 65
+  imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 70 });
+}
+if (nextMovie.heroPosterUrl) {
+  const imgMobile = new window.Image();
+  // Tương tự cho ảnh mobile
+  imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 70 });
+}
   }, [currentHero, heroMoviesProcessed]);
 
   // Auto Hero Slider
@@ -836,34 +832,34 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
               >
                 <div className="relative w-full h-full bg-black">
                   {/* DESKTOP THUMB IMAGE */}
-                  {m.heroThumbUrl && (
-                    <Image
-                      loader={isTmdbThumb ? undefined : imageLoader}
-                      unoptimized={isTmdbThumb}
-                      src={m.heroThumbUrl}
-                      alt={m.name || 'Hero Banner'}
-                      fill
-                      sizes="100vw"
-                      priority={index === 0}
-                      className="hidden md:block w-full h-full object-cover transform-gpu"
-                      style={{ objectPosition: 'center 20%' }}
-                    />
-                  )}
+{m.heroThumbUrl && (
+  <Image
+    loader={imageLoader} // Bắt buộc dùng imageLoader cho mọi nguồn
+    src={m.heroThumbUrl}
+    alt={m.name || 'Hero Banner'}
+    fill
+    sizes="100vw"
+    quality={70} // <-- Thêm chất lượng 65% ở đây
+    priority={index === 0}
+    className="hidden md:block w-full h-full object-cover transform-gpu"
+    style={{ objectPosition: 'center 20%' }}
+  />
+)}
 
-                  {/* MOBILE POSTER IMAGE */}
-                  {m.heroPosterUrl && (
-                    <Image
-                      loader={isTmdbPoster ? undefined : imageLoader}
-                      unoptimized={isTmdbPoster}
-                      src={m.heroPosterUrl}
-                      alt={m.name || 'Hero Banner Mobile'}
-                      fill
-                      sizes="100vw"
-                      priority={index === 0}
-                      className="block md:hidden w-full h-full object-cover transform-gpu"
-                      style={{ objectPosition: 'center top' }}
-                    />
-                  )}
+{/* MOBILE POSTER IMAGE */}
+{m.heroPosterUrl && (
+  <Image
+    loader={imageLoader} // Bắt buộc dùng imageLoader
+    src={m.heroPosterUrl}
+    alt={m.name || 'Hero Banner Mobile'}
+    fill
+    sizes="100vw"
+    quality={70} // <-- Thêm chất lượng 65% ở đây
+    priority={index === 0}
+    className="block md:hidden w-full h-full object-cover transform-gpu"
+    style={{ objectPosition: 'center top' }}
+  />
+)}
 
                   {/* Gradient Overlays tương phản nội dung */}
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
