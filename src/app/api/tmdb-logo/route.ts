@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   let type = searchParams.get('type') || 'movie';
   const query = searchParams.get('query'); // Nhận thêm tên phim để search dự phòng
 
-  // 1. TỰ ĐỘNG SEARCH TMDB NẾU THIẾU ID (Giải quyết lỗi Trang Chủ không có logo)
+  // 1. TỰ ĐỘNG SEARCH TMDB NẾU THIẾU ID (Giải quyết lỗi Trang Chủ không có logo/ảnh)
   if ((!tmdbId || tmdbId === '0' || tmdbId === 'undefined') && query) {
     try {
       const searchRes = await fetch(
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
   // Nếu vẫn không tìm được ID nào thì báo lỗi
   if (!tmdbId || tmdbId === '0' || tmdbId === 'undefined') {
-    return new Response(JSON.stringify({ logoUrl: null }), { status: 200 });
+    return new Response(JSON.stringify({ logoUrl: null, backdropUrl: null, posterUrl: null }), { status: 200 });
   }
 
   try {
@@ -45,23 +45,31 @@ export async function GET(req: Request) {
 
     const data = await response.json();
     const logos = data.logos || [];
+    const backdrops = data.backdrops || [];
+    const posters = data.posters || [];
 
-    // Ưu tiên logo tiếng Việt (vi) -> tiếng Anh (en) -> không ngôn ngữ (null) -> logo đầu tiên
+    // 1. Ưu tiên logo tiếng Việt (vi) -> tiếng Anh (en) -> không ngôn ngữ (null) -> logo đầu tiên
     const bestLogo =
       logos.find((l: any) => l.iso_639_1 === 'vi') ||
       logos.find((l: any) => l.iso_639_1 === 'en') ||
       logos.find((l: any) => l.iso_639_1 === null) ||
       logos[0];
 
-    if (!bestLogo) {
-      return new Response(JSON.stringify({ logoUrl: null }), { status: 200 });
-    }
+    // 2. Lấy ảnh backdrop chất lượng nhất cho Banner PC
+    const bestBackdrop = backdrops[0];
 
-    const logoUrl = `https://image.tmdb.org/t/p/original${bestLogo.file_path}`;
+    // 3. Lấy ảnh poster chất lượng nhất cho Banner Mobile
+    const bestPoster = posters[0];
+
+    const logoUrl = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : null;
+    const backdropUrl = bestBackdrop ? `https://image.tmdb.org/t/p/original${bestBackdrop.file_path}` : null;
+    const posterUrl = bestPoster ? `https://image.tmdb.org/t/p/original${bestPoster.file_path}` : null;
 
     return new Response(JSON.stringify({
       logoUrl,
-      aspectRatio: bestLogo.aspect_ratio
+      backdropUrl,
+      posterUrl,
+      aspectRatio: bestLogo?.aspect_ratio || null
     }), {
       status: 200,
       headers: {
