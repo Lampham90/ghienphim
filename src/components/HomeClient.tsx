@@ -335,7 +335,8 @@ const RankedMovieRow = memo(({
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[300px]">
+        {/* Đã gỡ bỏ snap-x snap-mandatory ở đây */}
+        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide pr-20 scroll-smooth min-h-[300px]">
           {section.items?.map((movie, index) => movie && <MovieCard key={movie.slug ? `${section.slug}-${movie.slug}` : `${section.slug}-item-${index}`} movie={movie} variant={variant} index={index} />)}
         </div>
       </div>
@@ -362,7 +363,8 @@ const MovieRow = memo(({
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[250px]">
+        {/* Đã gỡ bỏ snap-x snap-mandatory ở đây */}
+        <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide pr-20 scroll-smooth min-h-[250px]">
           {section.items?.map((movie, index) => movie && (
              <MovieCard key={movie.slug ? `${section.slug}-${movie.slug}` : `${section.slug}-item-${index}`} movie={movie} variant={variant} />
           ))}
@@ -411,7 +413,8 @@ const HistoryRow = memo(() => {
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory pr-20 scroll-smooth min-h-[180px]">
+        {/* Đã gỡ bỏ snap-x snap-mandatory ở đây */}
+        <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide pr-20 scroll-smooth min-h-[180px]">
           {historyMovies.map((m) => <HistoryItem key={m.slug} m={m} />)}
         </div>
       </div>
