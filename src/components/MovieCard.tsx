@@ -50,13 +50,16 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   const embeddedPoster = getEmbeddedTmdbPoster(movie);
   const embeddedThumb = getEmbeddedTmdbThumb(movie);
 
-  // Ảnh TMDB tìm được qua fetch nền (chỉ khi data chưa có sẵn TMDB) — bắt buộc phải có TMDB, KKPhim chỉ fallback cuối
+  // Ảnh TMDB tìm được qua fetch nền (chỉ khi data chưa có sẵn TMDB) — chỉ dùng để TRUYỀN sang Detail
+  // khi bấm vào, KHÔNG hiển thị trực tiếp trên card ở Home. Lý do: khi thiếu tmdb id, API phải search
+  // theo TÊN phim nên đôi khi khớp nhầm sang phim khác (trùng tên, khác quốc gia) -> hiển thị sai ảnh
+  // ngay trên card rất dễ nhận ra và gây khó chịu khi đang lướt cả dãy phim.
   const [fetchedTmdb, setFetchedTmdb] = useState<{ poster: string | null; backdrop: string | null }>(() => {
     return (movie?.slug && tmdbCardCache.get(movie.slug)) || { poster: null, backdrop: null };
   });
 
   useEffect(() => {
-    // Đã có sẵn ảnh TMDB trong data (D1 đã sync) -> khỏi cần gọi API tìm thêm
+    // Đã có sẵn ảnh TMDB trong data (D1 đã sync, đáng tin cậy) -> khỏi cần gọi API tìm thêm
     if (embeddedPoster && embeddedThumb) return;
     if (!movie?.slug) return;
 
@@ -88,9 +91,14 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
     return () => { cancelled = true; };
   }, [movie?.slug, embeddedPoster, embeddedThumb]);
 
-  // Ưu tiên tuyệt đối TMDB (có sẵn trong data -> fetch được) -> chỉ fallback KKPhim khi thật sự không có
-  const rawPoster = embeddedPoster || fetchedTmdb.poster || getRawKkphimPoster(movie);
-  const rawThumb = embeddedThumb || fetchedTmdb.backdrop || getRawKkphimThumb(movie);
+  // ✅ ẢNH HIỂN THỊ TRÊN CARD: luôn dùng KKPhim để đảm bảo đúng phim tuyệt đối khi lướt Home
+  const displayPoster = getRawKkphimPoster(movie);
+  const displayThumb = getRawKkphimThumb(movie);
+
+  // ✅ ẢNH TRUYỀN SANG DETAIL KHI BẤM VÀO: ưu tiên TMDB (embedded đáng tin -> fetch ngầm) để hiển thị
+  // nét đẹp tức thời ở trang chi tiết; nếu hoàn toàn không có TMDB mới fallback KKPhim (ảnh mờ)
+  const rawPoster = embeddedPoster || fetchedTmdb.poster || displayPoster;
+  const rawThumb = embeddedThumb || fetchedTmdb.backdrop || displayThumb;
 
   const fallbackImg = "https://phimimg.com/upload/poster/dang-cap-nhat.jpg";
   const computedPriority = priority && (index ?? 0) < 3;
@@ -103,7 +111,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
           className={`relative aspect-video w-full rounded-2xl overflow-hidden border border-white/5 bg-[#121212] ${floatingEffect}`} draggable={false}>
           <Image 
             loader={imageLoader}
-            src={imgError ? fallbackImg : (rawThumb || fallbackImg)}
+            src={imgError ? fallbackImg : (displayThumb || fallbackImg)}
             alt={movie.name} 
             fill 
             sizes="(max-width: 768px) 250px, 320px"
@@ -143,7 +151,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
         draggable={false}>
         <Image 
           loader={imageLoader}
-          src={imgError ? fallbackImg : (rawPoster || fallbackImg)}
+          src={imgError ? fallbackImg : (displayPoster || fallbackImg)}
           alt={movie.name} 
           fill 
           sizes="(max-width: 768px) 240px, 450px"
