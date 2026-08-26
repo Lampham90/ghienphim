@@ -132,9 +132,12 @@ export default function MovieDetailClient({
       
       const tmdbId = movie.tmdb?.id || (movie as any)?.id || "";
       const queryName = (movie as any).origin_name || movie.name || "";
+      // THÊM BIẾN TYPE Ở ĐÂY
+      const tmdbType = movie.tmdb?.type || (movie as any)?.type || "movie"; 
       
       try {
-        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&query=${encodeURIComponent(queryName)}`);
+        // SỬA LẠI URL FETCH
+        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${tmdbType}&query=${encodeURIComponent(queryName)}`);
         if (res.ok) {
           const data = await res.json();
           setTmdbImages({
@@ -165,9 +168,24 @@ export default function MovieDetailClient({
   }, [previewThumb, tmdbImages.backdrop, movie]);
 
   // Đồng bộ logic lấy Poster (Ưu tiên TMDB poster (mới fetch) -> TMDB sẵn có -> KKPhim)
+  // Đồng bộ logic lấy Banner/Backdrop 
+  const bannerSrc = useMemo(() => {
+    if (tmdbImages.backdrop) return tmdbImages.backdrop; // Ưu tiên số 1: Ảnh TMDB mới fetch
+    if (previewThumb) return previewThumb; // Ưu tiên 2: Ảnh truyền qua URL
+    if (!movie) return "";
+
+    if (movie.tmdb?.backdrop_path) {
+      return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
+    }
+
+    const rawThumb = (movie as any).thumb_url || movie.thumb || movie.poster;
+    return getImageUrl(rawThumb);
+  }, [previewThumb, tmdbImages.backdrop, movie]);
+
+  // Đồng bộ logic lấy Poster 
   const posterSrc = useMemo(() => {
-    if (previewPoster) return previewPoster;
-    if (tmdbImages.poster) return tmdbImages.poster; // Ưu tiên 1: Ảnh TMDB fetch được
+    if (tmdbImages.poster) return tmdbImages.poster; // Ưu tiên số 1: Ảnh TMDB mới fetch
+    if (previewPoster) return previewPoster; // Ưu tiên 2: Ảnh truyền qua URL
     if (!movie) return "";
 
     if (movie.tmdb?.poster_path) {
