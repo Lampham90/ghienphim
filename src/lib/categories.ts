@@ -55,6 +55,7 @@ export const HOME_CATEGORIES: Category[] = [
   { title: "🎬 Anime Movie Coi là dính", slug: "anime_movie", type: "movie", rowType: "ranked", rowVariant: "ranked1" },
   { title: "🇰🇷 Drama Hàn chữa lành ", slug: "bo_han", type: "movie", rowType: "normal", rowVariant: "vertical" },
   { title: "📺 Drama Trung - xuyên không từa lưa", slug: "bo_trung", type: "movie", rowType: "normal", rowVariant: "vertical" },
+  { title: " TV Show", slug: "tv_show", type: "movie", rowType: "normal", rowVariant: "vertical" },
   { title: "🇻🇳 Cine Việt nè Ní", slug: "le_vn", type: "movie", rowType: "normal", rowVariant: "vertical" },
   { title: "🎬 Thót tim cùng phim kinh dị ", slug: "kinh_di", type: "movie", rowType: "normal", rowVariant: "vertical" },
   { title: "🇰🇷 Điện Ảnh Hàn cùng Oppa", slug: "le_han", type: "movie", rowType: "ranked", rowVariant: "ranked3" },
