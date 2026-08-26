@@ -119,6 +119,12 @@ export default function MovieDetailClient({
   const previewPoster = searchParams.get("poster") || "";
   const previewThumb = searchParams.get("thumb") || "";
 
+  // Kiểm tra preview truyền từ Home có PHẢI ảnh TMDB thật hay không
+  // (Card ở Home có thể không có sẵn data tmdb -> rawPoster/rawThumb lúc đó là ảnh KKPhim fallback,
+  // không phải TMDB, nên KHÔNG được coi là "đã có TMDB" trong trường hợp đó)
+  const isPreviewPosterTmdb = /image\.tmdb\.org/.test(previewPoster);
+  const isPreviewThumbTmdb = /image\.tmdb\.org/.test(previewThumb);
+
   // State để lưu trữ hình ảnh lấy từ API TMDB
   const [tmdbImages, setTmdbImages] = useState<{ backdrop: string | null; poster: string | null }>({
     backdrop: null,
@@ -126,11 +132,11 @@ export default function MovieDetailClient({
   });
 
   // Effect chạy ngầm để lấy ảnh chất lượng cao từ TMDB
-  // ⚠️ CHỈ gọi API này khi KHÔNG có sẵn ảnh preview truyền thẳng từ HomeClient.
-  // Nếu người dùng bấm banner/poster từ trang chủ, ảnh TMDB đã có sẵn (previewPoster/previewThumb)
-  // -> hiển thị tức thời, không cần gọi lại API tmdb-logo (tránh lãng phí request + tránh ảnh bị đổi/nháy).
+  // ⚠️ CHỈ bỏ qua gọi API này khi ảnh preview truyền từ Home ĐÃ LÀ ảnh TMDB thật (đỡ tốn request thừa).
+  // Nếu preview chỉ là ảnh KKPhim fallback (card ở Home chưa có sẵn TMDB), hoặc không có preview,
+  // thì BẮT BUỘC vẫn phải fetch để tìm & nâng cấp lên ảnh TMDB thật ngay khi có.
   useEffect(() => {
-    if (previewPoster && previewThumb) return; // Đã có đủ ảnh TMDB từ Home rồi, khỏi fetch lại
+    if (isPreviewPosterTmdb && isPreviewThumbTmdb) return; // Đã chắc chắn có ảnh TMDB thật từ Home rồi, khỏi fetch lại
 
     const fetchTmdbImages = async () => {
       if (!movie) return;
@@ -154,38 +160,41 @@ export default function MovieDetailClient({
     };
 
     fetchTmdbImages();
-  }, [movie?.tmdb?.id, movie?.name, previewPoster, previewThumb]);
+  }, [movie?.tmdb?.id, movie?.name, isPreviewPosterTmdb, isPreviewThumbTmdb]);
 
-  // Đồng bộ Banner/Backdrop
-  // ƯU TIÊN TUYỆT ĐỐI: ảnh TMDB đã truyền thẳng từ HomeClient (previewThumb) -> hiển thị TỨC THÌ, không chờ.
-  // Chỉ khi KHÔNG có preview (vào thẳng link chi tiết, không qua Home) mới xét tới:
-  // ảnh tmdb có sẵn trong data phim -> ảnh tmdb fetch ngầm -> cuối cùng mới fallback KKPhim (ảnh mờ).
+  // Đồng bộ Banner/Backdrop — LUÔN ưu tiên TMDB (bắt buộc), KKPhim chỉ là fallback cuối cùng khi thật sự
+  // không tìm được ảnh TMDB nào. Thứ tự:
+  // 1. Preview truyền thẳng từ Home NẾU đã là ảnh TMDB thật -> hiển thị TỨC THÌ, không chờ.
+  // 2. Ảnh tmdb có sẵn trong data phim (khi movie đã load xong).
+  // 3. Ảnh tmdb fetch ngầm qua /api/tmdb-logo (tìm được match theo tên phim).
+  // 4. Preview từ Home dù chỉ là KKPhim fallback -> vẫn hiển thị tạm trong lúc đang fetch TMDB ở bước 3.
+  // 5. Fallback cuối cùng: KKPhim (ảnh mờ) khi hoàn toàn không tìm được ảnh TMDB nào.
   const bannerSrc = useMemo(() => {
-    if (previewThumb) return previewThumb;
+    if (isPreviewThumbTmdb) return previewThumb;
     if (movie?.tmdb?.backdrop_path) {
       return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
     }
     if (tmdbImages.backdrop) return tmdbImages.backdrop;
+    if (previewThumb) return previewThumb;
     if (!movie) return "";
 
-    // Fallback cuối cùng: nguồn KKPhim (ảnh mờ) - chỉ dùng khi không có ảnh TMDB nào
     const rawThumb = (movie as any).thumb_url || movie.thumb || movie.poster;
     return getImageUrl(rawThumb);
-  }, [previewThumb, movie, tmdbImages.backdrop]);
+  }, [previewThumb, isPreviewThumbTmdb, movie, tmdbImages.backdrop]);
 
   // Đồng bộ Poster - cùng thứ tự ưu tiên như Banner ở trên
   const posterSrc = useMemo(() => {
-    if (previewPoster) return previewPoster;
+    if (isPreviewPosterTmdb) return previewPoster;
     if (movie?.tmdb?.poster_path) {
       return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
     }
     if (tmdbImages.poster) return tmdbImages.poster;
+    if (previewPoster) return previewPoster;
     if (!movie) return "";
 
-    // Fallback cuối cùng: nguồn KKPhim (ảnh mờ) - chỉ dùng khi không có ảnh TMDB nào
     const rawPoster = movie.poster || (movie as any).poster_url;
     return getImageUrl(rawPoster);
-  }, [previewPoster, movie, tmdbImages.poster]);
+  }, [previewPoster, isPreviewPosterTmdb, movie, tmdbImages.poster]);
 
   const fetchedNguoncKeyRef = useRef<string | null>(null);
 

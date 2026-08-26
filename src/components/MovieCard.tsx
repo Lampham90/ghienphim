@@ -1,5 +1,5 @@
 "use client";
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import MovieBadge from '@/components/MovieBadge'; 
@@ -14,23 +14,29 @@ interface MovieCardProps {
   isDragging?: boolean;
 }
 
-// Helper ưu tiên lấy ảnh Poster từ TMDB
-const getTmdbOrRawPoster = (movie: any) => {
+// Cache chung theo slug để tránh gọi trùng API tmdb-logo khi cùng 1 phim xuất hiện ở nhiều hàng/nhiều lần render
+const tmdbCardCache = new Map<string, { poster: string | null; backdrop: string | null }>();
+
+// Helper: chỉ lấy ảnh TMDB nếu ĐÃ CÓ SẴN trong data (embedded), không fallback KKPhim ở đây
+const getEmbeddedTmdbPoster = (movie: any): string | null => {
   if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
   if (movie?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
   const p = movie?.poster_url || movie?.poster;
   if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) return p;
-  return getImageUrl(p);
+  return null;
 };
 
-// Helper ưu tiên lấy ảnh Backdrop/Thumb từ TMDB
-const getTmdbOrRawThumb = (movie: any) => {
+const getEmbeddedTmdbThumb = (movie: any): string | null => {
   if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.tmdb.backdrop_path}`;
   if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`;
   const t = movie?.thumb_url || movie?.thumb;
   if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) return t;
-  return getImageUrl(t);
+  return null;
 };
+
+// Helper: ảnh gốc KKPhim (mờ) - chỉ dùng làm phương án cuối cùng
+const getRawKkphimPoster = (movie: any) => getImageUrl(movie?.poster_url || movie?.poster);
+const getRawKkphimThumb = (movie: any) => getImageUrl(movie?.thumb_url || movie?.thumb);
 
 const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = false, isDragging = false }: MovieCardProps) => {
   const [imgError, setImgError] = useState(false);
@@ -41,9 +47,50 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   const floatingEffect = "transition-[transform,box-shadow] duration-300 ease-out transform-gpu group-hover:-translate-y-2 group-hover:shadow-[0_10px_20px_rgba(220,38,38,0.4)] group-hover:z-50";
   const imageZoomEffect = "transition-transform duration-500 ease-out transform-gpu group-hover:scale-105";
 
-  // Lấy ảnh ưu tiên TMDB
-  const rawPoster = getTmdbOrRawPoster(movie);
-  const rawThumb = getTmdbOrRawThumb(movie);
+  const embeddedPoster = getEmbeddedTmdbPoster(movie);
+  const embeddedThumb = getEmbeddedTmdbThumb(movie);
+
+  // Ảnh TMDB tìm được qua fetch nền (chỉ khi data chưa có sẵn TMDB) — bắt buộc phải có TMDB, KKPhim chỉ fallback cuối
+  const [fetchedTmdb, setFetchedTmdb] = useState<{ poster: string | null; backdrop: string | null }>(() => {
+    return (movie?.slug && tmdbCardCache.get(movie.slug)) || { poster: null, backdrop: null };
+  });
+
+  useEffect(() => {
+    // Đã có sẵn ảnh TMDB trong data (D1 đã sync) -> khỏi cần gọi API tìm thêm
+    if (embeddedPoster && embeddedThumb) return;
+    if (!movie?.slug) return;
+
+    const cached = tmdbCardCache.get(movie.slug);
+    if (cached) {
+      setFetchedTmdb(cached);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchTmdb = async () => {
+      try {
+        const tmdbId = movie?.tmdb?.id || movie?.id || '';
+        const type = movie?.tmdb?.type || movie?.type || 'movie';
+        const query = movie?.name || movie?.origin_name || '';
+        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${type}&query=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const result = { poster: data.posterUrl || null, backdrop: data.backdropUrl || null };
+          tmdbCardCache.set(movie.slug, result);
+          if (!cancelled) setFetchedTmdb(result);
+        }
+      } catch (e) {
+        // im lặng bỏ qua, sẽ fallback KKPhim ở dưới
+      }
+    };
+    fetchTmdb();
+
+    return () => { cancelled = true; };
+  }, [movie?.slug, embeddedPoster, embeddedThumb]);
+
+  // Ưu tiên tuyệt đối TMDB (có sẵn trong data -> fetch được) -> chỉ fallback KKPhim khi thật sự không có
+  const rawPoster = embeddedPoster || fetchedTmdb.poster || getRawKkphimPoster(movie);
+  const rawThumb = embeddedThumb || fetchedTmdb.backdrop || getRawKkphimThumb(movie);
 
   const fallbackImg = "https://phimimg.com/upload/poster/dang-cap-nhat.jpg";
   const computedPriority = priority && (index ?? 0) < 3;
