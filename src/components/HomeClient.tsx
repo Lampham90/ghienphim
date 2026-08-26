@@ -13,7 +13,6 @@ import InterestedSection from '@/components/InterestedSection';
 import { useMovieStore } from "@/lib/useMovieStore";
 import imageLoader from '@/lib/imageLoader';
 
-
 const montserrat = Montserrat({ subsets: ['vietnamese'], weight: ['400', '700', '900'] });
 
 // ==========================================
@@ -74,14 +73,12 @@ interface HistoryRecord {
 // HELPER FUNCTIONS
 // ==========================================
 const getMovieRating = (m: any): RatingResult => {
-  // Ưu tiên IMDb thật từ m.imdb hoặc m.tmdb hoặc điểm số trực tiếp
   const realScore = Number(m?.imdb?.vote_average || m?.tmdb?.vote_average || m?.imdb_score || m?.vote_average);
 
   if (!isNaN(realScore) && realScore > 0) {
     return { score: realScore.toFixed(1), label: "IMDb" };
   }
 
-  // Fallback sang random theo slug nếu hoàn toàn không có dữ liệu
   if (m?.slug) {
     let hash = 0;
     for (let i = 0; i < m.slug.length; i++) {
@@ -335,7 +332,6 @@ const RankedMovieRow = memo(({
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        {/* Đã gỡ bỏ snap-x snap-mandatory ở đây */}
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-10 scrollbar-hide pr-20 scroll-smooth min-h-[300px]">
           {section.items?.map((movie, index) => movie && <MovieCard key={movie.slug ? `${section.slug}-${movie.slug}` : `${section.slug}-item-${index}`} movie={movie} variant={variant} index={index} />)}
         </div>
@@ -363,7 +359,6 @@ const MovieRow = memo(({
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        {/* Đã gỡ bỏ snap-x snap-mandatory ở đây */}
         <div ref={rowRef} className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide pr-20 scroll-smooth min-h-[250px]">
           {section.items?.map((movie, index) => movie && (
              <MovieCard key={movie.slug ? `${section.slug}-${movie.slug}` : `${section.slug}-item-${index}`} movie={movie} variant={variant} />
@@ -413,7 +408,6 @@ const HistoryRow = memo(() => {
         <ScrollNav rowRef={rowRef} />
       </div>
       <div className="relative">
-        {/* Đã gỡ bỏ snap-x snap-mandatory ở đây */}
         <div ref={rowRef} className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide pr-20 scroll-smooth min-h-[180px]">
           {historyMovies.map((m) => <HistoryItem key={m.slug} m={m} />)}
         </div>
@@ -447,7 +441,45 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // Memoize Hero Movies
+  // State lưu trữ ảnh lấy từ TMDB API (/api/tmdb-logo)
+  const [tmdbHeroImages, setTmdbHeroImages] = useState<Record<string, { backdropUrl: string | null; posterUrl: string | null }>>({});
+
+  // Gọi API tmdb-logo để lấy ảnh backdrop & poster gốc nét nhất
+  useEffect(() => {
+    const fetchHeroImages = async () => {
+      const newImages: Record<string, { backdropUrl: string | null; posterUrl: string | null }> = {};
+      
+      await Promise.all(
+        initialHeroMovies.map(async (m) => {
+          if (!m) return;
+          const tmdbId = m?.tmdb?.id || (m as any)?.id || '';
+          const type = m?.tmdb?.type || (m as any)?.type || 'movie';
+          const query = m?.name || '';
+          
+          try {
+            const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${type}&query=${encodeURIComponent(query)}`);
+            if (res.ok) {
+              const data = await res.json();
+              newImages[m.slug] = {
+                backdropUrl: data.backdropUrl || null,
+                posterUrl: data.posterUrl || null
+              };
+            }
+          } catch (err) {
+            console.error("Lỗi fetch TMDB cho banner:", m.slug, err);
+          }
+        })
+      );
+      
+      setTmdbHeroImages(newImages);
+    };
+
+    if (initialHeroMovies && initialHeroMovies.length > 0) {
+      fetchHeroImages();
+    }
+  }, [initialHeroMovies]);
+
+  // Memoize Hero Movies - Ưu tiên ảnh TMDB -> fallback KKPhim
   const heroMoviesProcessed = useMemo(() => {
     return initialHeroMovies.map((m) => {
       const rating = getMovieRating(m);
@@ -471,8 +503,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         displayLang = "T.Minh";
       }
 
-      const heroThumbUrl = getImageUrl(m.thumb_url || m.thumb || m.poster);
-      const heroPosterUrl = getImageUrl(m.poster || m.poster_url || m.thumb_url || m.thumb);
+      const tmdbData = tmdbHeroImages[m.slug];
+      const heroThumbUrl = tmdbData?.backdropUrl || getImageUrl(m.thumb_url || m.thumb || m.poster);
+      const heroPosterUrl = tmdbData?.posterUrl || getImageUrl(m.poster || m.poster_url || m.thumb_url || m.thumb);
 
       return {
         ...m,
@@ -483,7 +516,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         heroPosterUrl
       };
     });
-  }, [initialHeroMovies]);
+  }, [initialHeroMovies, tmdbHeroImages]);
 
   // Preload Slide kế tiếp
   useEffect(() => {
@@ -494,11 +527,15 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     if (nextMovie) {
       if (nextMovie.heroThumbUrl) {
         const imgDesktop = new window.Image();
-        imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 80 });
+        imgDesktop.src = nextMovie.heroThumbUrl.includes('tmdb.org')
+          ? nextMovie.heroThumbUrl
+          : imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 80 });
       }
       if (nextMovie.heroPosterUrl) {
         const imgMobile = new window.Image();
-        imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 80 });
+        imgMobile.src = nextMovie.heroPosterUrl.includes('tmdb.org')
+          ? nextMovie.heroPosterUrl
+          : imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 80 });
       }
     }
   }, [currentHero, heroMoviesProcessed]);
@@ -789,6 +826,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
               return null;
             }
 
+            const isTmdbThumb = m.heroThumbUrl?.includes('tmdb.org');
+            const isTmdbPoster = m.heroPosterUrl?.includes('tmdb.org');
+
             return (
               <div 
                 key={m.slug || index} 
@@ -798,7 +838,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   {/* DESKTOP THUMB IMAGE */}
                   {m.heroThumbUrl && (
                     <Image
-                      loader={imageLoader}
+                      loader={isTmdbThumb ? undefined : imageLoader}
+                      unoptimized={isTmdbThumb}
                       src={m.heroThumbUrl}
                       alt={m.name || 'Hero Banner'}
                       fill
@@ -812,7 +853,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   {/* MOBILE POSTER IMAGE */}
                   {m.heroPosterUrl && (
                     <Image
-                      loader={imageLoader}
+                      loader={isTmdbPoster ? undefined : imageLoader}
+                      unoptimized={isTmdbPoster}
                       src={m.heroPosterUrl}
                       alt={m.name || 'Hero Banner Mobile'}
                       fill
@@ -827,10 +869,10 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent z-10 md:hidden" />
                  
-                  {/* Lớp màng mờ Fade đáy Banner (đặt z-15 dưới Hero Content z-20 để không che chữ/nút) */}
+                  {/* Lớp màng mờ Fade đáy Banner */}
                   <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none" />
 
-                  {/* HERO CONTENT (Nằm trên z-20 giúp chữ và nút Xem ngay luôn nổi bật, sắc nét) */}
+                  {/* HERO CONTENT */}
                   <div className="absolute inset-0 z-20 flex flex-col justify-end pb-10 px-6 md:pb-24 md:px-20 text-center md:text-left items-center md:items-start">
                     <div className="max-w-xl md:max-w-3xl lg:max-w-4xl space-y-2.5 md:space-y-4">
                       
@@ -848,7 +890,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         subTitle={(m as any)?.origin_name || m?.name || ""}
                       />
 
-                      {/* Thông tin phụ: Sử dụng điểm IMDb thật */}
+                      {/* Thông tin phụ: Điểm IMDb thật */}
                       <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
 
                         {m.rating && (
