@@ -153,29 +153,33 @@ export default function MovieDetailClient({
     fetchTmdbImages();
   }, [movie?.tmdb?.id, movie?.name]);
 
-  // Đồng bộ logic lấy Banner/Backdrop 
+  // Đồng bộ logic lấy Banner/Backdrop (Ưu tiên ảnh TMDB có sẵn trong object -> Ảnh mới fetch -> Preview -> KKPhim)
   const bannerSrc = useMemo(() => {
-    if (tmdbImages.backdrop) return tmdbImages.backdrop; // Ưu tiên số 1: Ảnh TMDB mới fetch
-    if (previewThumb) return previewThumb; // Ưu tiên 2: Ảnh truyền qua URL
-    if (!movie) return "";
-
-    if (movie.tmdb?.backdrop_path) {
+    // 1. Lấy thẳng từ dữ liệu TMDB có sẵn của phim ngay từ frame đầu tiên (Chống nhảy hình)
+    if (movie?.tmdb?.backdrop_path) {
       return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
     }
+    // 2. Ảnh lấy từ API fetch ngầm (nếu có sau đó)
+    if (tmdbImages.backdrop) return tmdbImages.backdrop; 
+    // 3. Ảnh truyền qua URL
+    if (previewThumb) return previewThumb; 
+    if (!movie) return "";
 
     const rawThumb = (movie as any).thumb_url || movie.thumb || movie.poster;
     return getImageUrl(rawThumb);
   }, [previewThumb, tmdbImages.backdrop, movie]);
 
-  // Đồng bộ logic lấy Poster 
+  // Đồng bộ logic lấy Poster
   const posterSrc = useMemo(() => {
-    if (tmdbImages.poster) return tmdbImages.poster; // Ưu tiên số 1: Ảnh TMDB mới fetch
-    if (previewPoster) return previewPoster; // Ưu tiên 2: Ảnh truyền qua URL
-    if (!movie) return "";
-
-    if (movie.tmdb?.poster_path) {
+    // 1. Lấy thẳng từ dữ liệu TMDB có sẵn của phim ngay từ frame đầu tiên (Chống nhảy hình)
+    if (movie?.tmdb?.poster_path) {
       return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
     }
+    // 2. Ảnh lấy từ API fetch ngầm
+    if (tmdbImages.poster) return tmdbImages.poster; 
+    // 3. Ảnh truyền qua URL
+    if (previewPoster) return previewPoster; 
+    if (!movie) return "";
 
     const rawPoster = movie.poster || (movie as any).poster_url;
     return getImageUrl(rawPoster);
