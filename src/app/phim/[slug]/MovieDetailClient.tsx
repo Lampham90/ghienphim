@@ -119,34 +119,27 @@ export default function MovieDetailClient({
   const previewPoster = searchParams.get("poster") || "";
   const previewThumb = searchParams.get("thumb") || "";
 
-  // Kiểm tra preview truyền từ Home có PHẢI ảnh TMDB thật hay không
-  // (Card ở Home có thể không có sẵn data tmdb -> rawPoster/rawThumb lúc đó là ảnh KKPhim fallback,
-  // không phải TMDB, nên KHÔNG được coi là "đã có TMDB" trong trường hợp đó)
   const isPreviewPosterTmdb = /image\.tmdb\.org/.test(previewPoster);
   const isPreviewThumbTmdb = /image\.tmdb\.org/.test(previewThumb);
 
-  // State để lưu trữ hình ảnh lấy từ API TMDB
   const [tmdbImages, setTmdbImages] = useState<{ backdrop: string | null; poster: string | null }>({
     backdrop: null,
     poster: null,
   });
 
-  // Effect chạy ngầm để lấy ảnh chất lượng cao từ TMDB
-  // ⚠️ CHỈ bỏ qua gọi API này khi ảnh preview truyền từ Home ĐÃ LÀ ảnh TMDB thật (đỡ tốn request thừa).
-  // Nếu preview chỉ là ảnh KKPhim fallback (card ở Home chưa có sẵn TMDB), hoặc không có preview,
-  // thì BẮT BUỘC vẫn phải fetch để tìm & nâng cấp lên ảnh TMDB thật ngay khi có.
   useEffect(() => {
-    if (isPreviewPosterTmdb && isPreviewThumbTmdb) return; // Đã chắc chắn có ảnh TMDB thật từ Home rồi, khỏi fetch lại
+    if (isPreviewPosterTmdb && isPreviewThumbTmdb) return;
 
     const fetchTmdbImages = async () => {
       if (!movie) return;
       
       const tmdbId = movie.tmdb?.id || (movie as any)?.id || "";
-      const queryName = (movie as any).origin_name || movie.name || "";
+      const imdbId = movie.imdb?.id || (movie as any)?.imdb_id || "";
+      const queryName = getCleanName((movie as any).origin_name || movie.name || "");
       const tmdbType = movie.tmdb?.type || (movie as any)?.type || "movie"; 
       
       try {
-        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${tmdbType}&query=${encodeURIComponent(queryName)}`);
+        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&imdbId=${imdbId}&type=${tmdbType}&query=${encodeURIComponent(queryName)}`);
         if (res.ok) {
           const data = await res.json();
           setTmdbImages({
@@ -162,13 +155,6 @@ export default function MovieDetailClient({
     fetchTmdbImages();
   }, [movie?.tmdb?.id, movie?.name, isPreviewPosterTmdb, isPreviewThumbTmdb]);
 
-  // Đồng bộ Banner/Backdrop — LUÔN ưu tiên TMDB (bắt buộc), KKPhim chỉ là fallback cuối cùng khi thật sự
-  // không tìm được ảnh TMDB nào. Thứ tự:
-  // 1. Preview truyền thẳng từ Home NẾU đã là ảnh TMDB thật -> hiển thị TỨC THÌ, không chờ.
-  // 2. Ảnh tmdb có sẵn trong data phim (khi movie đã load xong).
-  // 3. Ảnh tmdb fetch ngầm qua /api/tmdb-logo (tìm được match theo tên phim).
-  // 4. Preview từ Home dù chỉ là KKPhim fallback -> vẫn hiển thị tạm trong lúc đang fetch TMDB ở bước 3.
-  // 5. Fallback cuối cùng: KKPhim (ảnh mờ) khi hoàn toàn không tìm được ảnh TMDB nào.
   const bannerSrc = useMemo(() => {
     if (isPreviewThumbTmdb) return previewThumb;
     if (movie?.tmdb?.backdrop_path) {
@@ -182,7 +168,6 @@ export default function MovieDetailClient({
     return getImageUrl(rawThumb);
   }, [previewThumb, isPreviewThumbTmdb, movie, tmdbImages.backdrop]);
 
-  // Đồng bộ Poster - cùng thứ tự ưu tiên như Banner ở trên
   const posterSrc = useMemo(() => {
     if (isPreviewPosterTmdb) return previewPoster;
     if (movie?.tmdb?.poster_path) {
@@ -550,7 +535,7 @@ export default function MovieDetailClient({
           <div className="relative w-full">
             <button
               onClick={() => router.back()}
-              className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 backdrop-blur-xl p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group shadow-2xl"
+              className="absolute top-6 left-6 md:left-12 z-[110] bg-black/40 p-2.5 rounded-full border border-white/10 hover:border-red-600 transition-all group"
             >
               <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -582,48 +567,49 @@ export default function MovieDetailClient({
                 
                 <MovieLogoTitle
                   tmdbId={movie?.tmdb?.id}
+                  imdbId={movie?.imdb?.id || (movie as any)?.imdb_id}
                   tmdbType={movie?.tmdb?.type || (movie as any)?.type}
                   title={movie?.name || "..."}
                   subTitle={(movie as any)?.origin_name || movie?.name}
                 />
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                  <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                     <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                     <span className="font-extrabold text-white">{displayImdb}</span>
                   </div>
 
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                     {movie?.quality || "FHD"}
                   </span>
 
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                     {movie?.year || "2026"}
                   </span>
 
                   {movieLang && (
-                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                       {movieLang}
                     </span>
                   )}
 
                   {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
-                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                       {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
                     </span>
                   )}
 
                   {currentEpisodes && currentEpisodes.length > 0 && (
-                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                       {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
                     </span>
                   )}
                   
                   <button
                     onClick={toggleFavorite}
-                    className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
+                    className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 shadow-sm ${
                       isFavorite
                         ? "bg-red-500/20 border-red-500/50 text-red-500"
                         : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
@@ -649,7 +635,7 @@ export default function MovieDetailClient({
                       setIsPlaying(true);
                       forceMobileFullscreen();
                     }}
-                    className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-xl"
+                    className="bg-transparent border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-lg"
                   >
                     {getWatchButtonLabel()}
                   </button>
@@ -662,48 +648,49 @@ export default function MovieDetailClient({
               
               <MovieLogoTitle
                 tmdbId={movie?.tmdb?.id}
+                imdbId={movie?.imdb?.id || (movie as any)?.imdb_id}
                 tmdbType={movie?.tmdb?.type || (movie as any)?.type}
                 title={movie?.name || "..."}
                 subTitle={(movie as any)?.origin_name || movie?.name || ""}
               />
 
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                   <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                   <span className="font-extrabold text-white">{displayImdb}</span>
                 </div>
 
-                <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                   {movie?.quality || "FHD"}
                 </span>
 
-                <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                   {movie?.year || "2026"}
                 </span>
 
                 {movieLang && (
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                     {movieLang}
                   </span>
                 )}
 
                 {movie?.category && Array.isArray(movie.category) && movie.category.length > 0 && (
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                     {movie.category.slice(0, 2).map((c: any) => c.name).join(", ")}
                   </span>
                 )}
 
                 {currentEpisodes && currentEpisodes.length > 0 && (
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider backdrop-blur-md shadow-sm">
+                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
                     {currentEpisodes.length}/{movie?.episode_total || movie?.total_episodes || currentEpisodes.length} Tập
                   </span>
                 )}
 
                 <button
                   onClick={toggleFavorite}
-                  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 backdrop-blur-md shadow-sm ${
+                  className={`h-[26px] px-2.5 rounded-md flex items-center justify-center transition-all border ml-1 shadow-sm ${
                     isFavorite
                       ? "bg-red-500/20 border-red-500/50 text-red-500"
                       : "bg-white/10 border border-white/30 text-white hover:bg-white/20 hover:border-white/40"
@@ -728,7 +715,7 @@ export default function MovieDetailClient({
                     setIsPlaying(true);
                     forceMobileFullscreen();
                   }}
-                  className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50"
+                  className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all disabled:opacity-50 shadow-md"
                 >
                   {getWatchButtonLabel()}
                 </button>
@@ -796,7 +783,7 @@ export default function MovieDetailClient({
               >
                 {tab === "episodes" ? "Danh sách tập" : "Diễn viên"}
                 {activeTab === tab && (
-                  <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC] shadow-[0_0_8px_#F1E5AC]" />
+                  <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#F1E5AC]" />
                 )}
               </button>
             ))}
@@ -815,7 +802,7 @@ export default function MovieDetailClient({
                       onClick={() => handleEpisodeSelect(i)}
                       className={`w-11 h-11 flex items-center justify-center rounded-full text-[11px] font-black border transition-all duration-300 ${
                         isCurrent
-                          ? "bg-red-600 border-red-600 text-white scale-110 shadow-[0_0_15px_rgba(220,38,38,0.5)]"
+                          ? "bg-red-600 border-red-600 text-white scale-110 shadow-md"
                           : "bg-[#0f0f0f] border-white/5 text-white/40 hover:border-red-600/50 hover:text-white"
                       }`}
                     >

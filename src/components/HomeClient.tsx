@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Montserrat } from 'next/font/google';
-import { type KKPhimMovie, getImageUrl } from '@/lib/kkphim';
+import { type KKPhimMovie, getImageUrl, getCleanName } from '@/lib/kkphim';
 import { HOME_CATEGORIES, getCategoryConfig } from '@/lib/categories';
 import MovieBadge from '@/components/MovieBadge';
 import MovieCard from '@/components/MovieCard';
@@ -43,6 +43,7 @@ interface Movie extends KKPhimMovie {
     backdrop_path?: string;
   };
   imdb?: {
+    id?: string;
     vote_average?: number | string;
     score?: number | string
   };
@@ -474,11 +475,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
         initialHeroMovies.map(async (m) => {
           if (!m) return;
           const tmdbId = m?.tmdb?.id || (m as any)?.id || '';
+          const imdbId = m?.imdb?.id || (m as any)?.imdb_id || '';
           const type = m?.tmdb?.type || (m as any)?.type || 'movie';
-          const query = m?.name || '';
+          const query = getCleanName(m?.name || '');
           
           try {
-            const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${type}&query=${encodeURIComponent(query)}`);
+            const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&imdbId=${imdbId}&type=${type}&query=${encodeURIComponent(query)}`);
             if (res.ok) {
               const data = await res.json();
               newImages[m.slug] = {
@@ -897,6 +899,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       {/* Tiêu đề Logo chuẩn TMDB */}
                       <MovieLogoTitle
                         tmdbId={m?.tmdb?.id}
+                        imdbId={m?.imdb?.id || (m as any)?.imdb_id}
                         tmdbType={m?.tmdb?.type || (m as any)?.type}
                         title={m?.name || "..."}
                         subTitle={(m as any)?.origin_name || m?.name || ""}

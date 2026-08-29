@@ -50,6 +50,14 @@ export const getImageUrl = (url?: string) => {
   return `https://phimimg.com/${cleanPath}`;
 };
 
+export const getCleanName = (name: string) =>
+  name
+    .split(/\s+[:\-(\[]?\s*(phần|season|ss|part|tập|chapter|movie|ova|special|p|s)\s+\d+/i)[0]
+    .replace(/\s+[:\-(\[]?\s*\d+\s*(:.*)?$/, "")
+    .replace(/\s+(X|IX|IV|V?I{1,3})$/i, "")
+    .replace(/[:\-\(\[\]\)]+$/, "")
+    .trim();
+
 function isTrailerMovie(item: any): boolean {
   const ep = (item.episode_current || item.current_episode || "").toLowerCase();
   const st = (item.status || "").toLowerCase();

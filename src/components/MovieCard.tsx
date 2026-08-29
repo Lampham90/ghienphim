@@ -3,7 +3,7 @@ import React, { memo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import MovieBadge from '@/components/MovieBadge'; 
-import { type KKPhimMovie, getImageUrl } from '@/lib/kkphim';
+import { type KKPhimMovie, getImageUrl, getCleanName } from '@/lib/kkphim';
 import imageLoader from '@/lib/imageLoader';
 
 interface MovieCardProps {
@@ -44,16 +44,14 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   const isRanked1 = variant === 'ranked1';
   const isRanked3 = variant === 'ranked3';
 
-  const floatingEffect = "transition-[transform,box-shadow] duration-300 ease-out transform-gpu group-hover:-translate-y-2 group-hover:shadow-[0_10px_20px_rgba(220,38,38,0.4)] group-hover:z-50";
-  const imageZoomEffect = "transition-transform duration-500 ease-out transform-gpu group-hover:scale-105";
+  // TỐI ƯU: Loại bỏ transform-gpu để tránh layer explosion trên mobile
+  // Đơn giản hóa transition shadow để giảm chi phí vẽ lại (repaint)
+  const floatingEffect = "transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:shadow-[0_8px_20px_rgba(220,38,38,0.35)] group-hover:z-50";
+  const imageZoomEffect = "transition-transform duration-500 ease-out group-hover:scale-105";
 
   const embeddedPoster = getEmbeddedTmdbPoster(movie);
   const embeddedThumb = getEmbeddedTmdbThumb(movie);
 
-  // Ảnh TMDB tìm được qua fetch nền (chỉ khi data chưa có sẵn TMDB) — chỉ dùng để TRUYỀN sang Detail
-  // khi bấm vào, KHÔNG hiển thị trực tiếp trên card ở Home. Lý do: khi thiếu tmdb id, API phải search
-  // theo TÊN phim nên đôi khi khớp nhầm sang phim khác (trùng tên, khác quốc gia) -> hiển thị sai ảnh
-  // ngay trên card rất dễ nhận ra và gây khó chịu khi đang lướt cả dãy phim.
   const [fetchedTmdb, setFetchedTmdb] = useState<{ poster: string | null; backdrop: string | null }>(() => {
     return (movie?.slug && tmdbCardCache.get(movie.slug)) || { poster: null, backdrop: null };
   });
@@ -73,9 +71,11 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
     const fetchTmdb = async () => {
       try {
         const tmdbId = movie?.tmdb?.id || movie?.id || '';
+        const imdbId = movie?.imdb?.id || movie?.imdb_id || '';
         const type = movie?.tmdb?.type || movie?.type || 'movie';
-        const query = movie?.name || movie?.origin_name || '';
-        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&type=${type}&query=${encodeURIComponent(query)}`);
+        const query = getCleanName(movie?.name || movie?.origin_name || '');
+
+        const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&imdbId=${imdbId}&type=${type}&query=${encodeURIComponent(query)}`);
         if (res.ok) {
           const data = await res.json();
           const result = { poster: data.posterUrl || null, backdrop: data.backdropUrl || null };
@@ -86,9 +86,13 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
         // im lặng bỏ qua, sẽ fallback KKPhim ở dưới
       }
     };
-    fetchTmdb();
 
-    return () => { cancelled = true; };
+    // TỐI ƯU: Trì hoãn việc fetch logo để ưu tiên tài nguyên cho việc scroll và render UI chính
+    const timer = setTimeout(fetchTmdb, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [movie?.slug, embeddedPoster, embeddedThumb]);
 
   // ✅ ẢNH HIỂN THỊ TRÊN CARD: luôn dùng KKPhim để đảm bảo đúng phim tuyệt đối khi lướt Home
@@ -115,10 +119,9 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
             alt={movie.name} 
             fill 
             sizes="(max-width: 768px) 250px, 320px"
-            quality={45}
+            quality={60}
             decoding="async"
-            referrerPolicy="no-referrer"
-            className={`object-cover ${imageZoomEffect}`} 
+            className={`object-cover ${imageZoomEffect}`}
             priority={computedPriority}
             draggable={false} 
             onError={() => setImgError(true)}
@@ -155,10 +158,9 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
           alt={movie.name} 
           fill 
           sizes="(max-width: 768px) 240px, 450px"
-          quality={50}
+          quality={65}
           decoding="async"
-          referrerPolicy="no-referrer"
-          className={`object-cover ${imageZoomEffect}`} 
+          className={`object-cover ${imageZoomEffect}`}
           priority={computedPriority}
           draggable={false}
           onError={() => setImgError(true)}
