@@ -279,14 +279,14 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | n
   return (
     <div className="flex items-center gap-2 shrink-0">
       <button
-        onClick={() => rowRef.current?.scrollBy({ left: -1000, behavior: 'smooth' })}
+        onClick={() => rowRef.current?.scrollBy({ left: -1500, behavior: 'smooth' })}
         className={`${btnClass} ${canLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         aria-label="Scroll left"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
       </button>
       <button
-        onClick={() => rowRef.current?.scrollBy({ left: 1000, behavior: 'smooth' })}
+        onClick={() => rowRef.current?.scrollBy({ left: 1500, behavior: 'smooth' })}
         className={`${btnClass} ${canRight ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         aria-label="Scroll right"
       >
@@ -867,7 +867,9 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                     />
                   )}
 
-                
+                  {/* Gradient Overlays */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/70 to-black/30 z-10 md:hidden" />
                  
                   {/* Lớp màng mờ Fade đáy Banner (Desktop Only) */}
                   <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none hidden md:block" />
