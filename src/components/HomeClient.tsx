@@ -279,14 +279,14 @@ const ScrollNav = memo(({ rowRef }: { rowRef: React.RefObject<HTMLDivElement | n
   return (
     <div className="flex items-center gap-2 shrink-0">
       <button
-        onClick={() => rowRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
+        onClick={() => rowRef.current?.scrollBy({ left: -1000, behavior: 'smooth' })}
         className={`${btnClass} ${canLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         aria-label="Scroll left"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
       </button>
       <button
-        onClick={() => rowRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
+        onClick={() => rowRef.current?.scrollBy({ left: 1000, behavior: 'smooth' })}
         className={`${btnClass} ${canRight ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         aria-label="Scroll right"
       >
