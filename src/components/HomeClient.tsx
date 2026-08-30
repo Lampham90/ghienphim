@@ -54,6 +54,7 @@ interface Movie extends KKPhimMovie {
   poster?: string;
   thumb?: string;
   category?: CategoryInfo[];
+  quality?: string;
 }
 
 interface SectionData {
@@ -463,10 +464,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   const hasRestoredRef = useRef(false);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // State lưu trữ ảnh lấy từ TMDB API (/api/tmdb-logo)
   const [tmdbHeroImages, setTmdbHeroImages] = useState<Record<string, { backdropUrl: string | null; posterUrl: string | null }>>({});
 
-  // Gọi API tmdb-logo để lấy ảnh backdrop & poster gốc nét nhất
   useEffect(() => {
     const fetchHeroImages = async () => {
       const newImages: Record<string, { backdropUrl: string | null; posterUrl: string | null }> = {};
@@ -502,7 +501,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }
   }, [initialHeroMovies]);
 
-  // Memoize Hero Movies - Ưu tiên ảnh TMDB -> fallback KKPhim
   const heroMoviesProcessed = useMemo(() => {
     return initialHeroMovies.map((m) => {
       const rating = getMovieRating(m);
@@ -541,7 +539,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [initialHeroMovies, tmdbHeroImages]);
 
-  // Preload Slide kế tiếp
   useEffect(() => {
     if (typeof window === 'undefined' || heroMoviesProcessed.length <= 1) return;
     const nextIdx = (currentHero + 1) % heroMoviesProcessed.length;
@@ -557,7 +554,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     }
   }, [currentHero, heroMoviesProcessed]);
 
-  // Auto Hero Slider
   useEffect(() => {
     if (heroMoviesProcessed.length <= 1) return;
 
@@ -570,7 +566,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => clearInterval(timer);
   }, [heroMoviesProcessed.length]);
 
-  // Sync initialSections khi Revalidate
   useEffect(() => {
     setSections(prev => {
       if (prev.length === 0) return initialSections;
@@ -583,7 +578,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [initialSections]);
 
-  // Cache Props
   useEffect(() => {
     Object.entries(allCategoriesData).forEach(([slug, movies]) => {
       if (movies && movies.length > 0) {
@@ -592,7 +586,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     });
   }, [allCategoriesData]);
 
-  // Sync Session Slugs
   useEffect(() => {
     if (isRestoring) return;
     const dynamicSlugs = sections
@@ -601,14 +594,12 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     safeSessionStorage.setItem("home_loaded_slugs", JSON.stringify(dynamicSlugs));
   }, [sections, initialSections, isRestoring]);
 
-  // Disable Browser Native Scroll Restoration
   useEffect(() => {
     if (typeof window !== 'undefined' && 'scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
   }, []);
 
-  // Save Scroll Position
   useEffect(() => {
     if (isRestoring) return;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -644,7 +635,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     };
   }, [isRestoring]);
 
-  // Observe Active Section
   useEffect(() => {
     if (isRestoring) return;
 
@@ -668,7 +658,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => observer.disconnect();
   }, [sections, isRestoring]);
 
-  // Restore Session Data
   useEffect(() => {
     if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
@@ -732,7 +721,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     restoreSession();
   }, [initialSections]);
 
-  // Restore Scroll Position
   useEffect(() => {
     if (!isRestoring || !pendingRestoreRef.current) return;
 
@@ -773,7 +761,6 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
     return () => clearTimeout(timerId);
   }, [sections, isRestoring]);
 
-  // Infinite Scroll Trigger
   const loadNextCategory = useCallback(async () => {
     const currentIndex = loadedIndexRef.current;
     
@@ -832,7 +819,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
       {/* Hero Banner */}
       {heroMoviesProcessed.length > 0 && (
-        <section className="relative w-full bg-black overflow-hidden h-[65vh] md:h-screen transform-gpu">
+        <section className="relative w-full bg-black overflow-hidden h-[95vh] md:h-screen transform-gpu">
           {heroMoviesProcessed.map((m, index) => {
             const total = heroMoviesProcessed.length;
             const isActive = index === currentHero;
@@ -846,9 +833,10 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
             return (
               <div 
                 key={m.slug || index} 
-                className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}
+                className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out flex flex-col md:block ${isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'}`}
               >
-                <div className="relative w-full h-full bg-black">
+                {/* IMAGE & DESKTOP CONTENT */}
+                <div className="relative w-full h-[55vh] md:h-full bg-black shrink-0">
                   {/* DESKTOP THUMB IMAGE */}
                   {m.heroThumbUrl && (
                     <Image
@@ -879,21 +867,21 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                     />
                   )}
 
-                  {/* Gradient Overlays tương phản nội dung */}
+                  {/* Gradient Overlays */}
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent z-10 md:hidden" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-black/30 z-10 md:hidden" />
                  
-                  {/* Lớp màng mờ Fade đáy Banner */}
-                  <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none" />
+                  {/* Lớp màng mờ Fade đáy Banner (Desktop Only) */}
+                  <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none hidden md:block" />
 
-                  {/* HERO CONTENT */}
-                  <div className="absolute inset-0 z-20 flex flex-col justify-end pb-10 px-6 md:pb-24 md:px-20 text-center md:text-left items-center md:items-start">
-                    <div className="max-w-xl md:max-w-3xl lg:max-w-4xl space-y-2.5 md:space-y-4">
+                  {/* DESKTOP CONTENT */}
+                  <div className="hidden md:flex absolute inset-0 z-20 flex-col justify-end pb-24 px-20 text-left items-start">
+                    <div className="max-w-3xl lg:max-w-4xl space-y-4">
                       
-                      <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
-                        <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
-                        <span className="text-red-500 font-black text-[9px] md:text-[11px] tracking-[0.4em] md:tracking-[0.5em] uppercase italic">Hot Premiere</span>
-                        <span className="w-6 md:w-8 h-[2px] md:h-[3px] bg-red-600 rounded-full" />
+                      <div className="flex items-center justify-start gap-3">
+                        <span className="w-8 h-[3px] bg-red-600 rounded-full" />
+                        <span className="text-red-500 font-black text-[11px] tracking-[0.5em] uppercase italic">Hot Premiere</span>
+                        <span className="w-8 h-[3px] bg-red-600 rounded-full" />
                       </div>
                      
                       {/* Tiêu đề Logo chuẩn TMDB */}
@@ -906,48 +894,101 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       />
 
                       {/* Thông tin phụ: Điểm IMDb thật */}
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 md:gap-2 text-[10px] md:text-sm font-semibold">
+                      <div className="flex flex-wrap items-center justify-start gap-2 text-sm font-semibold">
 
                         {m.rating && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-xs backdrop-blur-sm">
                             <span className="font-black text-amber-300">⭐ {m.rating.score} {m.rating.label}</span>
                           </span>
                         )}
 
                         {m.displayLang && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-xs backdrop-blur-sm">
                             {m.displayLang}
                           </span>
                         )}
 
                         {m.year && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-xs backdrop-blur-sm">
                             {m.year}
                           </span>
                         )}
 
                         {/* Thể loại */}
                         {m?.category && m.category.length > 0 && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[9px] md:text-xs backdrop-blur-sm">
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-xs backdrop-blur-sm">
                             {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
                           </span>
                         )}
 
                       </div>
 
-                      <p className="text-white/70 text-[11px] md:text-[14px] font-medium line-clamp-2 md:line-clamp-3 leading-snug md:leading-relaxed max-w-2xl italic">
+                      <p className="text-white/70 text-[14px] font-medium line-clamp-3 leading-relaxed max-w-2xl italic">
                         {m.cleanDescription}
                       </p>
 
-                      <div className="pt-1 md:pt-2">
-                        {/* TRUYỀN THẲNG ẢNH TMDB SANG DETAIL KHI BẤM HERO BANNER */}
-                        <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(m.heroPosterUrl || '')}&thumb=${encodeURIComponent(m.heroThumbUrl || '')}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-6 md:px-10 py-2 md:py-3.5 rounded-full font-black text-[10px] md:text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-2 md:gap-3 hover:bg-red-600 hover:text-white">
-                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      <div className="pt-2">
+                        <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(m.heroPosterUrl || '')}&thumb=${encodeURIComponent(m.heroThumbUrl || '')}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-10 py-3.5 rounded-full font-black text-[12px] uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)] inline-flex items-center gap-3 hover:bg-red-600 hover:text-white hover:border-red-600">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                           <span>Xem ngay</span>
                         </Link>
                       </div>
 
                     </div>
+                  </div>
+                </div>
+
+                {/* MOBILE CONTENT (MATCHING MOVIE DETAIL) */}
+                <div className="flex md:hidden flex-col items-center justify-start text-center px-6 py-6 bg-[#050505] space-y-4 w-full flex-1 z-20">
+                  
+                  <MovieLogoTitle
+                    tmdbId={m?.tmdb?.id}
+                    imdbId={m?.imdb?.id || (m as any)?.imdb_id}
+                    tmdbType={m?.tmdb?.type || (m as any)?.type}
+                    title={m?.name || "..."}
+                    subTitle={(m as any)?.origin_name || m?.name || ""}
+                  />
+
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {m.rating && (
+                      <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
+                        <svg className="w-3.5 h-3.5 fill-current text-yellow-400" viewBox="0 0 24 24">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                        <span className="font-extrabold text-white">{m.rating.score}</span>
+                      </div>
+                    )}
+
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
+                      {m.quality || "FHD"}
+                    </span>
+
+                    <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
+                      {m.year || "2026"}
+                    </span>
+
+                    {m.displayLang && (
+                      <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
+                        {m.displayLang}
+                      </span>
+                    )}
+
+                    {m?.category && m.category.length > 0 && (
+                      <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md font-bold text-[10px] sm:text-[11px] uppercase tracking-wider shadow-sm">
+                        {m.category.slice(0, 2).map((cat: any) => cat.name).join(", ")}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-white/60 text-[12px] font-medium line-clamp-3 leading-relaxed italic max-w-md">
+                    {m.cleanDescription}
+                  </p>
+
+                  <div className="pt-2 w-full flex justify-center pb-4">
+                    <Link href={`/phim/${m.slug}?poster=${encodeURIComponent(m.heroPosterUrl || '')}&thumb=${encodeURIComponent(m.heroThumbUrl || '')}`} prefetch={false} className="bg-transparent border-2 border-white/80 text-white px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest hover:bg-red-600 hover:border-red-600 transition-all shadow-md inline-flex items-center gap-2">
+                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      <span>Xem ngay</span>
+                    </Link>
                   </div>
                 </div>
               </div>
