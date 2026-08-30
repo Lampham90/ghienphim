@@ -869,7 +869,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
                   {/* Gradient Overlays */}
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
-                  <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent z-10 md:hidden" />
+                  <div className="absolute inset-x-0 bottom-0 h-3 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent z-10 md:hidden" />
                  
                   {/* Lớp màng mờ Fade đáy Banner (Desktop Only) */}
                   <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none hidden md:block" />
