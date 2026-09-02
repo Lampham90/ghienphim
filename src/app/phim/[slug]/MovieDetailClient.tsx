@@ -127,17 +127,20 @@ export default function MovieDetailClient({
     poster: null,
   });
 
+  const fetchedNguoncKeyRef = useRef<string | null>(null);
+  const currentTimeRef = useRef<number>(0); // Ref lưu thời gian thực tế đang phát
+
   useEffect(() => {
     if (isPreviewPosterTmdb && isPreviewThumbTmdb) return;
 
     const fetchTmdbImages = async () => {
       if (!movie) return;
-      
+
       const tmdbId = movie.tmdb?.id || (movie as any)?.id || "";
       const imdbId = movie.imdb?.id || (movie as any)?.imdb_id || "";
       const queryName = getCleanName((movie as any).origin_name || movie.name || "");
-      const tmdbType = movie.tmdb?.type || (movie as any)?.type || "movie"; 
-      
+      const tmdbType = movie.tmdb?.type || (movie as any)?.type || "movie";
+
       try {
         const res = await fetch(`/api/tmdb-logo?id=${tmdbId}&imdbId=${imdbId}&type=${tmdbType}&query=${encodeURIComponent(queryName)}`);
         if (res.ok) {
@@ -181,8 +184,6 @@ export default function MovieDetailClient({
     return getImageUrl(rawPoster);
   }, [previewPoster, isPreviewPosterTmdb, movie, tmdbImages.poster]);
 
-  const fetchedNguoncKeyRef = useRef<string | null>(null);
-
   const fetchNguonc = useCallback(
     async (movieName?: string) => {
       const currentFetchKey = `${slug}_${movieName || ""}`;
@@ -194,7 +195,7 @@ export default function MovieDetailClient({
 
         if (res.ok) {
           const data = await res.json();
-          
+
           setMovie((prev) => {
             if ((!prev || !prev.name) && data.movieInfo) {
               return {
@@ -335,6 +336,7 @@ export default function MovieDetailClient({
     setActiveServerIndex(targetServerIndex);
     setCurrentEpIndex(foundIndex);
     setInitialTime(timeToSet);
+    currentTimeRef.current = timeToSet; // Đồng bộ lần đầu
     setIsHistoryLoaded(true);
   }, [slug, servers, history, isPlaying]);
 
@@ -391,11 +393,11 @@ export default function MovieDetailClient({
 
   const forceMobileFullscreen = async () => {
     if (window.innerWidth < 1024) {
-      const container = document.documentElement; 
+      const container = document.documentElement;
       try {
         if (container.requestFullscreen) await container.requestFullscreen();
         else if ((container as any).webkitRequestFullscreen) await (container as any).webkitRequestFullscreen();
-        
+
         const orientation = (screen as any).orientation || (screen as any).msOrientation;
         if (orientation && orientation.lock) {
           await orientation.lock('landscape').catch(() => {});
@@ -411,7 +413,7 @@ export default function MovieDetailClient({
     const currentEpisodes = getEpisodesArray(currentServer);
     const ep = currentEpisodes?.[index];
     const epNum = getEpNum(ep, index);
-    
+
     const epHistoryKey = getEpisodeHistoryKey(slug, epNum);
     const savedEpData = history[epHistoryKey];
 
@@ -420,6 +422,7 @@ export default function MovieDetailClient({
       timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
     }
 
+    currentTimeRef.current = timeToSet; // Reset lại ref khi đổi tập
     setCurrentEpIndex(index);
     setInitialTime(timeToSet);
     setIsPlaying(true);
@@ -438,7 +441,7 @@ export default function MovieDetailClient({
 
     const targetServer = servers[newServerIndex];
     const targetEpisodes = getEpisodesArray(targetServer);
-    
+
     let targetEpIdx = targetEpisodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === currentEpNum);
     if (targetEpIdx === -1) targetEpIdx = 0;
 
@@ -447,11 +450,17 @@ export default function MovieDetailClient({
 
     if (targetEp) {
       const targetEpNum = getEpNum(targetEp, targetEpIdx);
-      const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
-      const latestHistory = useMovieStore.getState().history;
-      const savedEpData = latestHistory[epHistoryKey] || history[epHistoryKey];
-      if (savedEpData) {
-        timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
+      // Logic cốt lõi: NẾU TẬP Ở SERVER MỚI TRÙNG VỚI TẬP ĐANG XEM => BỐC THỜI GIAN THỰC ĐANG CHẠY CỦA VIDEO
+      if (targetEpNum === currentEpNum) {
+        timeToSet = currentTimeRef.current > 0 ? currentTimeRef.current : initialTime;
+      } else {
+        // Fallback đọc dữ liệu từ cache/store
+        const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
+        const latestHistory = useMovieStore.getState().history;
+        const savedEpData = latestHistory[epHistoryKey] || history[epHistoryKey];
+        if (savedEpData) {
+          timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
+        }
       }
     }
 
@@ -494,7 +503,7 @@ export default function MovieDetailClient({
   const displayImdb = useMemo(() => {
     if (imdbRating) return imdbRating;
     const hash = slug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const randomScore = 7.1 + (hash % 15) * 0.1; 
+    const randomScore = 7.1 + (hash % 15) * 0.1;
     return randomScore.toFixed(1);
   }, [imdbRating, slug]);
 
@@ -529,6 +538,7 @@ export default function MovieDetailClient({
               onClose={() => setIsPlaying(false)}
               onEnded={handleNextEpisode}
               saveProgress={saveProgress}
+              onTimeUpdate={(time) => { currentTimeRef.current = time; }} // Cập nhật ref khi có thay đổi
             />
           </div>
         ) : (

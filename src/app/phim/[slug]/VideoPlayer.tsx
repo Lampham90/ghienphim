@@ -14,6 +14,7 @@ interface VideoPlayerProps {
   onClose: () => void;
   onEnded: (nextIndex?: number) => void;
   saveProgress: (epIndex: number, seconds: number, duration: number, shouldSync?: boolean) => void;
+  onTimeUpdate?: (currentTime: number) => void; // Thêm callback để đẩy thời gian thực ra ngoài
 }
 
 const WORKER_POOL = [
@@ -46,7 +47,8 @@ export default function VideoPlayer({
   totalEpisodes,
   onClose,
   onEnded,
-  saveProgress
+  saveProgress,
+  onTimeUpdate // Khai báo thêm prop
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -97,7 +99,7 @@ export default function VideoPlayer({
   const [countdown, setCountdown] = useState(10);
   const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(true);
-  
+
   const lastSavedTimeRef = useRef<number>(0);
   const isDraggingRef = useRef(false);
   const isDraggingVolumeRef = useRef(false);
@@ -129,8 +131,7 @@ export default function VideoPlayer({
           }
         }
         setIsFullscreen(true);
-        
-        // Cải tiến: Ép xoay ngang màn hình an toàn với user gesture trực tiếp
+
         const screenAny = screen as any;
         const orientation = screenAny.orientation || screenAny.msOrientation || screenAny.mozOrientation;
         if (orientation && typeof orientation.lock === 'function') {
@@ -220,11 +221,11 @@ export default function VideoPlayer({
       if (videoRef.current) {
         saveProgress(currentEpIndex, 0, videoRef.current.duration, true);
       }
-      
+
       if (isUserInteraction && window.innerWidth < 1024) {
         await toggleFullscreen(true);
       }
-      
+
       onEnded(nextIndex);
     }
   }, [currentEpIndex, totalEpisodes, onEnded, saveProgress, toggleFullscreen]);
@@ -299,6 +300,10 @@ export default function VideoPlayer({
       setCurrentPos(v.currentTime);
       if (v.duration) setTotalDuration(v.duration);
 
+      if (onTimeUpdate) {
+        onTimeUpdate(v.currentTime); // Cập nhật thời gian thực ra parent component
+      }
+
       const currentSeconds = isFinite(v.currentTime) ? v.currentTime : 0;
       const durationSeconds = isFinite(v.duration) ? v.duration : 0;
 
@@ -361,7 +366,7 @@ export default function VideoPlayer({
       }
       if (video) video.onended = null;
     };
-  }, [currentEpIndex, totalEpisodes, onEnded, saveProgress, togglePlay, showNextNotify, handleMouseMove]);
+  }, [currentEpIndex, totalEpisodes, onEnded, saveProgress, togglePlay, showNextNotify, handleMouseMove, onTimeUpdate]);
 
   const handleSaveOnQuit = useCallback((shouldSync = true) => {
     const v = videoRef.current;
@@ -403,7 +408,7 @@ export default function VideoPlayer({
     if (showNextNotify && countdown > 0) {
       timer = setTimeout(() => setCountdown(prev => prev - 1), 1000);
     } else if (showNextNotify && countdown === 0) {
-      handleNextEpisode(false); 
+      handleNextEpisode(false);
     }
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
@@ -455,6 +460,8 @@ export default function VideoPlayer({
     const video = videoRef.current;
     setErrorMessage(null);
 
+    let videoReadyHandler: (() => Promise<void>) | null = null;
+
     const startPlayer = async () => {
       let directLink = videoUrl;
       const isNguoncStream = videoUrl.includes('streamc.xyz') || videoUrl.includes('nguonc.com') || videoUrl.includes('/v/') || videoUrl.includes('embed');
@@ -471,9 +478,10 @@ export default function VideoPlayer({
 
       if (!video) return;
 
-      const handleVideoReady = async () => {
+      // Sửa lỗi memory leak bằng cách gán hàm vào biến để remove sau
+      videoReadyHandler = async () => {
         if (initialTime > 0) video.currentTime = initialTime;
-        
+
         video.play().catch((e) => {
           console.warn("[VideoPlayer] Autoplay prevented by browser", e);
         });
@@ -525,7 +533,7 @@ export default function VideoPlayer({
         hls.loadSource(directLink);
         hls.attachMedia(video);
 
-        hls.on(Hls.Events.MANIFEST_PARSED, handleVideoReady);
+        hls.on(Hls.Events.MANIFEST_PARSED, videoReadyHandler);
 
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
@@ -538,8 +546,8 @@ export default function VideoPlayer({
         const originHeader = new URL(directLink).origin;
         const finalSrc = `${getWorker()}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
         video.src = finalSrc;
-        
-        video.addEventListener('loadedmetadata', handleVideoReady);
+
+        video.addEventListener('loadedmetadata', videoReadyHandler);
       }
     };
 
@@ -550,8 +558,8 @@ export default function VideoPlayer({
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      if (video) {
-        video.removeEventListener('loadedmetadata', () => {});
+      if (video && videoReadyHandler) {
+        video.removeEventListener('loadedmetadata', videoReadyHandler); // Xóa đúng hàm đã gán
       }
     };
   }, [videoUrl, initialTime]);
