@@ -431,6 +431,7 @@ export default function MovieDetailClient({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // ✅ ĐÃ SỬA: Đổi Server sẽ luôn reset thời gian về 0:00 (không truyền thời gian cũ qua lại)
   const handleServerChange = (newServerIndex: number) => {
     if (newServerIndex === activeServerIndex) return;
 
@@ -445,26 +446,10 @@ export default function MovieDetailClient({
     let targetEpIdx = targetEpisodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === currentEpNum);
     if (targetEpIdx === -1) targetEpIdx = 0;
 
-    const targetEp = targetEpisodes[targetEpIdx];
-    let timeToSet = 0;
-
-    if (targetEp) {
-      const targetEpNum = getEpNum(targetEp, targetEpIdx);
-      if (targetEpNum === currentEpNum) {
-        timeToSet = currentTimeRef.current > 0 ? currentTimeRef.current : initialTime;
-      } else {
-        const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
-        const latestHistory = useMovieStore.getState().history;
-        const savedEpData = latestHistory[epHistoryKey] || history[epHistoryKey];
-        if (savedEpData) {
-          timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
-        }
-      }
-    }
-
     setActiveServerIndex(newServerIndex);
     setCurrentEpIndex(targetEpIdx);
-    setInitialTime(timeToSet);
+    setInitialTime(0);
+    currentTimeRef.current = 0;
   };
 
   const handleNextEpisode = useCallback(
@@ -525,7 +510,7 @@ export default function MovieDetailClient({
         {isPlaying && activeLink ? (
           <div className="relative w-full h-[75vh] md:h-screen">
             <VideoPlayer
-              key={slug}
+              key={`${slug}_s${activeServerIndex}_ep${currentEpIndex}`}
               slug={slug}
               movieName={movie?.name || ""}
               videoUrl={activeLink}
