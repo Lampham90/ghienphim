@@ -4,12 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5aa0f6b7-51b6-401e-a969-eaa8a69d3995" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/phim/[slug]/MovieDetailClient.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/phim/[slug]/MovieDetailClient.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/phim/[slug]/VideoPlayer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/phim/[slug]/VideoPlayer.tsx" afterDir="false" />
-    </list>
+    <list default="true" id="5aa0f6b7-51b6-401e-a969-eaa8a69d3995" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

@@ -414,47 +414,30 @@ export default function VideoPlayer({
   }, [showNextNotify, countdown, handleNextEpisode]);
 
   const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
-    try {
-      setIsResolving(true);
-      setErrorMessage(null);
+  try {
+    setIsResolving(true);
+    setErrorMessage(null);
 
-      const embedRes = await fetch(`${getWorker()}?url=${encodeURIComponent(embedUrl)}`);
-      if (!embedRes.ok) return null;
-      const htmlText = await embedRes.text();
+    const workerUrl = getWorker();
+    const targetOrigin = new URL(embedUrl).origin;
+    
+    const res = await fetch(
+      `${workerUrl}?url=${encodeURIComponent(embedUrl)}&referer=${encodeURIComponent(targetOrigin + "/")}&origin=${encodeURIComponent(targetOrigin)}`
+    );
 
-      const urlObj = new URL(embedUrl);
-      const domainHeader = urlObj.origin;
+    if (!res.ok) return null;
 
-      let match = htmlText.match(/data-obf\s*=\s*(["'])(.*?)\1/i);
-      if (!match) {
-        match = htmlText.match(/data-obf\s*=\s*([^\s>]+)/i);
-      }
-
-      if (match && (match[2] || match[1])) {
-        const rawDataObf = match[2] || match[1];
-        const decodedRaw = atob(rawDataObf);
-        let decodedSub = decodedRaw;
-
-        try {
-          const jsonObj = JSON.parse(decodedRaw);
-          if (jsonObj && jsonObj.sUb) {
-            decodedSub = jsonObj.sUb;
-          }
-        } catch (e) {}
-
-        decodedSub = decodedSub.replace(/\/hd$/i, '');
-        decodedSub = decodedSub.replace(/\.m3u9$/i, '');
-        decodedSub = decodedSub.replace(/^\//, '');
-
-        return `${domainHeader}/${decodedSub}.m3u9`;
-      }
-    } catch (e) {
-      console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
-    } finally {
-      setIsResolving(false);
+    const data = await res.json();
+    if (data.success && data.streamUrl) {
+      return data.streamUrl;
     }
-    return null;
-  };
+  } catch (e) {
+    console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
+  } finally {
+    setIsResolving(false);
+  }
+  return null;
+};
 
   useEffect(() => {
     const video = videoRef.current;
