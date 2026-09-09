@@ -434,7 +434,7 @@ export default function VideoPlayer({
       }
     } catch (e) {
       console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
-    } fontally {
+    } finally {
       setIsResolving(false);
     }
     return null;
