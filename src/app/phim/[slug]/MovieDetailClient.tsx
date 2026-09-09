@@ -18,7 +18,7 @@ const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
   ssr: false,
   loading: () => (
     <div className="w-full h-[75vh] md:h-screen bg-black flex items-center justify-center text-white/20 font-black tracking-widest text-xs uppercase italic">
-      
+      Đang chuẩn bị trình phát...
     </div>
   ),
 });
@@ -128,7 +128,7 @@ export default function MovieDetailClient({
   });
 
   const fetchedNguoncKeyRef = useRef<string | null>(null);
-  const currentTimeRef = useRef<number>(0); // Ref lưu thời gian thực tế đang phát
+  const currentTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (isPreviewPosterTmdb && isPreviewThumbTmdb) return;
@@ -336,7 +336,7 @@ export default function MovieDetailClient({
     setActiveServerIndex(targetServerIndex);
     setCurrentEpIndex(foundIndex);
     setInitialTime(timeToSet);
-    currentTimeRef.current = timeToSet; // Đồng bộ lần đầu
+    currentTimeRef.current = timeToSet;
     setIsHistoryLoaded(true);
   }, [slug, servers, history, isPlaying]);
 
@@ -422,7 +422,7 @@ export default function MovieDetailClient({
       timeToSet = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds || 0;
     }
 
-    currentTimeRef.current = timeToSet; // Reset lại ref khi đổi tập
+    currentTimeRef.current = timeToSet;
     setCurrentEpIndex(index);
     setInitialTime(timeToSet);
     setIsPlaying(true);
@@ -450,11 +450,9 @@ export default function MovieDetailClient({
 
     if (targetEp) {
       const targetEpNum = getEpNum(targetEp, targetEpIdx);
-      // Logic cốt lõi: NẾU TẬP Ở SERVER MỚI TRÙNG VỚI TẬP ĐANG XEM => BỐC THỜI GIAN THỰC ĐANG CHẠY CỦA VIDEO
       if (targetEpNum === currentEpNum) {
         timeToSet = currentTimeRef.current > 0 ? currentTimeRef.current : initialTime;
       } else {
-        // Fallback đọc dữ liệu từ cache/store
         const epHistoryKey = getEpisodeHistoryKey(slug, targetEpNum);
         const latestHistory = useMovieStore.getState().history;
         const savedEpData = latestHistory[epHistoryKey] || history[epHistoryKey];
@@ -523,7 +521,6 @@ export default function MovieDetailClient({
         .scrollbar-hide::-webkit-scrollbar { display: none; }
       ` }} />
 
-      {/* HERO / VIDEO PLAYER */}
       <section className="relative w-full bg-black overflow-hidden mb-8 border-b border-white/5">
         {isPlaying && activeLink ? (
           <div className="relative w-full h-[75vh] md:h-screen">
@@ -538,7 +535,7 @@ export default function MovieDetailClient({
               onClose={() => setIsPlaying(false)}
               onEnded={handleNextEpisode}
               saveProgress={saveProgress}
-              onTimeUpdate={(time) => { currentTimeRef.current = time; }} // Cập nhật ref khi có thay đổi
+              onTimeUpdate={(time) => { currentTimeRef.current = time; }}
             />
           </div>
         ) : (
@@ -571,7 +568,6 @@ export default function MovieDetailClient({
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-black/30 z-10" />
             </div>
 
-            {/* DESKTOP INFO */}
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">
               <div className="max-w-4xl space-y-4">
                 
@@ -653,7 +649,6 @@ export default function MovieDetailClient({
               </div> 
             </div> 
             
-            {/* MOBILE INFO */}
             <div className="flex md:hidden flex-col items-center justify-center text-center px-6 py-6 bg-[#050505] space-y-4 w-full">
               
               <MovieLogoTitle
@@ -735,7 +730,6 @@ export default function MovieDetailClient({
         )}
       </section>
 
-      {/* DROPDOWNS & TABS */}
       {mounted && (
         <div className="max-w-[1400px] mx-auto px-6 md:px-20 mt-8 space-y-6">
           <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-6">
@@ -778,6 +772,50 @@ export default function MovieDetailClient({
                   </div>
                 )}
                 {openAudio && <div className="fixed inset-0 z-40" onClick={() => setOpenAudio(false)} />}
+              </div>
+            )}
+
+            {relatedSeasons && relatedSeasons.length > 1 && (
+              <div className="relative inline-block text-left min-w-[200px]">
+                <button
+                  onClick={() => {
+                    setOpenSeason(!openSeason);
+                    setOpenAudio(false);
+                  }}
+                  className="w-full bg-[#121212] border border-white/10 text-white text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-between hover:border-white/30 transition-all"
+                >
+                  <span className="truncate">
+                    Phần / Season: <strong className="text-[#F1E5AC] ml-1">{movie?.name}</strong>
+                  </span>
+                  <svg className={`w-4 h-4 ml-2 transition-transform ${openSeason ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path d="M19 9l-7 7-7-7" strokeWidth={2.5} />
+                  </svg>
+                </button>
+
+                {openSeason && (
+                  <div className="absolute left-0 mt-2 w-full bg-[#121212] border border-white/10 rounded-xl shadow-2xl py-1 z-[100] max-h-60 overflow-y-auto">
+                    {relatedSeasons.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setOpenSeason(false);
+                          if (s.slug !== slug) {
+                            router.push(`/phim/${s.slug}`);
+                          }
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-xs transition-colors flex items-center justify-between ${
+                          s.slug === slug
+                            ? "text-red-500 font-bold bg-red-600/10"
+                            : "text-white/70 hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        <span className="truncate">{s.name}</span>
+                        {s.slug === slug && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {openSeason && <div className="fixed inset-0 z-40" onClick={() => setOpenSeason(false)} />}
               </div>
             )}
           </div>

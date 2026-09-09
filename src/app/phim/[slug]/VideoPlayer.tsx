@@ -14,7 +14,7 @@ interface VideoPlayerProps {
   onClose: () => void;
   onEnded: (nextIndex?: number) => void;
   saveProgress: (epIndex: number, seconds: number, duration: number, shouldSync?: boolean) => void;
-  onTimeUpdate?: (currentTime: number) => void; // Thêm callback để đẩy thời gian thực ra ngoài
+  onTimeUpdate?: (currentTime: number) => void;
 }
 
 const WORKER_POOL = [
@@ -48,7 +48,7 @@ export default function VideoPlayer({
   onClose,
   onEnded,
   saveProgress,
-  onTimeUpdate // Khai báo thêm prop
+  onTimeUpdate
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -58,7 +58,7 @@ export default function VideoPlayer({
 
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [useIframe, setUseIframe] = useState(false); // Chế độ dự phòng Iframe chống pop-up khi không bóc được M3U8
+  const [useIframe, setUseIframe] = useState(false);
 
   const [volume, setVolume] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -197,7 +197,7 @@ export default function VideoPlayer({
       if (window.innerWidth < 1024) {
         await toggleFullscreen(true);
       }
-      await video.play();
+      await video.play().catch(() => {});
     } else {
       video.pause();
     }
@@ -302,7 +302,7 @@ export default function VideoPlayer({
       if (v.duration) setTotalDuration(v.duration);
 
       if (onTimeUpdate) {
-        onTimeUpdate(v.currentTime); // Cập nhật thời gian thực ra parent component
+        onTimeUpdate(v.currentTime);
       }
 
       const currentSeconds = isFinite(v.currentTime) ? v.currentTime : 0;
@@ -434,13 +434,14 @@ export default function VideoPlayer({
       }
     } catch (e) {
       console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
-    } finally {
+    } fontally {
       setIsResolving(false);
     }
     return null;
   };
 
   useEffect(() => {
+    let isCanceled = false;
     const video = videoRef.current;
     setErrorMessage(null);
     setUseIframe(false);
@@ -453,20 +454,20 @@ export default function VideoPlayer({
 
       if (isNguoncStream) {
         const resolved = await resolveNguoncLink(videoUrl);
+        if (isCanceled) return;
+
         if (resolved) {
           directLink = resolved;
         } else {
-          // BƯỚC KHẮC PHỤC SỰ CỐ NGUONC:
-          // Nếu Worker không bóc được M3U8 (do dính Cloudflare Turnstile mới), chuyển sang dùng Iframe Sandbox thay vì báo lỗi dừng phát.
           setUseIframe(true);
           return;
         }
       }
 
-      if (!video) return;
+      if (!video || isCanceled) return;
 
-      // Sửa lỗi memory leak bằng cách gán hàm vào biến để remove sau
       videoReadyHandler = async () => {
+        if (isCanceled || !video) return;
         if (initialTime > 0) video.currentTime = initialTime;
 
         video.play().catch((e) => {
@@ -523,7 +524,7 @@ export default function VideoPlayer({
         hls.on(Hls.Events.MANIFEST_PARSED, videoReadyHandler);
 
         hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
+          if (data.fatal && !isCanceled) {
             console.error("[VideoPlayer] Fatal HLS error:", data);
             setErrorMessage("Lỗi tải luồng video HLS.");
           }
@@ -541,12 +542,13 @@ export default function VideoPlayer({
     startPlayer();
 
     return () => {
+      isCanceled = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
       if (video && videoReadyHandler) {
-        video.removeEventListener('loadedmetadata', videoReadyHandler); // Xóa đúng hàm đã gán
+        video.removeEventListener('loadedmetadata', videoReadyHandler);
       }
     };
   }, [videoUrl, initialTime]);
@@ -559,11 +561,10 @@ export default function VideoPlayer({
       {isResolving && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white">
           <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-xs font-black uppercase italic tracking-widest"> </p>
+          <p className="text-xs font-black uppercase italic tracking-widest">Đang tải luồng video...</p>
         </div>
       )}
 
-      {/* NẾU LÀ IFRAME DỰ PHÒNG (DO BÓC M3U8 THẤT BẠI): HIỂN THỊ IFRAME CHẶN POPUP KÈM THANH ĐIỀU HƯỚNG MẸ */}
       {useIframe ? (
         <div className="relative w-full h-full bg-black">
           <div className="absolute top-0 left-0 right-0 z-[160] p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center pointer-events-auto">
