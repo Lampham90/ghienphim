@@ -58,6 +58,7 @@ export default function VideoPlayer({
 
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [useIframe, setUseIframe] = useState(false); // Chế độ dự phòng Iframe chống pop-up khi không bóc được M3U8
 
   const [volume, setVolume] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -110,13 +111,13 @@ export default function VideoPlayer({
   const toggleFullscreen = useCallback(async (forceEnter?: boolean) => {
     const container = containerRef.current;
     const video = videoRef.current;
-    if (!container || !video) return;
+    if (!container) return;
 
     try {
       const isFull = !!(
         document.fullscreenElement ||
         (document as any).webkitFullscreenElement ||
-        (video as any).webkitDisplayingFullscreen ||
+        (video as any)?.webkitDisplayingFullscreen ||
         (container as any).webkitFullscreenElement
       );
 
@@ -126,7 +127,7 @@ export default function VideoPlayer({
             await container.requestFullscreen();
           } else if ((container as any).webkitRequestFullscreen) {
             await (container as any).webkitRequestFullscreen();
-          } else if ((video as any).webkitEnterFullscreen) {
+          } else if (video && (video as any).webkitEnterFullscreen) {
             (video as any).webkitEnterFullscreen();
           }
         }
@@ -148,7 +149,7 @@ export default function VideoPlayer({
         }
         if (document.exitFullscreen) await document.exitFullscreen();
         else if ((document as any).webkitExitFullscreen) await (document as any).webkitExitFullscreen();
-        else if ((video as any).webkitExitFullscreen) (video as any).webkitExitFullscreen();
+        else if (video && (video as any).webkitExitFullscreen) (video as any).webkitExitFullscreen();
       }
     } catch (e) {
       console.error("Fullscreen error:", e);
@@ -414,34 +415,35 @@ export default function VideoPlayer({
   }, [showNextNotify, countdown, handleNextEpisode]);
 
   const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
-  try {
-    setIsResolving(true);
-    setErrorMessage(null);
+    try {
+      setIsResolving(true);
+      setErrorMessage(null);
 
-    const workerUrl = getWorker();
-    const targetOrigin = new URL(embedUrl).origin;
-    
-    const res = await fetch(
-      `${workerUrl}?url=${encodeURIComponent(embedUrl)}&referer=${encodeURIComponent(targetOrigin + "/")}&origin=${encodeURIComponent(targetOrigin)}`
-    );
+      const workerUrl = getWorker();
+      const targetOrigin = new URL(embedUrl).origin;
+      
+      const res = await fetch(
+        `${workerUrl}?url=${encodeURIComponent(embedUrl)}&referer=${encodeURIComponent(targetOrigin + "/")}&origin=${encodeURIComponent(targetOrigin)}`
+      );
 
-    if (!res.ok) return null;
+      if (!res.ok) return null;
 
-    const data = await res.json();
-    if (data.success && data.streamUrl) {
-      return data.streamUrl;
+      const data = await res.json();
+      if (data.success && data.streamUrl) {
+        return data.streamUrl;
+      }
+    } catch (e) {
+      console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
+    } finally {
+      setIsResolving(false);
     }
-  } catch (e) {
-    console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
-  } finally {
-    setIsResolving(false);
-  }
-  return null;
-};
+    return null;
+  };
 
   useEffect(() => {
     const video = videoRef.current;
     setErrorMessage(null);
+    setUseIframe(false);
 
     let videoReadyHandler: (() => Promise<void>) | null = null;
 
@@ -454,7 +456,9 @@ export default function VideoPlayer({
         if (resolved) {
           directLink = resolved;
         } else {
-          setErrorMessage("Không thể bóc tách luồng m3u9 từ trang Embed.");
+          // BƯỚC KHẮC PHỤC SỰ CỐ NGUONC:
+          // Nếu Worker không bóc được M3U8 (do dính Cloudflare Turnstile mới), chuyển sang dùng Iframe Sandbox thay vì báo lỗi dừng phát.
+          setUseIframe(true);
           return;
         }
       }
@@ -550,7 +554,7 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full bg-black group overflow-hidden flex items-center justify-center ${(!showControls && !isPaused) ? 'cursor-none' : ''}`}
+      className={`relative w-full h-full bg-black group overflow-hidden flex items-center justify-center ${(!showControls && !isPaused && !useIframe) ? 'cursor-none' : ''}`}
     >
       {isResolving && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white">
@@ -559,7 +563,35 @@ export default function VideoPlayer({
         </div>
       )}
 
-      {errorMessage ? (
+      {/* NẾU LÀ IFRAME DỰ PHÒNG (DO BÓC M3U8 THẤT BẠI): HIỂN THỊ IFRAME CHẶN POPUP KÈM THANH ĐIỀU HƯỚNG MẸ */}
+      {useIframe ? (
+        <div className="relative w-full h-full bg-black">
+          <div className="absolute top-0 left-0 right-0 z-[160] p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center pointer-events-auto">
+            <h3 className="text-xs md:text-lg font-black uppercase italic tracking-tighter text-white/90 truncate pr-4">
+              {movieName}{totalEpisodes > 1 ? ` - Tập ${currentEpIndex + 1}` : ""}
+            </h3>
+            <button
+              onClick={() => {
+                handleSaveOnQuit(true);
+                onClose();
+              }}
+              className="p-2 bg-black/50 hover:bg-white/20 text-white rounded-full transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <iframe
+            src={videoUrl}
+            className="w-full h-full border-0"
+            title={movieName}
+            allowFullScreen
+            scrolling="no"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          />
+        </div>
+      ) : errorMessage ? (
         <div className="text-red-500 font-semibold p-4 text-center z-[100]">
           <p>{errorMessage}</p>
         </div>
