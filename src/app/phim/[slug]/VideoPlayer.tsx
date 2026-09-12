@@ -38,6 +38,74 @@ const formatTime = (seconds: number) => {
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
+interface NguoncCacheItem {
+  m3u8: string;
+  origin: string;
+  timestamp: number;
+}
+
+const NGUONC_CACHE_TTL = 1000 * 60 * 60 * 2; // 2 giờ
+const NGUONC_MEM_CACHE = new Map<string, NguoncCacheItem>();
+
+const getCachedNguonc = (url: string): NguoncCacheItem | null => {
+  const now = Date.now();
+  if (NGUONC_MEM_CACHE.has(url)) {
+    const item = NGUONC_MEM_CACHE.get(url)!;
+    if (now - item.timestamp < NGUONC_CACHE_TTL) return item;
+    NGUONC_MEM_CACHE.delete(url);
+  }
+
+  if (typeof window !== "undefined" && window.sessionStorage) {
+    try {
+      const raw = sessionStorage.getItem(`nguonc_${url}`);
+      if (raw) {
+        const item: NguoncCacheItem = JSON.parse(raw);
+        if (now - item.timestamp < NGUONC_CACHE_TTL) {
+          NGUONC_MEM_CACHE.set(url, item);
+          return item;
+        } else {
+          sessionStorage.removeItem(`nguonc_${url}`);
+        }
+      }
+    } catch (e) {}
+  }
+  return null;
+};
+
+const setCachedNguonc = (url: string, item: NguoncCacheItem) => {
+  NGUONC_MEM_CACHE.set(url, item);
+  if (typeof window !== "undefined" && window.sessionStorage) {
+    try {
+      sessionStorage.setItem(`nguonc_${url}`, JSON.stringify(item));
+    } catch (e) {}
+  }
+};
+
+const DEFAULT_RESOLVER_API = "https://ghienphim-ktfd.onrender.com";
+
+export const prefetchNguoncStream = async (embedUrl: string): Promise<void> => {
+  if (!embedUrl) return;
+  const isNguoncStream = embedUrl.includes('streamc.xyz') || embedUrl.includes('nguonc.com') || embedUrl.includes('/v/') || embedUrl.includes('embed');
+  if (!isNguoncStream) return;
+
+  if (getCachedNguonc(embedUrl)) return;
+
+  const resolverApi = process.env.NEXT_PUBLIC_NGUONC_RESOLVER_URL || DEFAULT_RESOLVER_API;
+  try {
+    const res = await fetch(`${resolverApi.replace(/\/$/, '')}/resolve?url=${encodeURIComponent(embedUrl)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.m3u8) {
+        setCachedNguonc(embedUrl, {
+          m3u8: data.m3u8,
+          origin: data.embedOrigin || new URL(embedUrl).origin,
+          timestamp: Date.now()
+        });
+      }
+    }
+  } catch (e) {}
+};
+
 export default function VideoPlayer({
   slug,
   movieName,
@@ -53,7 +121,7 @@ export default function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [currentPos, setCurrentPos] = useState(0);
+  const [currentPos, setCurrentPos] = useState(initialTime);
   const [totalDuration, setTotalDuration] = useState(0);
 
   const [isResolving, setIsResolving] = useState(false);
@@ -415,27 +483,38 @@ export default function VideoPlayer({
   }, [showNextNotify, countdown, handleNextEpisode]);
 
   const resolveNguoncLink = async (embedUrl: string): Promise<{ m3u8: string; origin: string } | null> => {
+    // 1. Kiểm tra cache trước (0ms)
+    const cached = getCachedNguonc(embedUrl);
+    if (cached) {
+      return { m3u8: cached.m3u8, origin: cached.origin };
+    }
+
     try {
       setIsResolving(true);
       setErrorMessage(null);
 
-      // Gọi Resolver Microservice (đã deploy trên Render / Koyeb / VPS hoặc local)
-      const resolverApi = process.env.NEXT_PUBLIC_NGUONC_RESOLVER_URL || "";
+      // Gọi Resolver Microservice (đã deploy trên Render / VPS hoặc local)
+      const resolverApi = process.env.NEXT_PUBLIC_NGUONC_RESOLVER_URL || DEFAULT_RESOLVER_API;
       let res: Response | null = null;
 
-      if (resolverApi) {
+      try {
         res = await fetch(`${resolverApi.replace(/\/$/, '')}/resolve?url=${encodeURIComponent(embedUrl)}`);
-      } else {
-        // Fallback: Thử gọi internal endpoint nếu có
-        res = await fetch(`/api/nguonc-stream?url=${encodeURIComponent(embedUrl)}`).catch(() => null);
+      } catch (networkErr) {
+        console.warn("[VideoPlayer] Không kết nối được resolver chính:", networkErr);
       }
 
       if (res && res.ok) {
         const data = await res.json();
         if (data.success && data.m3u8) {
+          const origin = data.embedOrigin || new URL(embedUrl).origin;
+          setCachedNguonc(embedUrl, {
+            m3u8: data.m3u8,
+            origin,
+            timestamp: Date.now()
+          });
           return {
             m3u8: data.m3u8,
-            origin: data.embedOrigin || new URL(embedUrl).origin
+            origin
           };
         }
       }
@@ -481,7 +560,9 @@ export default function VideoPlayer({
 
       videoReadyHandler = async () => {
         if (isCanceled || !video) return;
-        if (initialTime > 0) video.currentTime = initialTime;
+        if (initialTime > 0 && Math.abs(video.currentTime - initialTime) > 0.5) {
+          video.currentTime = initialTime;
+        }
 
         video.play().catch((e) => {
           console.warn("[VideoPlayer] Autoplay prevented by browser", e);
@@ -527,6 +608,10 @@ export default function VideoPlayer({
 
         const hls = new Hls({
           maxBufferSize: 30 * 1000 * 1000,
+          maxBufferLength: 30,
+          backBufferLength: 60,
+          startPosition: initialTime > 0 ? initialTime : -1,
+          enableWorker: true,
           loader: CustomHlsLoader
         });
 

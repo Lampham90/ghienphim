@@ -14,22 +14,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory cache with TTL (1 hour)
+# In-memory cache with TTL (2 hours)
 CACHE = {}
-CACHE_TTL = 3600
+CACHE_TTL = 7200
 
-def get_stream_data(embed_url: str):
-    now = time.time()
-    if embed_url in CACHE:
-        item = CACHE[embed_url]
-        if now - item["cached_at"] < CACHE_TTL:
-            return item["data"]
+_session = None
 
-    parsed = urlparse(embed_url)
-    origin = f"{parsed.scheme}://{parsed.netloc}"
+def get_session():
+    global _session
+    if _session is None:
+        _session = requests.Session(impersonate="chrome120")
+    return _session
 
-    session = requests.Session(impersonate="chrome120")
+def reset_session():
+    global _session
+    if _session is not None:
+        try:
+            _session.close()
+        except Exception:
+            pass
+        _session = None
 
+def _fetch_stream(session, embed_url: str, origin: str):
     # Step 1: GET embed
     res_get = session.get(embed_url, headers={
         "Referer": "https://phim.nguonc.com/",
@@ -77,7 +83,7 @@ def get_stream_data(embed_url: str):
     if res_playlist.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Failed to fetch m3u8 (status {res_playlist.status_code})")
 
-    result = {
+    return {
         "success": True,
         "playlistUrl": playlist_url,
         "embedOrigin": origin,
@@ -85,12 +91,35 @@ def get_stream_data(embed_url: str):
         "expiresAt": data.get("preissued", {}).get("expiresAt")
     }
 
+def get_stream_data(embed_url: str):
+    now = time.time()
+    if embed_url in CACHE:
+        item = CACHE[embed_url]
+        if now - item["cached_at"] < CACHE_TTL:
+            return item["data"]
+
+    parsed = urlparse(embed_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    session = get_session()
+    try:
+        result = _fetch_stream(session, embed_url, origin)
+    except Exception as e:
+        # Nếu session cũ bị drop/đứt kết nối, reset và thử lại 1 lần
+        reset_session()
+        session = get_session()
+        result = _fetch_stream(session, embed_url, origin)
+
     CACHE[embed_url] = {
         "cached_at": now,
         "data": result
     }
 
     return result
+
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "NguonC Stream Resolver is running"}
 
 @app.get("/health")
 def health():

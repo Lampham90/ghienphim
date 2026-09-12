@@ -14,6 +14,8 @@ import { useMovieStore } from "@/lib/useMovieStore";
 import imageLoader from "@/lib/imageLoader";
 import MovieLogoTitle from "@/components/MovieLogoTitle";
 
+import { prefetchNguoncStream } from "./VideoPlayer";
+
 const VideoPlayer = dynamic(() => import("./VideoPlayer"), {
   ssr: false,
   loading: () => (
@@ -340,6 +342,20 @@ export default function MovieDetailClient({
     setIsHistoryLoaded(true);
   }, [slug, servers, history, isPlaying]);
 
+  // Prefetch NguonC stream ngầm để tăng tốc tải và đánh thức Render nếu đang sleep
+  useEffect(() => {
+    if (!servers || servers.length === 0) return;
+    const nguoncServer = servers.find((s: any) => s.isNguonc || (s.server_name || "").toLowerCase().includes("nguonc"));
+    if (nguoncServer) {
+      const eps = getEpisodesArray(nguoncServer);
+      const targetEp = eps[currentEpIndex] || eps[0];
+      const link = getEpisodeLink(targetEp);
+      if (link) {
+        prefetchNguoncStream(link);
+      }
+    }
+  }, [servers, currentEpIndex]);
+
   const isFavorite = favorites.some((item: any) => item.slug === slug);
 
   const toggleFavorite = async () => {
@@ -431,7 +447,7 @@ export default function MovieDetailClient({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ✅ ĐÃ SỬA: Đổi Server sẽ luôn reset thời gian về 0:00 (không truyền thời gian cũ qua lại)
+  // ✅ Đồng bộ thời gian xem khi đổi Server / Audio
   const handleServerChange = (newServerIndex: number) => {
     if (newServerIndex === activeServerIndex) return;
 
@@ -446,10 +462,23 @@ export default function MovieDetailClient({
     let targetEpIdx = targetEpisodes.findIndex((ep: any, i: number) => getEpNum(ep, i) === currentEpNum);
     if (targetEpIdx === -1) targetEpIdx = 0;
 
+    // Giữ nguyên thời gian đang phát hiện tại
+    const currentPos = currentTimeRef.current;
+    let timeToKeep = 0;
+    if (currentPos > 2) {
+      timeToKeep = currentPos;
+    } else {
+      const epHistoryKey = getEpisodeHistoryKey(slug, currentEpNum);
+      const savedEpData = history[epHistoryKey];
+      if (savedEpData && savedEpData.seconds) {
+        timeToKeep = savedEpData.duration && savedEpData.seconds > savedEpData.duration * 0.95 ? 0 : savedEpData.seconds;
+      }
+    }
+
     setActiveServerIndex(newServerIndex);
     setCurrentEpIndex(targetEpIdx);
-    setInitialTime(0);
-    currentTimeRef.current = 0;
+    setInitialTime(timeToKeep);
+    currentTimeRef.current = timeToKeep;
   };
 
   const handleNextEpisode = useCallback(
