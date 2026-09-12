@@ -414,23 +414,30 @@ export default function VideoPlayer({
     return () => clearTimeout(timer);
   }, [showNextNotify, countdown, handleNextEpisode]);
 
-  const resolveNguoncLink = async (embedUrl: string): Promise<string | null> => {
+  const resolveNguoncLink = async (embedUrl: string): Promise<{ m3u8: string; origin: string } | null> => {
     try {
       setIsResolving(true);
       setErrorMessage(null);
 
-      const workerUrl = getWorker();
-      const targetOrigin = new URL(embedUrl).origin;
-      
-      const res = await fetch(
-        `${workerUrl}?url=${encodeURIComponent(embedUrl)}&referer=${encodeURIComponent(targetOrigin + "/")}&origin=${encodeURIComponent(targetOrigin)}`
-      );
+      // Gọi Resolver Microservice (đã deploy trên Render / Koyeb / VPS hoặc local)
+      const resolverApi = process.env.NEXT_PUBLIC_NGUONC_RESOLVER_URL || "";
+      let res: Response | null = null;
 
-      if (!res.ok) return null;
+      if (resolverApi) {
+        res = await fetch(`${resolverApi.replace(/\/$/, '')}/resolve?url=${encodeURIComponent(embedUrl)}`);
+      } else {
+        // Fallback: Thử gọi internal endpoint nếu có
+        res = await fetch(`/api/nguonc-stream?url=${encodeURIComponent(embedUrl)}`).catch(() => null);
+      }
 
-      const data = await res.json();
-      if (data.success && data.streamUrl) {
-        return data.streamUrl;
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data.success && data.m3u8) {
+          return {
+            m3u8: data.m3u8,
+            origin: data.embedOrigin || new URL(embedUrl).origin
+          };
+        }
       }
     } catch (e) {
       console.error("[VideoPlayer] Lỗi giải mã Nguonc:", e);
@@ -442,6 +449,7 @@ export default function VideoPlayer({
 
   useEffect(() => {
     let isCanceled = false;
+    let createdBlobUrl: string | null = null;
     const video = videoRef.current;
     setErrorMessage(null);
     setUseIframe(false);
@@ -451,13 +459,18 @@ export default function VideoPlayer({
     const startPlayer = async () => {
       let directLink = videoUrl;
       const isNguoncStream = videoUrl.includes('streamc.xyz') || videoUrl.includes('nguonc.com') || videoUrl.includes('/v/') || videoUrl.includes('embed');
+      let nguoncOrigin = '';
 
       if (isNguoncStream) {
         const resolved = await resolveNguoncLink(videoUrl);
         if (isCanceled) return;
 
-        if (resolved) {
-          directLink = resolved;
+        if (resolved && resolved.m3u8) {
+          // Tạo Blob URL từ nội dung m3u8 sạch
+          const blob = new Blob([resolved.m3u8], { type: 'application/vnd.apple.mpegurl' });
+          createdBlobUrl = URL.createObjectURL(blob);
+          directLink = createdBlobUrl;
+          nguoncOrigin = resolved.origin;
         } else {
           setUseIframe(true);
           return;
@@ -488,11 +501,11 @@ export default function VideoPlayer({
             this.load = function (context: any, config: any, callbacks: any) {
               let targetUrl = context.url;
               if (isNguoncStream) {
-                if (!targetUrl.startsWith('http')) {
+                if (!targetUrl.startsWith('http') && !targetUrl.startsWith('blob:')) {
                   targetUrl = new URL(targetUrl, directLink).href;
                 }
-                const originHeader = new URL(directLink).origin;
-                if (!WORKER_POOL.some(w => targetUrl.startsWith(w))) {
+                const originHeader = nguoncOrigin || (directLink.startsWith('http') ? new URL(directLink).origin : new URL(videoUrl).origin);
+                if (!WORKER_POOL.some(w => targetUrl.startsWith(w)) && !targetUrl.startsWith('blob:')) {
                   context.url = `${getWorker()}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
                 }
               }
@@ -531,10 +544,7 @@ export default function VideoPlayer({
         });
 
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        const originHeader = new URL(directLink).origin;
-        const finalSrc = `${getWorker()}?url=${encodeURIComponent(directLink)}&referer=${encodeURIComponent(originHeader + "/")}&origin=${encodeURIComponent(originHeader)}`;
-        video.src = finalSrc;
-
+        video.src = directLink;
         video.addEventListener('loadedmetadata', videoReadyHandler);
       }
     };
@@ -543,6 +553,9 @@ export default function VideoPlayer({
 
     return () => {
       isCanceled = true;
+      if (createdBlobUrl) {
+        URL.revokeObjectURL(createdBlobUrl);
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
