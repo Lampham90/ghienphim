@@ -54,7 +54,7 @@ export default async function HomePage() {
         initialSections={initialSections}
         initialHeroMovies={finalHeroMovies}
         allCategoriesData={{}}
-        initialLoadedCount={initialSections.length}
+        initialLoadedCount={first4Cats.length}
       />
     );
   } catch (error) {

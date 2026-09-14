@@ -762,35 +762,37 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
   }, [sections, isRestoring]);
 
   const loadNextCategory = useCallback(async () => {
-    const currentIndex = loadedIndexRef.current;
-    
-    if (currentIndex >= HOME_CATEGORIES.length || isFetching.current) return;
-
+    if (loadedIndexRef.current >= HOME_CATEGORIES.length || isFetching.current) return;
     isFetching.current = true;
-    const currentCat = HOME_CATEGORIES[currentIndex];
 
     try {
-      let movies = categoryCache.get(currentCat.slug);
-      if (!movies || movies.length === 0) {
-        movies = await fetchCategoryFromD1(currentCat.slug);
-      }
+      while (loadedIndexRef.current < HOME_CATEGORIES.length) {
+        const currentIndex = loadedIndexRef.current;
+        const currentCat = HOME_CATEGORIES[currentIndex];
 
-      if (movies && movies.length > 0) {
-        setSections(prev => {
-          if (prev.some(s => s.slug === currentCat.slug)) return prev;
-          return [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
-        });
-      }
+        let movies = categoryCache.get(currentCat.slug);
+        if (!movies || movies.length === 0) {
+          movies = await fetchCategoryFromD1(currentCat.slug);
+        }
 
-      const nextIndex = currentIndex + 1;
-      loadedIndexRef.current = nextIndex;
-      setLoadedIndex(nextIndex);
+        const nextIndex = currentIndex + 1;
+        loadedIndexRef.current = nextIndex;
+        setLoadedIndex(nextIndex);
 
-      if (nextIndex < HOME_CATEGORIES.length) {
-         const futureCat = HOME_CATEGORIES[nextIndex];
-         if (futureCat && !categoryCache.has(futureCat.slug)) {
-            fetchCategoryFromD1(futureCat.slug);
-         }
+        if (movies && movies.length > 0) {
+          setSections(prev => {
+            if (prev.some(s => s.slug === currentCat.slug)) return prev;
+            return [...prev, { title: currentCat.title, type: "category", slug: currentCat.slug, items: movies!.slice(0, 15) }];
+          });
+
+          if (nextIndex < HOME_CATEGORIES.length) {
+            const futureCat = HOME_CATEGORIES[nextIndex];
+            if (futureCat && !categoryCache.has(futureCat.slug)) {
+              fetchCategoryFromD1(futureCat.slug);
+            }
+          }
+          break;
+        }
       }
     } catch (err) {
       console.error("Error loading next category:", err);

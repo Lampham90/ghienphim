@@ -81,12 +81,28 @@ export function getCategoryConfig(slug: string): Category | undefined {
  * Get category title by slug
  */
 export function getCategoryTitle(slug: string): string {
+  const titleMap: Record<string, string> = {
+    'dien_anh': 'Điện Ảnh',
+    'phim_bo': 'Phim Bộ',
+    'hoat_hinh': 'Hoạt Hình',
+    'the_loai': 'Thể Loại Phim',
+    'anime_nhat': 'Anime Nhật Bản',
+    'anime_movie': 'Anime Movie',
+    'hh_trung_quoc': 'Hoạt Hình Trung Quốc',
+    'phim_chieu_rap': 'Phim Chiếu Rạp',
+    'long_tieng': 'Phim Lồng Tiếng',
+    'thuyet_minh': 'Phim Thuyết Minh',
+    'tv_show': 'TV Show',
+  };
+  if (titleMap[slug]) return titleMap[slug];
+
   const config = getCategoryConfig(slug);
-  // ✅ Tối ưu: Nếu tìm thấy config thì lấy title đẹp, nếu không thì dọn dẹp slug (kinh_di -> Kinh Di)
+  // ✅ Tối ưu: Nếu tìm thấy config thì lấy title đẹp, nếu không thì dọn dẹp slug
   if (config) return config.title;
 
   return slug
     .replace(/_/g, ' ')
+    .replace(/-/g, ' ')
     .replace(/\b\w/g, (l) => l.toUpperCase());
 }
 

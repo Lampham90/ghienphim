@@ -1,12 +1,12 @@
 // src/lib/kkphim.ts
-// ĐỒNG BỘ TOÀN DIỆN (v6):
+// ĐỒNG BỘ TOÀN DIỆN (v7):
 // 1. Đồng bộ Trang chủ & Catalog: Ưu tiên Năm giảm dần (2026, 2025...)
 //    rồi mới đến phim mới cào (last_updated).
-// 2. Mở rộng homeOnly: Lấy từ năm 2025 trở lên để phim vừa cào năm nay hiện ngay.
-// 3. Sử dụng COALESCE để đảm bảo sắp xếp năm chính xác kể cả khi dữ liệu rỗng.
+// 2. Parse đầy đủ tmdb_json và imdb_json từ D1 để đồng bộ Logo & Rating.
 
 export interface KKPhimMovie {
   name: string;
+  origin_name?: string;
   year: number;
   slug: string;
   thumb: string;
@@ -16,12 +16,15 @@ export interface KKPhimMovie {
   total_episodes: string;
   country: string;
   description: string;
-  actor?: any[]; // Đổi sang any[] để nhận object [{name, avatar}]
+  actor?: any[];
   category?: any[];
+  tmdb?: any;
+  imdb?: any;
 }
 
 export interface KKPhimDetail {
   name: string;
+  origin_name?: string;
   slug: string;
   poster: string;
   thumb: string;
@@ -32,11 +35,12 @@ export interface KKPhimDetail {
   country?: string;
   lang?: string;
   episode_total?: string;
-  actor?: any[]; // Đổi sang any[]
+  actor?: any[];
   imdb_score?: string;
   quality?: string;
   content?: string;
-  tmdb?: any; // Thêm trường tmdb để ActorList có thể fetch bù
+  tmdb?: any;
+  imdb?: any;
 }
 
 export const getImageUrl = (url?: string) => {
@@ -45,6 +49,14 @@ export const getImageUrl = (url?: string) => {
   const cleanPath = url.startsWith('/') ? url.slice(1) : url;
   return `https://phimimg.com/${cleanPath}`;
 };
+
+export const getCleanName = (name: string) =>
+  name
+    .split(/\s+[:\-(\[]?\s*(phần|season|ss|part|tập|chapter|movie|ova|special|p|s)\s+\d+/i)[0]
+    .replace(/\s+[:\-(\[]?\s*\d+\s*(:.*)?$/, "")
+    .replace(/\s+(X|IX|IV|V?I{1,3})$/i, "")
+    .replace(/[:\-\(\[\]\)]+$/, "")
+    .trim();
 
 function isTrailerMovie(item: any): boolean {
   const ep = (item.episode_current || item.current_episode || "").toLowerCase();
@@ -64,9 +76,9 @@ function isTrailerMovie(item: any): boolean {
 
 export function transformD1Result(m: any): KKPhimMovie {
   const safeParse = (data: any) => {
-    if (!data) return [];
+    if (!data) return undefined;
     if (typeof data !== 'string') return data;
-    try { return JSON.parse(data); } catch (e) { return []; }
+    try { return JSON.parse(data); } catch (e) { return undefined; }
   };
 
   const lang = (m.lang || "").toLowerCase();
@@ -76,14 +88,16 @@ export function transformD1Result(m: any): KKPhimMovie {
 
   return {
     ...m,
-    // ✅ Đảm bảo khớp tên biến để UI (Search/Card) hiện được ảnh
+    origin_name: m.origin_name || "",
     thumb: m.thumb_url || m.thumb || "",
     poster: m.poster_url || m.poster || "",
     country: m.country_name || m.country || "",
     current_episode: m.episode_current || "Full",
     sub_type: subType,
-    actor: safeParse(m.actor_json),
-    category: safeParse(m.category_json),
+    actor: safeParse(m.actor_json) || [],
+    category: safeParse(m.category_json) || [],
+    tmdb: safeParse(m.tmdb_json),
+    imdb: safeParse(m.imdb_json),
     description: m.description || ""
   };
 }
@@ -93,7 +107,7 @@ export async function getMoviesFromD1(
   page: number = 1,
   limitCount: number = 24,
   homeOnly: boolean = false,
-  sortByYear: boolean = false // 🆕 Thêm tham số này để điều khiển sắp xếp theo năm
+  sortByYear: boolean = false
 ): Promise<KKPhimMovie[]> {
   const db = (process.env as any).DB;
   if (!db) return [];
@@ -116,23 +130,52 @@ export async function getMoviesFromD1(
       ${homeOnly ? "AND m.year >= 2025" : ""}
     `;
 
-    // 🔄 PHÂN TÁC LOGIC SẮP XẾP:
-    // Nếu sortByYear = true (dùng cho Catalog) -> Ưu tiên Năm giảm dần, sau đó mới đến last_updated
-    // Ngược lại (dùng cho Trang chủ) -> Giữ nguyên logic cào mới nhất lên đầu
-    const orderClause = sortByYear 
+    const orderClause = sortByYear
       ? "COALESCE(m.year, 0) DESC, m.last_updated DESC" 
       : "m.last_updated DESC";
 
     if (categorySlug === 'phim_chieu_rap') {
-      queryStr = `SELECT m.* FROM movies m WHERE m.chieurap = 1 AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.chieurap = 1 OR mc.category_slug = 'phim_chieu_rap') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'dien_anh') {
+      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'single' OR m.type = 'phimle') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'phim_bo') {
+      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'series' OR m.type = 'phimbo') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'hoat_hinh') {
+      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'hoathinh' OR m.type = 'hoat-hinh') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'the_loai') {
+      queryStr = `SELECT DISTINCT m.* FROM movies m JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'anime_nhat') {
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'hoathinh' OR m.type = 'hoat-hinh') AND (m.country_name LIKE '%Nhật%' OR mc.category_slug = 'anime_nhat') AND (m.episode_total > 1 OR (m.episode_current != 'Full' AND m.episode_current NOT LIKE '%1/1%')) AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'anime_movie') {
-      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.episode_current = 'Full' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'hoathinh' OR m.type = 'hoat-hinh') AND (m.country_name LIKE '%Nhật%' OR mc.category_slug = 'anime_nhat' OR mc.category_slug = 'anime_movie') AND (m.episode_total = 1 OR m.episode_current = 'Full' OR m.episode_current LIKE '%1/1%' OR m.episode_current LIKE '%Hoàn Tất (1/1)%') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'hh_trung_quoc') {
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'hoathinh' OR m.type = 'hoat-hinh') AND (m.country_name LIKE '%Trung%' OR mc.category_slug = 'hh_trung_quoc') AND (m.episode_total > 1 OR (m.episode_current != 'Full' AND m.episode_current NOT LIKE '%1/1%')) AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'long_tieng') {
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = 'long_tieng' OR LOWER(COALESCE(m.lang, '')) LIKE '%lồng tiếng%' OR LOWER(COALESCE(m.lang, '')) LIKE '%lt%') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [limitCount, offset];
+    }
+    else if (categorySlug === 'thuyet_minh') {
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = 'thuyet_minh' OR LOWER(COALESCE(m.lang, '')) LIKE '%thuyết minh%' OR LOWER(COALESCE(m.lang, '')) LIKE '%tm%') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'tv_show') {
-      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'tvshows' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'tvshows' OR mc.category_slug = 'tv_show') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug?.startsWith('le_')) {
@@ -142,8 +185,8 @@ export async function getMoviesFromD1(
       };
       const country = countryMap[categorySlug];
       if (!country) return [];
-      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'single' OR m.type = 'phimle') AND m.country_name LIKE ? AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
-      params = [`%${country}%`, limitCount, offset];
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'single' OR m.type = 'phimle') AND m.country_name LIKE ?)) AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [categorySlug, `%${country}%`, limitCount, offset];
     }
     else if (categorySlug?.startsWith('bo_')) {
       const countryMap: Record<string, string> = {
@@ -152,18 +195,8 @@ export async function getMoviesFromD1(
       };
       const country = countryMap[categorySlug];
       if (!country) return [];
-      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'series' OR m.type = 'phimbo') AND m.country_name LIKE ? AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
-      params = [`%${country}%`, limitCount, offset];
-    }
-    else if (categorySlug === 'anime_nhat') {
-      // Giữ like Nhật Bản, thêm điều kiện loại trừ phim lẻ/movie (ví dụ type không phải phimle/single hoặc không phải episode_current = Full)
-      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.country_name LIKE '%Nhật Bản%' AND m.episode_current != 'Full' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
-      params = [limitCount, offset];
-    }
-    else if (categorySlug === 'hh_trung_quoc') {
-      // Giữ like Trung Quốc, thêm điều kiện loại trừ phim lẻ/movie tương tự
-      queryStr = `SELECT m.* FROM movies m WHERE m.type = 'hoathinh' AND m.country_name LIKE '%Trung Quốc%' AND m.episode_current != 'Full' AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
-      params = [limitCount, offset];
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'series' OR m.type = 'phimbo') AND m.country_name LIKE ?)) AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      params = [categorySlug, `%${country}%`, limitCount, offset];
     }
     else if (categorySlug) {
       queryStr = `
@@ -265,7 +298,6 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
     const movie = json.data?.item;
     if (!movie) return null;
 
-    // ✅ LẤY THÊM actor_json TỪ D1 ĐỂ HIỂN THỊ AVATAR DIỄN VIÊN ĐÃ CÀO
     const db = (process.env as any).DB;
     let actorData = movie.actor || [];
     if (db) {
@@ -273,7 +305,6 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
         const dbRes = await db.prepare("SELECT actor_json FROM movies WHERE slug = ?").bind(slug).first();
         if (dbRes?.actor_json) {
           const parsed = JSON.parse(dbRes.actor_json);
-          // Ưu tiên dữ liệu trong DB (vì có chứa avatar từ TMDB)
           if (Array.isArray(parsed) && parsed.length > 0) {
             actorData = parsed;
           }
@@ -294,8 +325,8 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
       actor: actorData,
       imdb_score: movie.tmdb?.vote_average || movie.imdb?.vote_average || "N/A",
       quality: movie.quality,
-      tmdb: movie.tmdb, // Trả về để ActorList có thể fetch bù từ TMDB nếu DB trống
-
+      tmdb: movie.tmdb,
+      imdb: movie.imdb,
       servers: (movie.episodes || []).map((s: any) => ({
         server_name: s.server_name,
         episodes: (s.server_data || []).map((ep: any) => ({
