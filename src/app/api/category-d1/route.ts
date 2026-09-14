@@ -21,7 +21,11 @@ export async function GET(req: Request) {
     const sortByYear = !homeOnly; 
 
     const results = await getMoviesFromD1(slug, page, 24, homeOnly, sortByYear);
-    return NextResponse.json(results || []);
+    return NextResponse.json(results || [], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    });
   } catch (e) {
     return NextResponse.json([]);
   }

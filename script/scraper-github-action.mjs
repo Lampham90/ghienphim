@@ -10,11 +10,21 @@
 import axios from 'axios';
 import { execSync } from 'child_process';
 import fs from 'fs';
+import { createClient } from '@libsql/client';
 
 const PAGES = 10;
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 const TMDB_API_KEY = process.env.TMDB_API_KEY || "";
+const TURSO_URL = process.env.TURSO_DATABASE_URL || 'libsql://phim-db-lampham90.aws-ap-northeast-1.turso.io';
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkzNzA3NzAsImlkIjoiMDFhMDllY2UtYmEwMS03MGZmLWJiZjgtMDE0YzBhZTc4ZWE0Iiwia2lkIjoiUDFmaGgzd3g5bmNsejNvOFQxVGlqMzJwVmdjWFY3YXFCbTczOW05WE9VayIsInJpZCI6Ijg3NDM1NDEwLWIzMzAtNGU5Ni1iNWYwLTRiODE0MjBhMDY2NiJ9.ebSs5uG_BlrDnCR_QI5uHyb6oDRUpthoEODOcWGON0qjgE-WzBKKWQO9rwkfbQiFWyCvzFDoa8jFKPiYsjmKDQ';
+
+let tursoClient = null;
+if (TURSO_URL && TURSO_AUTH_TOKEN) {
+  try {
+    tursoClient = createClient({ url: TURSO_URL, authToken: TURSO_AUTH_TOKEN });
+  } catch (e) {}
+}
 
 const escapeSQL = (str) => (!str ? "" : String(str).replace(/'/g, "''"));
 const cleanCategorySlug = (s) => s ? s.toLowerCase().trim().replace(/[^a-z0-9-]/g, '') : "";
@@ -31,17 +41,23 @@ const ACTOR_ALIASES = {
   "lý liên kiệt": "jet li", "jet li": "lý liên kiệt"
 };
 
-function checkMoviesInDB(slugs) {
+async function checkMoviesInDB(slugs) {
   if (!slugs || slugs.length === 0) return new Map();
   try {
     const slugInClause = slugs.map(s => `'${escapeSQL(s)}'`).join(',');
     const query = `SELECT slug, episode_current FROM movies WHERE slug IN (${slugInClause})`;
-    const rawResult = execSync(
-      `npx wrangler d1 execute phim_db --remote --command="${query}" --json`,
-      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, stdio: ['pipe', 'pipe', 'ignore'] }
-    );
-    const parsed = JSON.parse(rawResult);
-    const rows = parsed[0]?.results || parsed?.results || [];
+    let rows = [];
+    if (tursoClient) {
+      const res = await tursoClient.execute(query);
+      rows = res.rows || [];
+    } else {
+      const rawResult = execSync(
+        `npx wrangler d1 execute phim_db --remote --command="${query}" --json`,
+        { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, stdio: ['pipe', 'pipe', 'ignore'] }
+      );
+      const parsed = JSON.parse(rawResult);
+      rows = parsed[0]?.results || parsed?.results || [];
+    }
     const movieMap = new Map();
     for (const row of rows) {
       if (row.slug) movieMap.set(row.slug, String(row.episode_current || '').trim());
@@ -80,7 +96,7 @@ async function start() {
     if (allScrapedItems.length === 0) return;
 
     const allSlugs = allScrapedItems.map(item => item.slug).filter(Boolean);
-    const existingMovies = checkMoviesInDB(allSlugs);
+    const existingMovies = await checkMoviesInDB(allSlugs);
 
     let sql = "";
     let addedReport = [];
@@ -182,7 +198,13 @@ async function start() {
 
     if (processedCount > 0) {
         fs.writeFileSync('./update.sql', sql);
-        execSync('npx wrangler d1 execute phim_db --remote --file=./update.sql', { stdio: 'inherit' });
+        if (tursoClient) {
+            console.log(`🚀 Đang cập nhật ${processedCount} phim vào Turso...`);
+            await tursoClient.executeMultiple(sql);
+            console.log(`✅ Cập nhật Turso thành công!`);
+        } else {
+            execSync('npx wrangler d1 execute phim_db --remote --file=./update.sql', { stdio: 'inherit' });
+        }
         const summary = `### ✅ ĐỒNG BỘ HOÀN TẤT (${processedCount} phim cập nhật)\n\n| Tên Phim | Tập Cũ -> Mới | Trạng thái |\n| :--- | :--- | :--- |\n` + addedReport.join('\n');
         if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
     } else {

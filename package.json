@@ -10,6 +10,7 @@
     "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "axios": "^1.18.1",
     "firebase": "^12.14.0",
     "hls.js": "^1.6.15",

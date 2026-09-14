@@ -2,7 +2,23 @@
 // ĐỒNG BỘ TOÀN DIỆN (v7):
 // 1. Đồng bộ Trang chủ & Catalog: Ưu tiên Năm giảm dần (2026, 2025...)
 //    rồi mới đến phim mới cào (last_updated).
-// 2. Parse đầy đủ tmdb_json và imdb_json từ D1 để đồng bộ Logo & Rating.
+// 2. Parse đầy đủ tmdb_json và imdb_json từ D1/Turso để đồng bộ Logo & Rating.
+
+import { createClient } from '@libsql/client/web';
+
+const TURSO_URL = process.env.TURSO_DATABASE_URL || 'libsql://phim-db-lampham90.aws-ap-northeast-1.turso.io';
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkzNzA3NzAsImlkIjoiMDFhMDllY2UtYmEwMS03MGZmLWJiZjgtMDE0YzBhZTc4ZWE0Iiwia2lkIjoiUDFmaGgzd3g5bmNsejNvOFQxVGlqMzJwVmdjWFY3YXFCbTczOW05WE9VayIsInJpZCI6Ijg3NDM1NDEwLWIzMzAtNGU5Ni1iNWYwLTRiODE0MjBhMDY2NiJ9.ebSs5uG_BlrDnCR_QI5uHyb6oDRUpthoEODOcWGON0qjgE-WzBKKWQO9rwkfbQiFWyCvzFDoa8jFKPiYsjmKDQ';
+
+let tursoClientInstance: any = null;
+export function getTursoClient() {
+  if (!tursoClientInstance && TURSO_URL && TURSO_AUTH_TOKEN) {
+    tursoClientInstance = createClient({
+      url: TURSO_URL,
+      authToken: TURSO_AUTH_TOKEN,
+    });
+  }
+  return tursoClientInstance;
+}
 
 export interface KKPhimMovie {
   name: string;
@@ -109,8 +125,9 @@ export async function getMoviesFromD1(
   homeOnly: boolean = false,
   sortByYear: boolean = false
 ): Promise<KKPhimMovie[]> {
+  const turso = getTursoClient();
   const db = (process.env as any).DB;
-  if (!db) return [];
+  if (!turso && !db) return [];
   const offset = (page - 1) * limitCount;
 
   try {
@@ -213,35 +230,53 @@ export async function getMoviesFromD1(
       params = [limitCount, offset];
     }
 
-    const { results } = await db.prepare(queryStr).bind(...params).all();
-    const filteredResults = (results || []).filter((m: any) => !isTrailerMovie(m));
+    let rawRows: any[] = [];
+    if (turso) {
+      const res = await turso.execute({ sql: queryStr, args: params });
+      rawRows = res.rows || [];
+    } else if (db) {
+      const { results } = await db.prepare(queryStr).bind(...params).all();
+      rawRows = results || [];
+    }
+
+    const filteredResults = (rawRows || []).filter((m: any) => !isTrailerMovie(m));
     return filteredResults.map(transformD1Result);
   } catch (e) {
-    console.error("D1 Query Error:", e);
+    console.error("Database Query Error:", e);
     return [];
   }
 }
 
 export async function searchPhimInD1(keyword: string): Promise<KKPhimMovie[]> {
+  const turso = getTursoClient();
   const db = (process.env as any).DB;
-  if (!db || !keyword) return [];
+  if ((!turso && !db) || !keyword) return [];
   try {
     const k = `%${keyword.toLowerCase()}%`;
-    const { results } = await db.prepare(`
+    const sql = `
       SELECT m.* FROM movies m
       JOIN movies_fts f ON m.slug = f.slug
       WHERE f.actors LIKE ? OR f.name LIKE ? OR f.origin_name LIKE ?
       LIMIT 80
-    `).bind(k, k, k).all();
+    `;
+    let rawRows: any[] = [];
+    if (turso) {
+      const res = await turso.execute({ sql, args: [k, k, k] });
+      rawRows = res.rows || [];
+    } else if (db) {
+      const { results } = await db.prepare(sql).bind(k, k, k).all();
+      rawRows = results || [];
+    }
 
-    const filteredResults = (results || []).filter((m: any) => !isTrailerMovie(m));
+    const filteredResults = (rawRows || []).filter((m: any) => !isTrailerMovie(m));
     return filteredResults.map(transformD1Result);
   } catch (e) { return []; }
 }
 
 export async function getMoviesByActor(actorName: string, page: number = 1, limitCount: number = 24): Promise<KKPhimMovie[]> {
+  const turso = getTursoClient();
   const db = (process.env as any).DB;
-  if (!db || !actorName) return [];
+  if ((!turso && !db) || !actorName) return [];
   const offset = (page - 1) * limitCount;
 
   try {
@@ -260,11 +295,20 @@ export async function getMoviesByActor(actorName: string, page: number = 1, limi
       LIMIT ? OFFSET ?
     `;
 
-    const { results } = await db.prepare(queryStr).bind(`%${actorName.toLowerCase()}%`, limitCount, offset).all();
-    const filteredResults = (results || []).filter((m: any) => !isTrailerMovie(m));
+    const params = [`%${actorName.toLowerCase()}%`, limitCount, offset];
+    let rawRows: any[] = [];
+    if (turso) {
+      const res = await turso.execute({ sql: queryStr, args: params });
+      rawRows = res.rows || [];
+    } else if (db) {
+      const { results } = await db.prepare(queryStr).bind(...params).all();
+      rawRows = results || [];
+    }
+
+    const filteredResults = (rawRows || []).filter((m: any) => !isTrailerMovie(m));
     return filteredResults.map(transformD1Result);
   } catch (e) {
-    console.error("D1 Search Actor Error:", e);
+    console.error("Search Actor Error:", e);
     return [];
   }
 }
@@ -298,11 +342,18 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
     const movie = json.data?.item;
     if (!movie) return null;
 
+    const turso = getTursoClient();
     const db = (process.env as any).DB;
     let actorData = movie.actor || [];
-    if (db) {
+    if (turso || db) {
       try {
-        const dbRes = await db.prepare("SELECT actor_json FROM movies WHERE slug = ?").bind(slug).first();
+        let dbRes: any = null;
+        if (turso) {
+          const res = await turso.execute({ sql: "SELECT actor_json FROM movies WHERE slug = ?", args: [slug] });
+          dbRes = res.rows[0];
+        } else if (db) {
+          dbRes = await db.prepare("SELECT actor_json FROM movies WHERE slug = ?").bind(slug).first();
+        }
         if (dbRes?.actor_json) {
           const parsed = JSON.parse(dbRes.actor_json);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -310,7 +361,7 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
           }
         }
       } catch (e) {
-        console.error("Detail D1 Actor Error:", e);
+        console.error("Detail Actor Error:", e);
       }
     }
 
