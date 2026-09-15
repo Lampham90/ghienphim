@@ -1,8 +1,8 @@
 // src/lib/kkphim.ts
-// ĐỒNG BỘ TOÀN DIỆN (v7):
-// 1. Đồng bộ Trang chủ & Catalog: Ưu tiên Năm giảm dần (2026, 2025...)
-//    rồi mới đến phim mới cào (last_updated).
-// 2. Parse đầy đủ tmdb_json và imdb_json từ D1/Turso để đồng bộ Logo & Rating.
+// ĐỒNG BỘ TOÀN DIỆN VỚI ANDROID TV:
+// 1. Đồng bộ Trang chủ & Catalog: Ưu tiên Năm giảm dần (2026, 2025...) rồi mới đến last_updated.
+// 2. Fallback tự động sang phimdb3 khi phimdb2 gặp lỗi.
+// 3. Parse đầy đủ tmdb_json và imdb_json từ D1/Turso để đồng bộ Logo & Rating.
 
 import { createClient } from '@libsql/client/web';
 
@@ -156,19 +156,25 @@ export async function getMoviesFromD1(
       ${homeOnly ? "AND (m.year = 2025 OR m.year = 2026)" : ""}
     `;
 
-    // Ưu tiên tuyệt đối: Phim vừa cập nhật (bản đẹp, tập mới) lên đầu ngay lập tức!
-    const orderClause = "m.last_updated DESC, COALESCE(m.year, 0) DESC";
+    // Đồng bộ chuẩn Android TV: Ưu tiên Năm phát hành giảm dần trước, sau đó mới tới lượt update
+    const orderClause = "COALESCE(m.year, 0) DESC, m.last_updated DESC";
+
+    // Điều kiện loại trừ hoạt hình: áp dụng cho TẤT CẢ các danh mục / thể loại (trừ phim_chieu_rap và các danh mục hoạt hình)
+    const isAnimationCategory = ['hoat_hinh', 'anime_nhat', 'anime_movie', 'hh_trung_quoc'].includes(categorySlug || '');
+    const excludeAnimationSql = (categorySlug === 'phim_chieu_rap' || isAnimationCategory) 
+      ? "" 
+      : "AND m.type != 'hoathinh' AND m.type != 'hoat-hinh' AND LOWER(COALESCE(m.category_json, '')) NOT LIKE '%hoat-hinh%' AND LOWER(COALESCE(m.category_json, '')) NOT LIKE '%hoạt hình%'";
 
     if (categorySlug === 'phim_chieu_rap') {
       queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.chieurap = 1 OR mc.category_slug = 'phim_chieu_rap') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'dien_anh') {
-      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'single' OR m.type = 'phimle') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'single' OR m.type = 'phimle') ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'phim_bo') {
-      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'series' OR m.type = 'phimbo') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT m.* FROM movies m WHERE (m.type = 'series' OR m.type = 'phimbo') ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'hoat_hinh') {
@@ -176,7 +182,7 @@ export async function getMoviesFromD1(
       params = [limitCount, offset];
     }
     else if (categorySlug === 'the_loai') {
-      queryStr = `SELECT DISTINCT m.* FROM movies m JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE ${filterSql} ${excludeAnimationSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'anime_nhat') {
@@ -192,15 +198,15 @@ export async function getMoviesFromD1(
       params = [limitCount, offset];
     }
     else if (categorySlug === 'long_tieng') {
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = 'long_tieng' OR LOWER(COALESCE(m.lang, '')) LIKE '%lồng tiếng%' OR LOWER(COALESCE(m.lang, '')) LIKE '%lt%') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = 'long_tieng' OR LOWER(COALESCE(m.lang, '')) LIKE '%lồng tiếng%' OR LOWER(COALESCE(m.lang, '')) LIKE '%lt%') ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'thuyet_minh') {
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = 'thuyet_minh' OR LOWER(COALESCE(m.lang, '')) LIKE '%thuyết minh%' OR LOWER(COALESCE(m.lang, '')) LIKE '%tm%') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = 'thuyet_minh' OR LOWER(COALESCE(m.lang, '')) LIKE '%thuyết minh%' OR LOWER(COALESCE(m.lang, '')) LIKE '%tm%') ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug === 'tv_show') {
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'tvshows' OR mc.category_slug = 'tv_show') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'tvshows' OR mc.category_slug = 'tv_show') ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
     else if (categorySlug?.startsWith('le_')) {
@@ -210,7 +216,7 @@ export async function getMoviesFromD1(
       };
       const country = countryMap[categorySlug];
       if (!country) return [];
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'single' OR m.type = 'phimle') AND m.country_name LIKE ?)) AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'single' OR m.type = 'phimle') AND m.country_name LIKE ?)) ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [categorySlug, `%${country}%`, limitCount, offset];
     }
     else if (categorySlug?.startsWith('bo_')) {
@@ -220,7 +226,7 @@ export async function getMoviesFromD1(
       };
       const country = countryMap[categorySlug];
       if (!country) return [];
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'series' OR m.type = 'phimbo') AND m.country_name LIKE ?)) AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'series' OR m.type = 'phimbo') AND m.country_name LIKE ?)) ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [categorySlug, `%${country}%`, limitCount, offset];
     }
     else if (categorySlug) {
@@ -228,13 +234,14 @@ export async function getMoviesFromD1(
         SELECT DISTINCT m.* FROM movies m
         JOIN movie_categories mc ON m.slug = mc.movie_slug
         WHERE (mc.category_slug = ? OR mc.category_slug = ?)
+        ${excludeAnimationSql}
         AND ${filterSql}
         ORDER BY ${orderClause} LIMIT ? OFFSET ?
       `;
       params = [categorySlug, categorySlug.replace(/_/g, '-'), limitCount, offset];
     }
     else {
-      queryStr = `SELECT m.* FROM movies m WHERE ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT m.* FROM movies m WHERE ${filterSql} ${excludeAnimationSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [limitCount, offset];
     }
 
@@ -274,12 +281,21 @@ export async function searchPhimInD1(keyword: string): Promise<KKPhimMovie[]> {
       SELECT m.* FROM movies m
       JOIN movies_fts f ON m.slug = f.slug
       WHERE f.actors LIKE ? OR f.name LIKE ? OR f.origin_name LIKE ?
+      ORDER BY COALESCE(m.year, 0) DESC, m.last_updated DESC
       LIMIT 80
     `;
     let rawRows: any[] = [];
     if (turso) {
-      const res = await turso.execute({ sql, args: [k, k, k] });
-      rawRows = res.rows || [];
+      try {
+        const res = await turso.execute({ sql, args: [k, k, k] });
+        rawRows = res.rows || [];
+      } catch (err) {
+        const turso3 = getTurso3Client();
+        if (turso3) {
+          const res3 = await turso3.execute({ sql, args: [k, k, k] });
+          rawRows = res3.rows || [];
+        }
+      }
     } else if (db) {
       const { results } = await db.prepare(sql).bind(k, k, k).all();
       rawRows = results || [];
@@ -315,8 +331,16 @@ export async function getMoviesByActor(actorName: string, page: number = 1, limi
     const params = [`%${actorName.toLowerCase()}%`, limitCount, offset];
     let rawRows: any[] = [];
     if (turso) {
-      const res = await turso.execute({ sql: queryStr, args: params });
-      rawRows = res.rows || [];
+      try {
+        const res = await turso.execute({ sql: queryStr, args: params });
+        rawRows = res.rows || [];
+      } catch (err) {
+        const turso3 = getTurso3Client();
+        if (turso3) {
+          const res3 = await turso3.execute({ sql: queryStr, args: params });
+          rawRows = res3.rows || [];
+        }
+      }
     } else if (db) {
       const { results } = await db.prepare(queryStr).bind(...params).all();
       rawRows = results || [];
@@ -369,8 +393,16 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
       try {
         let dbRes: any = null;
         if (turso) {
-          const res = await turso.execute({ sql: "SELECT actor_json, tmdb_json, imdb_json FROM movies WHERE slug = ?", args: [slug] });
-          dbRes = res.rows[0];
+          try {
+            const res = await turso.execute({ sql: "SELECT actor_json, tmdb_json, imdb_json FROM movies WHERE slug = ?", args: [slug] });
+            dbRes = res.rows[0];
+          } catch (err) {
+            const turso3 = getTurso3Client();
+            if (turso3) {
+              const res3 = await turso3.execute({ sql: "SELECT actor_json, tmdb_json, imdb_json FROM movies WHERE slug = ?", args: [slug] });
+              dbRes = res3.rows[0];
+            }
+          }
         } else if (db) {
           dbRes = await db.prepare("SELECT actor_json, tmdb_json, imdb_json FROM movies WHERE slug = ?").bind(slug).first();
         }
