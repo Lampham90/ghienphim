@@ -6,18 +6,27 @@
 
 import { createClient } from '@libsql/client/web';
 
-const TURSO_URL = process.env.TURSO_DATABASE_URL || 'libsql://phim-db-lampham90.aws-ap-northeast-1.turso.io';
-const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkzNzA3NzAsImlkIjoiMDFhMDllY2UtYmEwMS03MGZmLWJiZjgtMDE0YzBhZTc4ZWE0Iiwia2lkIjoiUDFmaGgzd3g5bmNsejNvOFQxVGlqMzJwVmdjWFY3YXFCbTczOW05WE9VayIsInJpZCI6Ijg3NDM1NDEwLWIzMzAtNGU5Ni1iNWYwLTRiODE0MjBhMDY2NiJ9.ebSs5uG_BlrDnCR_QI5uHyb6oDRUpthoEODOcWGON0qjgE-WzBKKWQO9rwkfbQiFWyCvzFDoa8jFKPiYsjmKDQ';
+const TURSO2_URL = process.env.TURSO_DATABASE_URL || 'libsql://phimdb2-plam.aws-ap-northeast-1.turso.io';
+const TURSO2_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk0NDY1NTAsImlkIjoiMDFhMGEzNTMtNTEwMS03OWUzLTg2ODUtYmE3MzJmMjM2MDg0Iiwia2lkIjoiTzVWWk5LbEFNODJ6cWEyQ3RzSmtZUHI3Z2l4U1RSX3RTZXZjX3BoT3VLVSIsInJpZCI6ImViNTQ0MjAzLWY2YjMtNDliOC05MzcyLTk0ODdmMzA0NWVmNyJ9.pz9hEIZC4iAIwfn2hu-6fbq_S_EUveAYVjFFfZRRZctKhiDyaGdWlS2bb761dM9knCfSYAU66wl0waXpi4-dDQ';
 
-let tursoClientInstance: any = null;
+const TURSO3_URL = process.env.TURSO3_DATABASE_URL || 'libsql://phimdb3-plam2.aws-ap-northeast-1.turso.io';
+const TURSO3_AUTH_TOKEN = process.env.TURSO3_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk0NDY5NTEsImlkIjoiMDFhMGEzNTktN2MwMS03NjQ5LWJkNzctOWQzYzk3YjY3NDQ3Iiwia2lkIjoiZ1lwNFdZTEtJQ1Jva2FzR0FHNnNobHZBNjZGdGVkOU5IWGZaeWltZHUtYyIsInJpZCI6ImFhMGIwY2RhLWZjY2EtNDgxYy1hNTg5LWIxY2Y3YmI5Y2Y1NCJ9.x2iiZWXagUwDmhcK77qWbwgW4vxOSPKRNDa_w5ToCHl0u4XHWzjEaBcAxA8UOBaq5nFWUP-suVqeGrCCfZayDA';
+
+let turso2Client: any = null;
+let turso3Client: any = null;
+
 export function getTursoClient() {
-  if (!tursoClientInstance && TURSO_URL && TURSO_AUTH_TOKEN) {
-    tursoClientInstance = createClient({
-      url: TURSO_URL,
-      authToken: TURSO_AUTH_TOKEN,
-    });
+  if (!turso2Client && TURSO2_URL && TURSO2_AUTH_TOKEN) {
+    turso2Client = createClient({ url: TURSO2_URL, authToken: TURSO2_AUTH_TOKEN });
   }
-  return tursoClientInstance;
+  return turso2Client;
+}
+
+export function getTurso3Client() {
+  if (!turso3Client && TURSO3_URL && TURSO3_AUTH_TOKEN) {
+    turso3Client = createClient({ url: TURSO3_URL, authToken: TURSO3_AUTH_TOKEN });
+  }
+  return turso3Client;
 }
 
 export interface KKPhimMovie {
@@ -231,8 +240,17 @@ export async function getMoviesFromD1(
 
     let rawRows: any[] = [];
     if (turso) {
-      const res = await turso.execute({ sql: queryStr, args: params });
-      rawRows = res.rows || [];
+      try {
+        const res = await turso.execute({ sql: queryStr, args: params });
+        rawRows = res.rows || [];
+      } catch (err2) {
+        console.warn("phimdb2 lỗi, tự động chuyển sang phimdb3 fallback trên Web:", err2);
+        const turso3 = getTurso3Client();
+        if (turso3) {
+          const res3 = await turso3.execute({ sql: queryStr, args: params });
+          rawRows = res3.rows || [];
+        }
+      }
     } else if (db) {
       const { results } = await db.prepare(queryStr).bind(...params).all();
       rawRows = results || [];
