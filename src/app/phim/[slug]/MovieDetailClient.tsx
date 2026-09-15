@@ -591,6 +591,8 @@ export default function MovieDetailClient({
                   tmdbType={movie?.tmdb?.type || (movie as any)?.type}
                   title={movie?.name || "..."}
                   subTitle={(movie as any)?.origin_name || movie?.name}
+                  logoUrl={movie?.tmdb?.logo_url}
+                  slug={movie?.slug}
                 />
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -671,6 +673,8 @@ export default function MovieDetailClient({
                 tmdbType={movie?.tmdb?.type || (movie as any)?.type}
                 title={movie?.name || "..."}
                 subTitle={(movie as any)?.origin_name || movie?.name || ""}
+                logoUrl={movie?.tmdb?.logo_url}
+                slug={movie?.slug}
               />
 
               <div className="flex flex-wrap items-center justify-center gap-2">

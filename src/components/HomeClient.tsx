@@ -893,6 +893,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         tmdbType={m?.tmdb?.type || (m as any)?.type}
                         title={m?.name || "..."}
                         subTitle={(m as any)?.origin_name || m?.name || ""}
+                        logoUrl={m?.tmdb?.logo_url}
+                        slug={m?.slug}
                       />
 
                       {/* Thông tin phụ: Điểm IMDb thật */}
@@ -949,6 +951,8 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                     tmdbType={m?.tmdb?.type || (m as any)?.type}
                     title={m?.name || "..."}
                     subTitle={(m as any)?.origin_name || m?.name || ""}
+                    logoUrl={m?.tmdb?.logo_url}
+                    slug={m?.slug}
                   />
 
                   <div className="flex flex-wrap items-center justify-center gap-2">

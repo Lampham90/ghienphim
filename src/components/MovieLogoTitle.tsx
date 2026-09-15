@@ -10,6 +10,8 @@ interface MovieLogoTitleProps {
   title: string;
   subTitle?: string;
   className?: string;
+  logoUrl?: string | null;
+  slug?: string;
 }
 
 export default function MovieLogoTitle({
@@ -19,11 +21,19 @@ export default function MovieLogoTitle({
   title,
   subTitle,
   className = "",
+  logoUrl: initialLogoUrl,
+  slug,
 }: MovieLogoTitleProps) {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl || null);
+  const [loading, setLoading] = useState<boolean>(!initialLogoUrl);
 
   useEffect(() => {
+    if (initialLogoUrl) {
+      setLogoUrl(initialLogoUrl);
+      setLoading(false);
+      return;
+    }
+
     if ((!tmdbId || tmdbId === "0" || tmdbId === "undefined") && !imdbId && !subTitle && !title) {
       setLoading(false);
       return;
@@ -36,8 +46,9 @@ export default function MovieLogoTitle({
         
         // Làm sạch tên trước khi search
         const searchQuery = encodeURIComponent(getCleanName(subTitle || title || ""));
+        const slugParam = slug ? `&slug=${encodeURIComponent(slug)}` : "";
         
-        const res = await fetch(`/api/tmdb-logo?id=${tmdbId || ""}&imdbId=${imdbId || ""}&type=${typeParam}&query=${searchQuery}`);
+        const res = await fetch(`/api/tmdb-logo?id=${tmdbId || ""}&imdbId=${imdbId || ""}&type=${typeParam}&query=${searchQuery}${slugParam}`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.logoUrl) {
@@ -57,7 +68,7 @@ export default function MovieLogoTitle({
     return () => {
       isMounted = false;
     };
-  }, [tmdbId, imdbId, tmdbType, title, subTitle]);
+  }, [initialLogoUrl, tmdbId, imdbId, tmdbType, title, subTitle, slug]);
 
   return (
     <div className={`flex flex-col items-center md:items-start gap-1.5 w-full ${className}`}>

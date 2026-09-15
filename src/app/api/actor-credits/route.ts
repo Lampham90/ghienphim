@@ -8,7 +8,7 @@ const TMDB_API_KEY = 'b81e7ce8a6c68dbea801f221b220302c';
 async function fetchCredits(tmdbId: string, type: string) {
   try {
     const res = await fetch(
-      `https://api.themoviedb.org/3/${type}/${tmdbId}/credits?api_key=${TMDB_API_KEY}&language=vi-VN`,
+      `https://api.tmdb.org/3/${type}/${tmdbId}/credits?api_key=${TMDB_API_KEY}&language=vi-VN`,
       { cf: { cacheTtl: 86400, cacheEverything: true } } as any
     );
     if (!res.ok) return null;

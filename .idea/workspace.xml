@@ -4,7 +4,17 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5aa0f6b7-51b6-401e-a969-eaa8a69d3995" name="Changes" comment="" />
+    <list default="true" id="5aa0f6b7-51b6-401e-a969-eaa8a69d3995" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/script/scraper-github-action.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/script/scraper-github-action.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/actor-credits/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/actor-credits/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/actor-search/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/actor-search/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/tmdb-logo/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/tmdb-logo/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/phim/[slug]/MovieDetailClient.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/phim/[slug]/MovieDetailClient.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/phim/[slug]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/phim/[slug]/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/HomeClient.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/HomeClient.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/MovieLogoTitle.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/MovieLogoTitle.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/kkphim.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/kkphim.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

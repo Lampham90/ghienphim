@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   try {
     // Tìm kiếm diễn viên theo tên trên TMDB
     const res = await fetch(
-      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}&language=vi-VN`,
+      `https://api.tmdb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}&language=vi-VN`,
       { cf: { cacheTtl: 604800, cacheEverything: true } } as any
     );
 

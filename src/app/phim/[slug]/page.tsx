@@ -3,7 +3,7 @@
 export const runtime = 'edge';
 import MovieDetailClient from './MovieDetailClient';
 import { notFound } from 'next/navigation';
-import { getImageUrl } from '@/lib/kkphim';
+import { getImageUrl, fetchKKPhimDetail } from '@/lib/kkphim';
 import { getOptimizedImageUrl } from '@/lib/imageLoader';
 
 export default async function MovieDetailPage({ 
@@ -17,6 +17,9 @@ export default async function MovieDetailPage({
   const { poster: previewPoster, thumb: previewThumb } = await searchParams;
 
   if (!slug || slug === 'undefined') return notFound();
+
+  // 🚀 TẢI TRƯỚC DỮ LIỆU TỪ SERVER / EDGE: Loại bỏ hoàn toàn độ trễ client-side
+  const initialMovie = await fetchKKPhimDetail(slug);
 
   return (
     <>
@@ -50,7 +53,7 @@ export default async function MovieDetailPage({
       )}
 
       <MovieDetailClient
-        initialMovie={null}
+        initialMovie={initialMovie}
         slug={slug}
       />
     </>

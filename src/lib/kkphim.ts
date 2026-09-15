@@ -144,12 +144,11 @@ export async function getMoviesFromD1(
       AND LOWER(COALESCE(m.type, '')) NOT LIKE '%trailer%'
       AND LOWER(COALESCE(m.name, '')) NOT LIKE '%trailer%'
       AND LOWER(COALESCE(m.slug, '')) NOT LIKE '%trailer%'
-      ${homeOnly ? "AND m.year >= 2025" : ""}
+      ${homeOnly ? "AND (m.year = 2025 OR m.year = 2026)" : ""}
     `;
 
-    const orderClause = sortByYear
-      ? "COALESCE(m.year, 0) DESC, m.last_updated DESC" 
-      : "m.last_updated DESC";
+    // Ưu tiên tuyệt đối: Phim vừa cập nhật (bản đẹp, tập mới) lên đầu ngay lập tức!
+    const orderClause = "m.last_updated DESC, COALESCE(m.year, 0) DESC";
 
     if (categorySlug === 'phim_chieu_rap') {
       queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.chieurap = 1 OR mc.category_slug = 'phim_chieu_rap') AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
@@ -345,14 +344,17 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
     const turso = getTursoClient();
     const db = (process.env as any).DB;
     let actorData = movie.actor || [];
+    let enrichedTmdb = movie.tmdb || null;
+    let enrichedImdb = movie.imdb || null;
+
     if (turso || db) {
       try {
         let dbRes: any = null;
         if (turso) {
-          const res = await turso.execute({ sql: "SELECT actor_json FROM movies WHERE slug = ?", args: [slug] });
+          const res = await turso.execute({ sql: "SELECT actor_json, tmdb_json, imdb_json FROM movies WHERE slug = ?", args: [slug] });
           dbRes = res.rows[0];
         } else if (db) {
-          dbRes = await db.prepare("SELECT actor_json FROM movies WHERE slug = ?").bind(slug).first();
+          dbRes = await db.prepare("SELECT actor_json, tmdb_json, imdb_json FROM movies WHERE slug = ?").bind(slug).first();
         }
         if (dbRes?.actor_json) {
           const parsed = JSON.parse(dbRes.actor_json);
@@ -360,8 +362,20 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
             actorData = parsed;
           }
         }
+        if (dbRes?.tmdb_json) {
+          try {
+            const parsedTmdb = JSON.parse(dbRes.tmdb_json);
+            enrichedTmdb = { ...(enrichedTmdb || {}), ...parsedTmdb };
+          } catch (e) {}
+        }
+        if (dbRes?.imdb_json) {
+          try {
+            const parsedImdb = JSON.parse(dbRes.imdb_json);
+            enrichedImdb = { ...(enrichedImdb || {}), ...parsedImdb };
+          } catch (e) {}
+        }
       } catch (e) {
-        console.error("Detail Actor Error:", e);
+        console.error("Detail DB Load Error:", e);
       }
     }
 
@@ -374,10 +388,10 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
       lang: movie.lang,
       episode_total: movie.episode_total,
       actor: actorData,
-      imdb_score: movie.tmdb?.vote_average || movie.imdb?.vote_average || "N/A",
+      imdb_score: enrichedTmdb?.vote_average || enrichedImdb?.vote_average || movie.tmdb?.vote_average || movie.imdb?.vote_average || "N/A",
       quality: movie.quality,
-      tmdb: movie.tmdb,
-      imdb: movie.imdb,
+      tmdb: enrichedTmdb,
+      imdb: enrichedImdb,
       servers: (movie.episodes || []).map((s: any) => ({
         server_name: s.server_name,
         episodes: (s.server_data || []).map((ep: any) => ({

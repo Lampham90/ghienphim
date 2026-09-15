@@ -1,5 +1,7 @@
 export const runtime = 'edge';
 
+import { getTursoClient } from '@/lib/kkphim';
+
 const TMDB_API_KEY = 'b81e7ce8a6c68dbea801f221b220302c';
 
 const getCleanName = (name: string) =>
@@ -16,6 +18,7 @@ export async function GET(req: Request) {
   let imdbId = searchParams.get('imdbId');
   let type = searchParams.get('type') || 'movie';
   const query = searchParams.get('query');
+  const slug = searchParams.get('slug');
 
   let foundId = (tmdbId && tmdbId !== '0' && tmdbId !== 'undefined') ? tmdbId : null;
   let foundType = type;
@@ -24,7 +27,7 @@ export async function GET(req: Request) {
   if (!foundId && imdbId && imdbId.startsWith('tt')) {
     try {
       const findRes = await fetch(
-        `https://api.themoviedb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`,
+        `https://api.tmdb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`,
         { next: { revalidate: 86400 } }
       );
       const findData = await findRes.json();
@@ -41,13 +44,12 @@ export async function GET(req: Request) {
     try {
       const cleanedQuery = getCleanName(query).toLowerCase();
       const searchRes = await fetch(
-        `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanedQuery)}&language=vi`,
+        `https://api.tmdb.org/3/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanedQuery)}&language=vi`,
         { next: { revalidate: 86400 } }
       );
       const searchData = await searchRes.json();
 
       if (searchData.results && searchData.results.length > 0) {
-        // Lọc kết quả trùng khớp 100% tên (name hoặc original_name)
         const exactMatch = searchData.results.find((item: any) => {
           if (item.media_type !== 'movie' && item.media_type !== 'tv') return false;
           const name = (item.name || "").toLowerCase();
@@ -79,7 +81,7 @@ export async function GET(req: Request) {
 
   try {
     const response = await fetch(
-      `https://api.themoviedb.org/3/${foundType}/${foundId}/images?api_key=${TMDB_API_KEY}&include_image_language=vi,en,null`,
+      `https://api.tmdb.org/3/${foundType}/${foundId}/images?api_key=${TMDB_API_KEY}&include_image_language=vi,en,null`,
       { next: { revalidate: 86400 } }
     );
 
@@ -101,11 +103,37 @@ export async function GET(req: Request) {
     const bestBackdrop = backdrops[0];
     const bestPoster = posters[0];
 
+    const logoUrl = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : null;
+    const backdropUrl = bestBackdrop ? `https://image.tmdb.org/t/p/original${bestBackdrop.file_path}` : null;
+    const posterUrl = bestPoster ? `https://image.tmdb.org/t/p/original${bestPoster.file_path}` : null;
+    const aspectRatio = bestLogo?.aspect_ratio || null;
+
+    // 🔥 TỰ ĐỘNG LƯU VÀO TURSO DB ĐỂ LẦN SAU LOAD 0 GIÂY KHÔNG CẦN GỌI LẠI TMDB
+    if (slug) {
+      try {
+        const turso = getTursoClient();
+        if (turso) {
+          const tmdbPayload = JSON.stringify({
+            id: foundId,
+            type: foundType,
+            logo_url: logoUrl,
+            backdrop_url: backdropUrl,
+            poster_url: posterUrl,
+            aspect_ratio: aspectRatio
+          });
+          turso.execute({
+            sql: "UPDATE movies SET tmdb_json = ? WHERE slug = ?",
+            args: [tmdbPayload, slug]
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
     return new Response(JSON.stringify({
-      logoUrl: bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : null,
-      backdropUrl: bestBackdrop ? `https://image.tmdb.org/t/p/original${bestBackdrop.file_path}` : null,
-      posterUrl: bestPoster ? `https://image.tmdb.org/t/p/original${bestPoster.file_path}` : null,
-      aspectRatio: bestLogo?.aspect_ratio || null
+      logoUrl,
+      backdropUrl,
+      posterUrl,
+      aspectRatio
     }), {
       status: 200,
       headers: {
