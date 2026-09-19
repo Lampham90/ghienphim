@@ -216,7 +216,7 @@ export async function getMoviesFromD1(
       };
       const country = countryMap[categorySlug];
       if (!country) return [];
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'single' OR m.type = 'phimle') AND m.country_name LIKE ?)) ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'single' OR m.type = 'phimle') AND m.type != 'tvshows' AND (mc.category_slug = ? OR m.country_name LIKE ?) ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [categorySlug, `%${country}%`, limitCount, offset];
     }
     else if (categorySlug?.startsWith('bo_')) {
@@ -226,7 +226,7 @@ export async function getMoviesFromD1(
       };
       const country = countryMap[categorySlug];
       if (!country) return [];
-      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (mc.category_slug = ? OR ((m.type = 'series' OR m.type = 'phimbo') AND m.country_name LIKE ?)) ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+      queryStr = `SELECT DISTINCT m.* FROM movies m LEFT JOIN movie_categories mc ON m.slug = mc.movie_slug WHERE (m.type = 'series' OR m.type = 'phimbo') AND m.type != 'tvshows' AND (mc.category_slug = ? OR m.country_name LIKE ?) ${excludeAnimationSql} AND ${filterSql} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
       params = [categorySlug, `%${country}%`, limitCount, offset];
     }
     else if (categorySlug) {
