@@ -34,38 +34,51 @@ export interface KKPhimMovie {
   origin_name?: string;
   year: number;
   slug: string;
-  thumb: string;
-  poster: string;
-  sub_type: string;
-  current_episode: string;
-  total_episodes: string;
-  country: string;
-  description: string;
+  thumb?: string;
+  thumb_url?: string;
+  poster?: string;
+  poster_url?: string;
+  sub_type?: string;
+  current_episode?: string;
+  episode_current?: string;
+  total_episodes?: string;
+  country?: string;
+  description?: string;
+  quality?: string;
+  lang?: string;
   actor?: any[];
   category?: any[];
   tmdb?: any;
   imdb?: any;
+  imdb_score?: string;
+  logo?: string | null;
 }
 
 export interface KKPhimDetail {
   name: string;
   origin_name?: string;
   slug: string;
-  poster: string;
-  thumb: string;
+  poster?: string;
+  thumb?: string;
   description?: string;
-  servers: any[];
-  episodes: any[];
+  servers?: any[];
+  episodes?: any[];
   year?: number;
   country?: string;
   lang?: string;
   episode_total?: string;
+  total_episodes?: string;
+  episode_current?: string;
+  current_episode?: string;
+  sub_type?: string;
   actor?: any[];
+  category?: any[];
   imdb_score?: string;
   quality?: string;
   content?: string;
   tmdb?: any;
   imdb?: any;
+  logo?: string | null;
 }
 
 export const getImageUrl = (url?: string) => {
@@ -111,18 +124,42 @@ export function transformD1Result(m: any): KKPhimMovie {
   if (lang.includes("lồng tiếng") || lang.includes("lt")) subType = "Lồng Tiếng";
   if (lang.includes("thuyết minh") || lang.includes("tm")) subType = "Thuyết Minh";
 
+  const tmdb = safeParse(m.tmdb_json);
+  const imdb = safeParse(m.imdb_json);
+
+  let backdrop = m.thumb_url || m.thumb || "";
+  if (tmdb?.backdrop_url) backdrop = tmdb.backdrop_url.replace('/original/', '/w780/');
+  else if (tmdb?.backdrop_path) backdrop = `https://image.tmdb.org/t/p/w780${tmdb.backdrop_path}`;
+
+  let poster = m.poster_url || m.poster || "";
+  if (tmdb?.poster_url) poster = tmdb.poster_url.replace('/original/', '/w500/');
+  else if (tmdb?.poster_path) poster = `https://image.tmdb.org/t/p/w500${tmdb.poster_path}`;
+
+  let logo = m.logo || null;
+  if (tmdb?.logo_url) logo = tmdb.logo_url;
+  else if (tmdb?.logo_path) logo = `https://image.tmdb.org/t/p/w500${tmdb.logo_path}`;
+
   return {
     ...m,
     origin_name: m.origin_name || "",
-    thumb: m.thumb_url || m.thumb || "",
-    poster: m.poster_url || m.poster || "",
+    thumb: backdrop,
+    thumb_url: backdrop,
+    poster: poster,
+    poster_url: poster,
+    year: m.year ? parseInt(m.year, 10) : 0,
     country: m.country_name || m.country || "",
     current_episode: m.episode_current || "Full",
+    episode_current: m.episode_current || "Full",
+    total_episodes: m.episode_total || "1",
     sub_type: subType,
+    quality: m.quality || "HD",
+    lang: m.lang || subType,
     actor: safeParse(m.actor_json) || [],
     category: safeParse(m.category_json) || [],
-    tmdb: safeParse(m.tmdb_json),
-    imdb: safeParse(m.imdb_json),
+    tmdb: tmdb,
+    imdb: imdb,
+    imdb_score: tmdb?.vote_average ? String(tmdb.vote_average) : (imdb?.vote_average ? String(imdb.vote_average) : (m.imdb_score || "N/A")),
+    logo: logo,
     description: m.description || ""
   };
 }
@@ -156,8 +193,10 @@ export async function getMoviesFromD1(
       ${homeOnly ? "AND (m.year = 2025 OR m.year = 2026)" : ""}
     `;
 
-    // Đồng bộ chuẩn Android TV: Ưu tiên Năm phát hành giảm dần trước, sau đó mới tới lượt update
-    const orderClause = "COALESCE(m.year, 0) DESC, m.last_updated DESC";
+    // Đồng bộ 100% với Cloudflare Worker: Sắp xếp theo Năm hoặc Thời gian cập nhật mới nhất
+    const orderClause = sortByYear
+      ? "COALESCE(m.year, 0) DESC, m.last_updated DESC"
+      : "m.last_updated DESC, COALESCE(m.year, 0) DESC";
 
     // Điều kiện loại trừ hoạt hình: áp dụng cho TẤT CẢ các danh mục / thể loại (trừ phim_chieu_rap và các danh mục hoạt hình)
     const isAnimationCategory = ['hoat_hinh', 'anime_nhat', 'anime_movie', 'hh_trung_quoc'].includes(categorySlug || '');
@@ -271,39 +310,85 @@ export async function getMoviesFromD1(
   }
 }
 
+export function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
 export async function searchPhimInD1(keyword: string): Promise<KKPhimMovie[]> {
   const turso = getTursoClient();
   const db = (process.env as any).DB;
   if ((!turso && !db) || !keyword) return [];
   try {
-    const k = `%${keyword.toLowerCase()}%`;
+    const kw = keyword.trim().toLowerCase();
+    const unaccented = removeVietnameseTones(kw);
+    const slugPart = unaccented.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+    const kLike = `%${kw}%`;
+    const kStart = `${kw}%`;
+    const slugLike = `%${slugPart}%`;
+    const slugStart = `${slugPart}%`;
+
     const sql = `
       SELECT m.* FROM movies m
       JOIN movies_fts f ON m.slug = f.slug
-      WHERE f.actors LIKE ? OR f.name LIKE ? OR f.origin_name LIKE ?
-      ORDER BY COALESCE(m.year, 0) DESC, m.last_updated DESC
+      WHERE f.name LIKE ? 
+         OR f.origin_name LIKE ? 
+         OR f.actors LIKE ? 
+         OR f.alternative_names LIKE ?
+         OR f.slug LIKE ?
+      ORDER BY 
+        CASE 
+          WHEN LOWER(m.name) = ? THEN 1
+          WHEN LOWER(m.origin_name) = ? THEN 2
+          WHEN m.slug = ? THEN 3
+          WHEN LOWER(m.name) LIKE ? THEN 4
+          WHEN LOWER(m.origin_name) LIKE ? THEN 5
+          WHEN m.slug LIKE ? THEN 6
+          WHEN LOWER(m.name) LIKE ? THEN 7
+          WHEN LOWER(m.origin_name) LIKE ? THEN 8
+          WHEN m.slug LIKE ? THEN 9
+          ELSE 10
+        END,
+        COALESCE(m.year, 0) DESC,
+        m.last_updated DESC
       LIMIT 80
     `;
+
+    const params = [
+      kLike, kLike, kLike, kLike, slugLike,
+      kw, kw, slugPart,
+      kStart, kStart, slugStart,
+      kLike, kLike, slugLike
+    ];
+
     let rawRows: any[] = [];
     if (turso) {
       try {
-        const res = await turso.execute({ sql, args: [k, k, k] });
+        const res = await turso.execute({ sql, args: params });
         rawRows = res.rows || [];
       } catch (err) {
+        console.warn("phimdb2 search lỗi, tự động chuyển sang phimdb3 fallback:", err);
         const turso3 = getTurso3Client();
         if (turso3) {
-          const res3 = await turso3.execute({ sql, args: [k, k, k] });
+          const res3 = await turso3.execute({ sql, args: params });
           rawRows = res3.rows || [];
         }
       }
     } else if (db) {
-      const { results } = await db.prepare(sql).bind(k, k, k).all();
+      const { results } = await db.prepare(sql).bind(...params).all();
       rawRows = results || [];
     }
 
     const filteredResults = (rawRows || []).filter((m: any) => !isTrailerMovie(m));
     return filteredResults.map(transformD1Result);
-  } catch (e) { return []; }
+  } catch (e) {
+    console.error("searchPhimInD1 error:", e);
+    return [];
+  }
 }
 
 export async function getMoviesByActor(actorName: string, page: number = 1, limitCount: number = 24): Promise<KKPhimMovie[]> {
@@ -429,6 +514,10 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
       }
     }
 
+    let logo: string | null = null;
+    if (enrichedTmdb?.logo_url) logo = enrichedTmdb.logo_url;
+    else if (enrichedTmdb?.logo_path) logo = `https://image.tmdb.org/t/p/w500${enrichedTmdb.logo_path}`;
+
     return {
       ...movie,
       poster: movie.poster_url,
@@ -437,9 +526,14 @@ export async function fetchKKPhimDetail(slug: string): Promise<KKPhimDetail | nu
       year: movie.year,
       lang: movie.lang,
       episode_total: movie.episode_total,
+      total_episodes: movie.episode_total || "1",
+      episode_current: movie.episode_current || "Full",
+      current_episode: movie.episode_current || "Full",
+      category: movie.category || [],
       actor: actorData,
       imdb_score: enrichedTmdb?.vote_average || enrichedImdb?.vote_average || movie.tmdb?.vote_average || movie.imdb?.vote_average || "N/A",
       quality: movie.quality,
+      logo: logo,
       tmdb: enrichedTmdb,
       imdb: enrichedImdb,
       servers: (movie.episodes || []).map((s: any) => ({
