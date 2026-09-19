@@ -169,7 +169,8 @@ export async function getMoviesFromD1(
   page: number = 1,
   limitCount: number = 24,
   homeOnly: boolean = false,
-  sortByYear: boolean = false
+  sortByYear: boolean = false,
+  year?: string | number | null
 ): Promise<KKPhimMovie[]> {
   const turso = getTursoClient();
   const db = (process.env as any).DB;
@@ -179,6 +180,15 @@ export async function getMoviesFromD1(
   try {
     let queryStr = "";
     let params: any[] = [];
+
+    let yearSql = "";
+    if (year === 'truoc-2020') {
+      yearSql = "AND m.year < 2020";
+    } else if (year && !isNaN(parseInt(String(year), 10))) {
+      yearSql = `AND m.year = ${parseInt(String(year), 10)}`;
+    } else if (homeOnly) {
+      yearSql = "AND (m.year = 2025 OR m.year = 2026)";
+    }
 
     const filterSql = `
       LOWER(COALESCE(m.episode_current, '')) NOT LIKE '%trailer%'
@@ -190,7 +200,7 @@ export async function getMoviesFromD1(
       AND LOWER(COALESCE(m.type, '')) NOT LIKE '%trailer%'
       AND LOWER(COALESCE(m.name, '')) NOT LIKE '%trailer%'
       AND LOWER(COALESCE(m.slug, '')) NOT LIKE '%trailer%'
-      ${homeOnly ? "AND (m.year = 2025 OR m.year = 2026)" : ""}
+      ${yearSql}
     `;
 
     // Đồng bộ 100% với Cloudflare Worker: Sắp xếp theo Năm hoặc Thời gian cập nhật mới nhất

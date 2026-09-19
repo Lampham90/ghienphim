@@ -12,6 +12,7 @@ export async function GET(req: Request) {
     
     // Kiểm tra xem có phải gọi từ Trang chủ không
     const homeOnly = searchParams.get('home') === '1';
+    const year = searchParams.get('year') || null;
     
     if (!slug) return NextResponse.json([]);
 
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
     // - Nếu là Catalog (homeOnly = false) -> homeOnly = false, sortByYear = true (sắp xếp năm giảm dần)
     const sortByYear = !homeOnly; 
 
-    const results = await getMoviesFromD1(slug, page, 24, homeOnly, sortByYear);
+    const results = await getMoviesFromD1(slug, page, 24, homeOnly, sortByYear, year);
     return NextResponse.json(results || [], {
       headers: {
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
