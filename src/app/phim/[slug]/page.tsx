@@ -23,17 +23,13 @@ export default async function MovieDetailPage({
 
   return (
     <>
-      {/* 💡 PRELOAD: Tải ảnh banner ngay lập tức với Proxy wsrv.nl */}
+      {/* 💡 PRELOAD: Tải ảnh banner ngay lập tức với CDN Cloudflare / WebP */}
       {previewThumb && (
         <link
           rel="preload"
           as="image"
           media="(min-width: 768px)"
-          imageSrcSet={`
-            ${getOptimizedImageUrl(getImageUrl(previewThumb), 1280, 70)} 1280w,
-            ${getOptimizedImageUrl(getImageUrl(previewThumb), 1920, 70)} 1920w
-          `}
-          imageSizes="(max-width: 1280px) 1280px, 1920px"
+          href={getOptimizedImageUrl(previewThumb, 1280, 75)}
           fetchPriority="high"
         />
       )}
@@ -43,11 +39,7 @@ export default async function MovieDetailPage({
           rel="preload"
           as="image"
           media="(max-width: 767px)"
-          imageSrcSet={`
-            ${getOptimizedImageUrl(getImageUrl(previewPoster), 750, 70)} 750w,
-            ${getOptimizedImageUrl(getImageUrl(previewPoster), 1080, 70)} 1080w
-          `}
-          imageSizes="100vw"
+          href={getOptimizedImageUrl(previewPoster, 780, 75)}
           fetchPriority="high"
         />
       )}

@@ -106,6 +106,18 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   const rawPoster = embeddedPoster || fetchedTmdb.poster || displayPoster;
   const rawThumb = embeddedThumb || fetchedTmdb.backdrop || displayThumb;
 
+  const handlePrefetch = () => {
+    if (typeof window === 'undefined') return;
+    if (rawThumb) {
+      const img1 = new window.Image();
+      img1.src = imageLoader({ src: rawThumb, width: 1280 });
+    }
+    if (rawPoster) {
+      const img2 = new window.Image();
+      img2.src = imageLoader({ src: rawPoster, width: 780 });
+    }
+  };
+
   const fallbackImg = "https://phimimg.com/upload/poster/dang-cap-nhat.jpg";
   const computedPriority = priority && (index ?? 0) < 3;
 
@@ -113,7 +125,10 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
   if (isHorizontal) {
     return (
       <div className={`min-w-[240px] md:min-w-[320px] snap-start group relative flex flex-col pt-4 ${isDragging ? 'pointer-events-none' : ''}`}>
-        <Link href={`/phim/${movie.slug}?poster=${encodeURIComponent(rawPoster)}&thumb=${encodeURIComponent(rawThumb)}`} 
+        <Link 
+          href={`/phim/${movie.slug}?poster=${encodeURIComponent(rawPoster)}&thumb=${encodeURIComponent(rawThumb)}`} 
+          onMouseEnter={handlePrefetch}
+          onTouchStart={handlePrefetch}
           className={`relative aspect-video w-full rounded-2xl overflow-hidden border border-white/5 bg-[#121212] ${floatingEffect}`} draggable={false}>
           <Image 
             loader={imageLoader}
@@ -150,7 +165,10 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
 
   return (
     <div className={`${containerClass} snap-start group relative flex flex-col items-center pt-4 ${isDragging ? 'pointer-events-none' : ''}`}>
-      <Link href={`/phim/${movie.slug}?poster=${encodeURIComponent(rawPoster)}&thumb=${encodeURIComponent(rawThumb)}`} 
+      <Link 
+        href={`/phim/${movie.slug}?poster=${encodeURIComponent(rawPoster)}&thumb=${encodeURIComponent(rawThumb)}`} 
+        onMouseEnter={handlePrefetch}
+        onTouchStart={handlePrefetch}
         className={`relative aspect-[2/3] w-full ${!isRanked3Variant ? 'rounded-[1.5rem] md:rounded-[2.5rem]' : ''} overflow-hidden border border-white/5 bg-[#121212] ${floatingEffect}`}
         style={svgMask ? { WebkitMaskImage: svgMask, maskImage: svgMask, WebkitMaskSize: '100% 100%', maskSize: '100% 100%', maskRepeat: 'no-repeat' } : {}}
         draggable={false}>
