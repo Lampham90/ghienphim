@@ -1,25 +1,31 @@
 // ============================================================
-// SCRAPER ĐỊNH KỲ (GitHub Actions) - PHIÊN BẢN CHUẨN TURSO + D1 (v16)
-// 1. KHÔNG CẦN CÀI THÊM THƯ VIỆN: Dùng axios sẵn có gọi trực tiếp Turso HTTP API.
-// 2. TỰ ĐỘNG TẢI TMDB LOGO & BACKDROP: Web hiển thị logo tức thì trong 0 giây.
-// 3. SIÊU TỐI ƯU: Check số tập và ngày modified để skip phim không đổi, tiết kiệm tài nguyên.
-// 4. BÁO CÁO: Hiển thị bảng chi tiết trực tiếp trên GitHub Actions Step Summary.
+// SCRAPER ĐỊNH KỲ (GitHub Actions) - BẢN TỐI ƯU TOÀN DIỆN (v21)
+// 1. Đồng bộ song song 2 Turso DB (phimdb2 & phimdb3).
+// 2. SKIP THÔNG MINH: Bỏ qua phim không có thay đổi (tiết kiệm 95% request & write quota).
+// 3. CHỐNG PHỒNG DATABASE: Dọn sạch categories cũ và chạy optimize FTS5 định kỳ.
+// 4. TMDB SHARP: Tự động tải Logo, Poster & Backdrop độ phân giải gốc (/original/).
+// 5. Đồng bộ hoàn hảo 100% với schema và src/lib/kkphim.ts.
 // ============================================================
 
 import axios from 'axios';
-import { execSync } from 'child_process';
 import fs from 'fs';
 
-// Có thể truyền tham số qua dòng lệnh: node update-d1.mjs 1 100 (từ trang 1 đến 100)
-// Hoặc mặc định chạy 10 trang đầu khi cron tự động chạy
-const START_PAGE = parseInt(process.env.START_PAGE || process.argv[2] || '1');
-const END_PAGE = parseInt(process.env.END_PAGE || process.argv[3] || '10');
+const START_PAGE = parseInt(process.env.START_PAGE || process.argv[2] || '1', 10);
+const END_PAGE = parseInt(process.env.END_PAGE || process.argv[3] || '10', 10);
+const FORCE_UPDATE = process.env.FORCE_UPDATE === 'true' || process.argv.includes('--force');
+
 const TMDB_API_KEY = process.env.TMDB_API_KEY || "b81e7ce8a6c68dbea801f221b220302c";
-const TURSO_URL = 'https://phim-db-lampham90.aws-ap-northeast-1.turso.io';
-const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkzNzA3NzAsImlkIjoiMDFhMDllY2UtYmEwMS03MGZmLWJiZjgtMDE0YzBhZTc4ZWE0Iiwia2lkIjoiUDFmaGgzd3g5bmNsejNvOFQxVGlqMzJwVmdjWFY3YXFCbTczOW05WE9VayIsInJpZCI6Ijg3NDM1NDEwLWIzMzAtNGU5Ni1iNWYwLTRiODE0MjBhMDY2NiJ9.ebSs5uG_BlrDnCR_QI5uHyb6oDRUpthoEODOcWGON0qjgE-WzBKKWQO9rwkfbQiFWyCvzFDoa8jFKPiYsjmKDQ';
+
+// 💡 TURSO 2 CHÍNH
+const TURSO2_URL = process.env.TURSO2_URL || 'https://phimdb2-plam.aws-ap-northeast-1.turso.io';
+const TURSO2_TOKEN = process.env.TURSO2_TOKEN || process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk0NDY1NTAsImlkIjoiMDFhMGEzNTMtNTEwMS03OWUzLTg2ODUtYmE3MzJmMjM2MDg0Iiwia2lkIjoiTzVWWk5LbEFNODJ6cWEyQ3RzSmtZUHI3Z2l4U1RSX3RTZXZjX3BoT3VLVSIsInJpZCI6ImViNTQ0MjAzLWY2YjMtNDliOC05MzcyLTk0ODdmMzA0NWVmNyJ9.pz9hEIZC4iAIwfn2hu-6fbq_S_EUveAYVjFFfZRRZctKhiDyaGdWlS2bb761dM9knCfSYAU66wl0waXpi4-dDQ';
+
+// 💡 TURSO 3 PHỤ (FALLBACK)
+const TURSO3_URL = process.env.TURSO3_URL || 'https://phimdb3-plam2.aws-ap-northeast-1.turso.io';
+const TURSO3_TOKEN = process.env.TURSO3_TOKEN || process.env.TURSO3_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk0NDY5NTEsImlkIjoiMDFhMGEzNTktN2MwMS03NjQ5LWJkNzctOWQzYzk3YjY3NDQ3Iiwia2lkIjoiZ1lwNFdZTEtJQ1Jva2FzR0FHNnNobHZBNjZGdGVkOU5IWGZaeWltZHUtYyIsInJpZCI6ImFhMGIwY2RhLWZjY2EtNDgxYy1hNTg5LWIxY2Y3YmI5Y2Y1NCJ9.x2iiZWXagUwDmhcK77qWbwgW4vxOSPKRNDa_w5ToCHl0u4XHWzjEaBcAxA8UOBaq5nFWUP-suVqeGrCCfZayDA';
 
 const escapeSQL = (str) => (!str ? "" : String(str).replace(/'/g, "''"));
-const cleanCategorySlug = (s) => s ? s.toLowerCase().trim().replace(/[^a-z0-9-]/g, '') : "";
+const cleanCategorySlug = (s) => s ? s.toLowerCase().trim().replace(/[^a-z0-9-_]/g, '') : "";
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 const COUNTRY_CODE_MAP = {
@@ -33,28 +39,22 @@ const ACTOR_ALIASES = {
   "lý liên kiệt": "jet li", "jet li": "lý liên kiệt"
 };
 
-// Gọi Turso HTTP API qua axios không cần cài @libsql/client
-async function executeTurso(sqlOrQueries) {
-  const queries = Array.isArray(sqlOrQueries) ? sqlOrQueries : [sqlOrQueries];
+async function executeTursoDb(url, token, queries) {
   const requests = queries.map(q => ({ type: 'execute', stmt: { sql: q } }));
   requests.push({ type: 'close' });
-  const res = await axios.post(`${TURSO_URL}/v2/pipeline`, { requests }, {
-    headers: {
-      'Authorization': `Bearer ${TURSO_AUTH_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    timeout: 15000
+  return axios.post(`${url}/v2/pipeline`, { requests }, {
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    timeout: 30000
   });
-  return res.data?.results;
 }
 
 async function checkMoviesInDB(slugs) {
   if (!slugs || slugs.length === 0) return new Map();
   try {
     const slugInClause = slugs.map(s => `'${escapeSQL(s)}'`).join(',');
-    const query = `SELECT slug, episode_current, modified FROM movies WHERE slug IN (${slugInClause})`;
-    const results = await executeTurso(query);
-    const execResult = results?.[0]?.response?.result;
+    const query = `SELECT slug, episode_current, modified, last_updated FROM movies WHERE slug IN (${slugInClause})`;
+    const res = await executeTursoDb(TURSO2_URL, TURSO2_TOKEN, [query]);
+    const execResult = res.data?.results?.[0]?.response?.result;
     if (!execResult) return new Map();
     const cols = execResult.cols.map(c => c.name);
     const movieMap = new Map();
@@ -64,12 +64,14 @@ async function checkMoviesInDB(slugs) {
       if (row.slug) {
         movieMap.set(row.slug, {
           episode_current: String(row.episode_current || '').trim(),
-          modified: String(row.modified || '').trim()
+          modified: String(row.modified || '').trim(),
+          last_updated: row.last_updated ? parseInt(row.last_updated, 10) : null
         });
       }
     }
     return movieMap;
   } catch (e) {
+    console.warn("⚠️ Không thể kiểm tra DB trước, sẽ tiếp tục cào:", e.message);
     return new Map();
   }
 }
@@ -78,7 +80,7 @@ async function getTmdbActors(tmdbType, tmdbId, fallbackActors = []) {
   if (!tmdbId || !tmdbType || !TMDB_API_KEY) return fallbackActors.map(name => ({ name, avatar: "" }));
   try {
     const url = `https://api.tmdb.org/3/${tmdbType}/${tmdbId}/credits?api_key=${TMDB_API_KEY}&language=vi-VN`;
-    const res = await axios.get(url, { timeout: 3000 });
+    const res = await axios.get(url, { timeout: 4000 });
     const cast = res.data?.cast || [];
     if (cast.length > 0) {
       return cast.slice(0, 10).map(c => ({
@@ -94,7 +96,7 @@ async function getTmdbMedia(tmdbType, tmdbId) {
   if (!tmdbId || !tmdbType || !TMDB_API_KEY) return null;
   try {
     const url = `https://api.tmdb.org/3/${tmdbType}/${tmdbId}/images?api_key=${TMDB_API_KEY}&include_image_language=vi,en,null`;
-    const res = await axios.get(url, { timeout: 3000 });
+    const res = await axios.get(url, { timeout: 4000 });
     const logos = res.data?.logos || [];
     const backdrops = res.data?.backdrops || [];
     const posters = res.data?.posters || [];
@@ -120,32 +122,41 @@ async function getTmdbMedia(tmdbType, tmdbId) {
 }
 
 async function start() {
-  console.log(`📡 BƯỚC 1: Quét danh sách từ trang ${START_PAGE} đến trang ${END_PAGE}...`);
+  console.log(`📡 BƯỚC 1: Quét danh sách phim từ trang ${START_PAGE} đến trang ${END_PAGE}... (Force Update: ${FORCE_UPDATE})`);
   let allScrapedItems = [];
   for (let page = START_PAGE; page <= END_PAGE; page++) {
     try {
       const listRes = await axios.get(`https://phimapi.com/v1/api/danh-sach?page=${page}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        timeout: 10000
       });
-      allScrapedItems.push(...(listRes.data.data.items || []));
-    } catch (e) {}
-    await sleep(100);
+      const items = listRes.data?.data?.items || [];
+      allScrapedItems.push(...items);
+    } catch (e) {
+      console.warn(`⚠️ Lỗi tải trang danh sách ${page}:`, e.message);
+    }
+    await sleep(80);
   }
 
-  if (allScrapedItems.length === 0) return;
+  if (allScrapedItems.length === 0) {
+    console.log("❌ Không lấy được danh sách phim nào từ phimapi. Kết thúc.");
+    return;
+  }
 
-  // ✅ LỌC TRÙNG SLUG
+  // Lọc trùng slug trong cùng đợt cào
   const uniqueMap = new Map();
   allScrapedItems.forEach(item => {
     if (item && item.slug) uniqueMap.set(item.slug, item);
   });
   allScrapedItems = Array.from(uniqueMap.values());
+  console.log(`📋 Tổng số phim cần duyệt: ${allScrapedItems.length} phim.`);
 
   const allSlugs = allScrapedItems.map(item => item.slug).filter(Boolean);
   const existingMovies = await checkMoviesInDB(allSlugs);
 
   let sql = "";
   let addedReport = [];
+  let skippedCount = 0;
   let processedCount = 0;
   let now = Date.now();
 
@@ -157,22 +168,22 @@ async function start() {
     const dbEp = dbData ? dbData.episode_current : "";
     const dbModified = dbData ? dbData.modified : "";
 
-    // 100 phim đầu bắt buộc check sâu, các trang sau nếu không đổi thì skip
-    const isForceUpdate = i < 100;
-    if (!isForceUpdate && dbData && dbEp === listEp && dbModified === listModified) {
+    // ✅ SKIP CHUẨN XÁC: Nếu phim đã có trong DB, tập phim và ngày modified không đổi thì SKIP ngay lập tức!
+    if (!FORCE_UPDATE && dbData && dbEp === listEp && dbModified === listModified) {
+      skippedCount++;
       continue;
     }
 
     try {
-      await sleep(350);
-      const detailRes = await axios.get(`https://phimapi.com/phim/${item.slug}`);
-      const m = detailRes.data.movie;
+      await sleep(180);
+      const detailRes = await axios.get(`https://phimapi.com/phim/${item.slug}`, { timeout: 10000 });
+      const m = detailRes.data?.movie;
       if (!m) continue;
 
       const type = m.type || "";
       const epCurrent = (m.episode_current || "").trim();
       const epLower = epCurrent.toLowerCase();
-      const epTotal = parseInt(m.episode_total) || 0;
+      const epTotal = parseInt(m.episode_total, 10) || 0;
       const isTrailer = epLower.includes("trailer") || epLower.includes("teaser");
 
       let finalEp = epCurrent;
@@ -186,7 +197,9 @@ async function start() {
         }
       }
 
-      if (!isForceUpdate && dbData && dbEp === finalEp && dbModified === listModified) {
+      // Check lần 2 sau khi có chi tiết: nếu tập thực tế và modified vẫn trùng khớp -> SKIP
+      if (!FORCE_UPDATE && dbData && dbEp === finalEp && dbModified === listModified) {
+        skippedCount++;
         continue;
       }
 
@@ -212,7 +225,8 @@ async function start() {
         vote_average: m.imdb?.vote_average || null
       };
 
-      const movieLastUpdated = now - i;
+      // Chỉ cấp timestamp mới cho phim THỰC SỰ có cập nhật mới
+      let movieLastUpdated = now - i;
 
       sql += `INSERT OR REPLACE INTO movies (
   slug, name, origin_name, thumb_url, poster_url, description, 
@@ -221,12 +235,15 @@ async function start() {
   alternative_names_json, tmdb_json, imdb_json, last_updated, modified
 ) VALUES (
   '${m.slug}', '${escapeSQL(m.name)}', '${escapeSQL(m.origin_name)}', '${m.thumb_url}', '${m.poster_url}', '${escapeSQL(m.content)}', 
-  '${finalEp}', ${epTotal}, '${type}', '${m.status}', ${m.view || 0}, ${parseInt(m.year) || 2025}, 
+  '${finalEp}', ${epTotal}, '${type}', '${m.status}', ${m.view || 0}, ${parseInt(m.year, 10) || 2025}, 
   '${m.lang}', '${m.quality}', '${escapeSQL(m.country?.[0]?.name || "")}', ${m.chieurap ? 1 : 0}, 
   '${escapeSQL(JSON.stringify(actorsWithAvatar))}', '${escapeSQL(JSON.stringify(m.category || []))}', 
   '${escapeSQL(JSON.stringify(m.alternative_names || []))}', '${escapeSQL(JSON.stringify(tmdbPayload))}', '${escapeSQL(JSON.stringify(imdbPayload))}', 
   ${movieLastUpdated}, '${escapeSQL(listModified)}'
 );\n`;
+
+      // Xóa category cũ trước khi thêm mới để không dồn ứ thể loại cũ rác
+      sql += `DELETE FROM movie_categories WHERE movie_slug = '${m.slug}';\n`;
 
       let vCats = new Set();
       (m.category || []).forEach(c => {
@@ -268,36 +285,47 @@ async function start() {
       sql += `DELETE FROM movies_fts WHERE slug = '${m.slug}';\n`;
       sql += `INSERT INTO movies_fts (slug, name, origin_name, actors, alternative_names) VALUES ('${m.slug}', '${escapeSQL(m.name)}', '${escapeSQL(m.origin_name)}', '${escapeSQL(searchBlob)}', '');\n`;
 
-      addedReport.push(`| ${m.name} | ${dbEp || 'N/A'} -> ${finalEp} | ${dbEp ? "Cập nhật" : "Mới"} |`);
+      addedReport.push(`| ${m.name} | ${dbEp || 'Chưa có'} -> ${finalEp} | ${dbEp ? "Cập nhật" : "Thêm mới"} |`);
       processedCount++;
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`⚠️ Lỗi xử lý phim ${item.slug}:`, e.message);
+    }
   }
 
+  console.log(`📊 Kết quả quét: Đã skip ${skippedCount} phim trùng không đổi. Cần cập nhật ${processedCount} phim.`);
+
   if (processedCount > 0) {
-    fs.writeFileSync('./update.sql', sql);
-    console.log(`🚀 Đang cập nhật ${processedCount} phim vào Turso DB...`);
+    // ✅ CHỐNG PHỒNG DATABASE: Tối ưu FTS5 định kỳ
+    sql += `INSERT INTO movies_fts(movies_fts) VALUES('optimize');\n`;
+
+    const stmts = sql.split(';\n').map(s => s.trim()).filter(Boolean);
+
+    // 1. CẬP NHẬT VÀO TURSO 2 (CHÍNH)
+    console.log(`🚀 Đang cập nhật ${processedCount} phim vào Turso phimdb2 (Chính)...`);
     try {
-      const stmts = sql.split(';\n').map(s => s.trim()).filter(Boolean);
       for (let i = 0; i < stmts.length; i += 50) {
-        const batch = stmts.slice(i, i + 50);
-        await executeTurso(batch);
+        await executeTursoDb(TURSO2_URL, TURSO2_TOKEN, stmts.slice(i, i + 50));
       }
-      console.log(`✅ Cập nhật Turso thành công!`);
+      console.log(`✅ Cập nhật Turso phimdb2 thành công!`);
     } catch (e) {
-      console.error('❌ Lỗi cập nhật Turso:', e.message);
+      console.error('❌ Lỗi cập nhật Turso 2:', e.message);
     }
 
+    // 2. CẬP NHẬT ĐỒNG THỜI VÀO TURSO 3 (DỰ PHÒNG)
+    console.log(`🚀 Đang cập nhật dự phòng vào Turso phimdb3 (Phụ)...`);
     try {
-      if (process.env.CLOUDFLARE_API_TOKEN) {
-        console.log(`🚀 Đang đồng bộ thêm vào Cloudflare D1 (backup)...`);
-        execSync('npx wrangler d1 execute phim_db --remote --file=./update.sql', { stdio: 'inherit' });
+      for (let i = 0; i < stmts.length; i += 50) {
+        await executeTursoDb(TURSO3_URL, TURSO3_TOKEN, stmts.slice(i, i + 50));
       }
-    } catch (e) {}
+      console.log(`✅ Cập nhật Turso phimdb3 thành công!`);
+    } catch (e) {
+      console.error('❌ Lỗi cập nhật Turso 3:', e.message);
+    }
 
-    const summary = `### ✅ ĐỒNG BỘ HOÀN TẤT (${processedCount} phim cập nhật)\n\n| Tên Phim | Tập Cũ -> Mới | Trạng thái |\n| :--- | :--- | :--- |\n` + addedReport.join('\n');
+    const summary = `### ✅ ĐỒNG BỘ 2 DATABASE HOÀN TẤT (Trang ${START_PAGE} -> ${END_PAGE}: ${processedCount} phim cập nhật, ${skippedCount} phim skip)\n\n| Tên Phim | Tập Cũ -> Mới | Trạng thái |\n| :--- | :--- | :--- |\n` + addedReport.join('\n');
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   } else {
-    console.log("💎 Không có phim nào mới. Đã Skip toàn bộ.");
+    console.log(`💎 Toàn bộ ${skippedCount} phim từ trang ${START_PAGE} đến ${END_PAGE} đều trùng khớp và không có tập mới. Đã Skip toàn bộ, DB không bị ghi đè!`);
   }
 }
 

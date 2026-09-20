@@ -19,18 +19,20 @@ const tmdbCardCache = new Map<string, { poster: string | null; backdrop: string 
 
 // Helper: chỉ lấy ảnh TMDB nếu ĐÃ CÓ SẴN trong data (embedded), không fallback KKPhim ở đây
 const getEmbeddedTmdbPoster = (movie: any): string | null => {
-  if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
-  if (movie?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+  if (movie?.tmdb?.poster_url) return movie.tmdb.poster_url;
+  if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/original${movie.tmdb.poster_path}`;
+  if (movie?.poster_path) return `https://image.tmdb.org/t/p/original${movie.poster_path}`;
   const p = movie?.poster_url || movie?.poster;
-  if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) return p;
+  if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) return p.replace('/w500/', '/original/');
   return null;
 };
 
 const getEmbeddedTmdbThumb = (movie: any): string | null => {
-  if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.tmdb.backdrop_path}`;
-  if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`;
+  if (movie?.tmdb?.backdrop_url) return movie.tmdb.backdrop_url;
+  if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
+  if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/original${movie.backdrop_path}`;
   const t = movie?.thumb_url || movie?.thumb;
-  if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) return t;
+  if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) return t.replace(/\/w\d+\//, '/original/');
   return null;
 };
 

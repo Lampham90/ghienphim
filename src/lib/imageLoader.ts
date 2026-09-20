@@ -12,7 +12,15 @@ export default function imageLoader({ src, width, quality }: { src: string; widt
     return src;
   }
 
-  // 2. Làm sạch URL gốc
+  // 2. Nếu là ảnh TMDB: TMDB đã có CDN Cloudflare toàn cầu cực nhanh và nét, trả về trực tiếp để tránh bị nén vỡ hình qua WordPress
+  if (src.includes('image.tmdb.org')) {
+    if (width > 780 && src.includes('/w780/')) {
+      return src.replace('/w780/', '/original/');
+    }
+    return src;
+  }
+
+  // 3. Làm sạch URL gốc
   const cleanSrc = src
     .replace(/https:\/\/i0\.wp\.com\//g, "")
     .replace(/https:\/\/wsrv\.nl\/\?url=/g, "");

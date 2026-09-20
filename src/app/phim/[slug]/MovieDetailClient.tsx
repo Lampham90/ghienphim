@@ -161,11 +161,12 @@ export default function MovieDetailClient({
   }, [movie?.tmdb?.id, movie?.name, isPreviewPosterTmdb, isPreviewThumbTmdb]);
 
   const bannerSrc = useMemo(() => {
-    if (isPreviewThumbTmdb) return previewThumb;
+    if (isPreviewThumbTmdb) return previewThumb.replace(/\/w\d+\//, '/original/');
+    if (movie?.tmdb?.backdrop_url) return movie.tmdb.backdrop_url.replace(/\/w\d+\//, '/original/');
     if (movie?.tmdb?.backdrop_path) {
       return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
     }
-    if (tmdbImages.backdrop) return tmdbImages.backdrop;
+    if (tmdbImages.backdrop) return tmdbImages.backdrop.replace(/\/w\d+\//, '/original/');
     if (previewThumb) return previewThumb;
     if (!movie) return "";
 
@@ -174,11 +175,12 @@ export default function MovieDetailClient({
   }, [previewThumb, isPreviewThumbTmdb, movie, tmdbImages.backdrop]);
 
   const posterSrc = useMemo(() => {
-    if (isPreviewPosterTmdb) return previewPoster;
+    if (isPreviewPosterTmdb) return previewPoster.replace('/w500/', '/original/');
+    if (movie?.tmdb?.poster_url) return movie.tmdb.poster_url.replace('/w500/', '/original/');
     if (movie?.tmdb?.poster_path) {
-      return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
+      return `https://image.tmdb.org/t/p/original${movie.tmdb.poster_path}`;
     }
-    if (tmdbImages.poster) return tmdbImages.poster;
+    if (tmdbImages.poster) return tmdbImages.poster.replace('/w500/', '/original/');
     if (previewPoster) return previewPoster;
     if (!movie) return "";
 
@@ -563,8 +565,9 @@ export default function MovieDetailClient({
               </svg>
             </button>
 
-            <div className="relative w-full h-[45vh] md:h-screen bg-black overflow-hidden">
+            <div className="relative w-full h-[55vh] md:h-screen bg-black overflow-hidden">
               <div className="absolute inset-0 w-full h-full">
+                {/* DESKTOP BANNER (THUMB / BACKDROP) */}
                 {(bannerSrc || posterSrc) && (
                   <Image
                     loader={imageLoader}
@@ -572,14 +575,39 @@ export default function MovieDetailClient({
                     alt={movie?.name || "Banner"}
                     fill
                     sizes="100vw"
-                    quality={70}
+                    quality={90}
                     priority
-                    className="object-cover"
+                    className="hidden md:block object-cover"
                     style={{ objectPosition: "center 20%" }}
                   />
                 )}
+                {/* MOBILE POSTER - HIỂN THỊ TRỌN VẸN 100% POSTER KHÔNG BỊ CẮT/MẤT ĐÁY */}
+                {(posterSrc || bannerSrc) && (
+                  <div className="block md:hidden relative w-full h-full overflow-hidden">
+                    <Image
+                      loader={imageLoader}
+                      src={posterSrc || bannerSrc}
+                      alt=""
+                      fill
+                      sizes="100vw"
+                      className="object-cover blur-2xl opacity-35 scale-110 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <Image
+                      loader={imageLoader}
+                      src={posterSrc || bannerSrc}
+                      alt={movie?.name || "Banner Mobile"}
+                      fill
+                      sizes="100vw"
+                      quality={85}
+                      priority
+                      className="object-contain drop-shadow-2xl z-10"
+                    />
+                  </div>
+                )}
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-black/30 z-10" />
+              <div className="hidden md:block absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-black/30 z-10 pointer-events-none" />
+              <div className="block md:hidden absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#050505] via-[#050505]/70 to-transparent z-10 pointer-events-none" />
             </div>
 
             <div className="hidden md:flex absolute bottom-12 left-20 z-25 flex-col justify-end text-left items-start pointer-events-auto">

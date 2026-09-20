@@ -128,12 +128,12 @@ export function transformD1Result(m: any): KKPhimMovie {
   const imdb = safeParse(m.imdb_json);
 
   let backdrop = m.thumb_url || m.thumb || "";
-  if (tmdb?.backdrop_url) backdrop = tmdb.backdrop_url.replace('/original/', '/w780/');
-  else if (tmdb?.backdrop_path) backdrop = `https://image.tmdb.org/t/p/w780${tmdb.backdrop_path}`;
+  if (tmdb?.backdrop_url) backdrop = tmdb.backdrop_url;
+  else if (tmdb?.backdrop_path) backdrop = `https://image.tmdb.org/t/p/original${tmdb.backdrop_path}`;
 
   let poster = m.poster_url || m.poster || "";
-  if (tmdb?.poster_url) poster = tmdb.poster_url.replace('/original/', '/w500/');
-  else if (tmdb?.poster_path) poster = `https://image.tmdb.org/t/p/w500${tmdb.poster_path}`;
+  if (tmdb?.poster_url) poster = tmdb.poster_url;
+  else if (tmdb?.poster_path) poster = `https://image.tmdb.org/t/p/original${tmdb.poster_path}`;
 
   let logo = m.logo || null;
   if (tmdb?.logo_url) logo = tmdb.logo_url;

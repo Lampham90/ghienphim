@@ -78,18 +78,24 @@ interface HistoryRecord {
 // HELPER FUNCTIONS
 // ==========================================
 const getTmdbOrRawPoster = (movie: any) => {
-  if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.tmdb.poster_path}`;
-  if (movie?.poster_path) return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+  if (movie?.tmdb?.poster_url) return movie.tmdb.poster_url.replace('/w500/', '/original/');
+  if (movie?.tmdb?.poster_path) return `https://image.tmdb.org/t/p/original${movie.tmdb.poster_path}`;
+  if (movie?.poster_path) return `https://image.tmdb.org/t/p/original${movie.poster_path}`;
   const p = movie?.poster_url || movie?.poster;
-  if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) return p;
+  if (typeof p === 'string' && (p.includes('tmdb.org') || p.includes('image.tmdb.org'))) {
+    return p.replace('/w500/', '/original/');
+  }
   return getImageUrl(p);
 };
 
 const getTmdbOrRawThumb = (movie: any) => {
-  if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.tmdb.backdrop_path}`;
-  if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`;
+  if (movie?.tmdb?.backdrop_url) return movie.tmdb.backdrop_url.replace(/\/w\d+\//, '/original/');
+  if (movie?.tmdb?.backdrop_path) return `https://image.tmdb.org/t/p/original${movie.tmdb.backdrop_path}`;
+  if (movie?.backdrop_path) return `https://image.tmdb.org/t/p/original${movie.backdrop_path}`;
   const t = movie?.thumb_url || movie?.thumb;
-  if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) return t;
+  if (typeof t === 'string' && (t.includes('tmdb.org') || t.includes('image.tmdb.org'))) {
+    return t.replace(/\/w\d+\//, '/original/');
+  }
   return getImageUrl(t);
 };
 
@@ -847,31 +853,43 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       alt={m.name || 'Hero Banner'}
                       fill
                       sizes="100vw"
-                      quality={70}
+                      quality={90}
                       priority={index === 0}
                       className="hidden md:block w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
                     />
                   )}
 
-                  {/* MOBILE POSTER IMAGE */}
+                  {/* MOBILE POSTER IMAGE - HIỂN THỊ TRỌN VẸN 100% POSTER KHÔNG BỊ CẮT/MẤT ĐÁY */}
                   {m.heroPosterUrl && (
-                    <Image
-                      loader={imageLoader}
-                      src={m.heroPosterUrl}
-                      alt={m.name || 'Hero Banner Mobile'}
-                      fill
-                      sizes="100vw"
-                      quality={70}
-                      priority={index === 0}
-                      className="block md:hidden w-full h-full object-cover transform-gpu"
-                      style={{ objectPosition: 'center top' }}
-                    />
+                    <div className="block md:hidden relative w-full h-full overflow-hidden">
+                      {/* Nền mờ phong cách Netflix/Apple TV để phủ trọn tỷ lệ màn hình mà không để viền đen */}
+                      <Image
+                        loader={imageLoader}
+                        src={m.heroPosterUrl}
+                        alt=""
+                        fill
+                        sizes="100vw"
+                        className="object-cover blur-2xl opacity-35 scale-110 pointer-events-none"
+                        aria-hidden="true"
+                      />
+                      {/* Poster chính hiển thị trọn vẹn 100% chiều cao và chiều rộng */}
+                      <Image
+                        loader={imageLoader}
+                        src={m.heroPosterUrl}
+                        alt={m.name || 'Hero Banner Mobile'}
+                        fill
+                        sizes="100vw"
+                        quality={85}
+                        priority={index === 0}
+                        className="object-contain drop-shadow-2xl z-10"
+                      />
+                    </div>
                   )}
 
                   {/* Gradient Overlays */}
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10 hidden md:block" />
-                  <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent z-10 md:hidden" />
+                  <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#050505] via-[#050505]/70 to-transparent z-10 md:hidden pointer-events-none" />
                  
                   {/* Lớp màng mờ Fade đáy Banner (Desktop Only) */}
                   <div className="absolute inset-x-0 bottom-0 h-24 md:h-36 bg-gradient-to-t from-[var(--background,#000000)] via-[var(--background,#000000)]/60 to-transparent z-15 pointer-events-none hidden md:block" />
