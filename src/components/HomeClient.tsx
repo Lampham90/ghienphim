@@ -552,11 +552,11 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
 
     if (nextMovie.heroThumbUrl) {
       const imgDesktop = new window.Image();
-      imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 70 });
+      imgDesktop.src = imageLoader({ src: nextMovie.heroThumbUrl, width: 1920, quality: 75 });
     }
     if (nextMovie.heroPosterUrl) {
       const imgMobile = new window.Image();
-      imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 70 });
+      imgMobile.src = imageLoader({ src: nextMovie.heroPosterUrl, width: 750, quality: 75 });
     }
   }, [currentHero, heroMoviesProcessed]);
 
@@ -853,7 +853,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                       alt={m.name || 'Hero Banner'}
                       fill
                       sizes="100vw"
-                      quality={90}
+                      quality={75}
                       priority={index === 0}
                       className="hidden md:block w-full h-full object-cover transform-gpu"
                       style={{ objectPosition: 'center 20%' }}
@@ -880,7 +880,7 @@ export default function HomeClient({ initialSections, initialHeroMovies, allCate
                         alt={m.name || 'Hero Banner Mobile'}
                         fill
                         sizes="100vw"
-                        quality={85}
+                        quality={75}
                         priority={index === 0}
                         className="object-contain drop-shadow-2xl z-10"
                       />

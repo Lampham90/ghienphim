@@ -575,7 +575,7 @@ export default function MovieDetailClient({
                     alt={movie?.name || "Banner"}
                     fill
                     sizes="100vw"
-                    quality={90}
+                    quality={75}
                     priority
                     className="hidden md:block object-cover"
                     style={{ objectPosition: "center 20%" }}
@@ -599,7 +599,7 @@ export default function MovieDetailClient({
                       alt={movie?.name || "Banner Mobile"}
                       fill
                       sizes="100vw"
-                      quality={85}
+                      quality={75}
                       priority
                       className="object-contain drop-shadow-2xl z-10"
                     />
