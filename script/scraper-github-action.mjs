@@ -1,10 +1,11 @@
 // ============================================================
-// SCRAPER ĐỊNH KỲ (GitHub Actions) - BẢN TỐI ƯU TOÀN DIỆN (v21)
+// SCRAPER ĐỊNH KỲ (GitHub Actions) - BẢN TỐI ƯU TOÀN DIỆN (v21.2)
 // 1. Đồng bộ song song 2 Turso DB (phimdb2 & phimdb3).
 // 2. SKIP THÔNG MINH: Bỏ qua phim không có thay đổi (tiết kiệm 95% request & write quota).
 // 3. CHỐNG PHỒNG DATABASE: Dọn sạch categories cũ và chạy optimize FTS5 định kỳ.
 // 4. TMDB SHARP: Tự động tải Logo, Poster & Backdrop độ phân giải gốc (/original/).
 // 5. Đồng bộ hoàn hảo 100% với schema và src/lib/kkphim.ts.
+// 6. KIỂM TRA LỖI NGHIÊM NGẶT: Bắt lỗi Turso pipeline và tự fail job nếu cả 2 DB lỗi.
 // ============================================================
 
 import axios from 'axios';
@@ -16,7 +17,7 @@ const FORCE_UPDATE = process.env.FORCE_UPDATE === 'true' || process.argv.include
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || "b81e7ce8a6c68dbea801f221b220302c";
 
-// 💡 TURSO 2 CHÍNH
+// 💡 TURSO 2 CHÍNH (Ưu tiên biến riêng biệt TURSO2_TOKEN, sau đó mới tới fallback)
 const TURSO2_URL = process.env.TURSO2_URL || 'https://phimdb2-plam.aws-ap-northeast-1.turso.io';
 const TURSO2_TOKEN = process.env.TURSO2_TOKEN || process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk0NDY1NTAsImlkIjoiMDFhMGEzNTMtNTEwMS03OWUzLTg2ODUtYmE3MzJmMjM2MDg0Iiwia2lkIjoiTzVWWk5LbEFNODJ6cWEyQ3RzSmtZUHI3Z2l4U1RSX3RTZXZjX3BoT3VLVSIsInJpZCI6ImViNTQ0MjAzLWY2YjMtNDliOC05MzcyLTk0ODdmMzA0NWVmNyJ9.pz9hEIZC4iAIwfn2hu-6fbq_S_EUveAYVjFFfZRRZctKhiDyaGdWlS2bb761dM9knCfSYAU66wl0waXpi4-dDQ';
 
@@ -39,22 +40,43 @@ const ACTOR_ALIASES = {
   "lý liên kiệt": "jet li", "jet li": "lý liên kiệt"
 };
 
+// Thực thi câu lệnh qua HTTP Pipeline với validation kết quả nghiêm ngặt
 async function executeTursoDb(url, token, queries) {
+  if (!queries || queries.length === 0) return { data: { results: [] } };
   const requests = queries.map(q => ({ type: 'execute', stmt: { sql: q } }));
   requests.push({ type: 'close' });
-  return axios.post(`${url}/v2/pipeline`, { requests }, {
+  const res = await axios.post(`${url}/v2/pipeline`, { requests }, {
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     timeout: 30000
   });
+
+  // Bắt lỗi từng câu lệnh trong mảng kết quả của Turso
+  if (res.data && res.data.results) {
+    for (const r of res.data.results) {
+      if (r.type === 'error') {
+        throw new Error(r.error?.message || JSON.stringify(r.error || r));
+      }
+    }
+  }
+  return res;
 }
 
+// Kiểm tra phim đã có trong DB chưa để SKIP thông minh (có fallback sang DB3 nếu DB2 bận)
 async function checkMoviesInDB(slugs) {
   if (!slugs || slugs.length === 0) return new Map();
   try {
     const slugInClause = slugs.map(s => `'${escapeSQL(s)}'`).join(',');
     const query = `SELECT slug, episode_current, modified, last_updated FROM movies WHERE slug IN (${slugInClause})`;
-    const res = await executeTursoDb(TURSO2_URL, TURSO2_TOKEN, [query]);
-    const execResult = res.data?.results?.[0]?.response?.result;
+    
+    let res = null;
+    try {
+      res = await executeTursoDb(TURSO2_URL, TURSO2_TOKEN, [query]);
+    } catch (e2) {
+      console.warn("⚠️ Kiểm tra DB2 gặp trục trặc, chuyển sang kiểm tra DB3 dự phòng:", e2.message);
+      res = await executeTursoDb(TURSO3_URL, TURSO3_TOKEN, [query]);
+    }
+
+    const execResult = res?.data?.results?.[0]?.response?.result;
     if (!execResult) return new Map();
     const cols = execResult.cols.map(c => c.name);
     const movieMap = new Map();
@@ -71,7 +93,7 @@ async function checkMoviesInDB(slugs) {
     }
     return movieMap;
   } catch (e) {
-    console.warn("⚠️ Không thể kiểm tra DB trước, sẽ tiếp tục cào:", e.message);
+    console.warn("⚠️ Không thể kiểm tra DB trước, sẽ tiếp tục cào toàn bộ:", e.message);
     return new Map();
   }
 }
@@ -302,24 +324,35 @@ async function start() {
 
     // 1. CẬP NHẬT VÀO TURSO 2 (CHÍNH)
     console.log(`🚀 Đang cập nhật ${processedCount} phim vào Turso phimdb2 (Chính)...`);
+    let turso2Ok = false;
     try {
       for (let i = 0; i < stmts.length; i += 50) {
         await executeTursoDb(TURSO2_URL, TURSO2_TOKEN, stmts.slice(i, i + 50));
       }
       console.log(`✅ Cập nhật Turso phimdb2 thành công!`);
+      turso2Ok = true;
     } catch (e) {
       console.error('❌ Lỗi cập nhật Turso 2:', e.message);
     }
 
     // 2. CẬP NHẬT ĐỒNG THỜI VÀO TURSO 3 (DỰ PHÒNG)
     console.log(`🚀 Đang cập nhật dự phòng vào Turso phimdb3 (Phụ)...`);
+    let turso3Ok = false;
     try {
       for (let i = 0; i < stmts.length; i += 50) {
         await executeTursoDb(TURSO3_URL, TURSO3_TOKEN, stmts.slice(i, i + 50));
       }
       console.log(`✅ Cập nhật Turso phimdb3 thành công!`);
+      turso3Ok = true;
     } catch (e) {
       console.error('❌ Lỗi cập nhật Turso 3:', e.message);
+    }
+
+    if (!turso2Ok && !turso3Ok) {
+      console.error('💥 THẤT BẠI: Cả 2 Turso Database đều không thể cập nhật dữ liệu! Kiểm tra lại token.');
+      process.exit(1);
+    } else if (!turso2Ok) {
+      console.warn('⚠️ CẢNH BÁO: Turso phimdb2 (Chính) lỗi, dữ liệu tạm thời chỉ ghi vào Turso phimdb3 (Phụ)!');
     }
 
     const summary = `### ✅ ĐỒNG BỘ 2 DATABASE HOÀN TẤT (Trang ${START_PAGE} -> ${END_PAGE}: ${processedCount} phim cập nhật, ${skippedCount} phim skip)\n\n| Tên Phim | Tập Cũ -> Mới | Trạng thái |\n| :--- | :--- | :--- |\n` + addedReport.join('\n');
