@@ -16,34 +16,41 @@ export default function imageLoader({ src, width, quality }: { src: string; widt
   }
 
   // 2. TỐI ƯU SIÊU TỐC CHO ẢNH TMDB (image.tmdb.org):
-  // TMDB đã được nén sẵn và phân phối qua Cloudflare Edge tại Việt Nam.
-  // Không qua WordPress để tránh delay 3-4s, đồng thời dùng kích thước chuẩn để ảnh vừa nhẹ vừa nét:
+  // TMDB phân phối qua Cloudflare Edge tại Việt Nam.
+  // Dùng kích thước tối ưu theo đúng viewport để ảnh cực nhẹ (20-40KB) mà vẫn nét căng Retina 2x:
   if (src.includes('image.tmdb.org')) {
     const cleanTmdb = src
       .replace(/https:\/\/i0\.wp\.com\//g, "")
       .replace(/https:\/\/wsrv\.nl\/\?url=/g, "");
 
-    // Màn hình lớn Desktop (Hero banner / Thumb chi tiết): Dùng w1280 (chỉ ~150KB - 200KB, nét chuẩn HD, load 0.05s)
-    if (width > 780) {
+    // Màn hình lớn Desktop (Hero banner / Background chi tiết): Dùng w1280 (~120-150KB)
+    if (width > 900) {
       return cleanTmdb.replace(/\/t\/p\/(original|w\d+)\//, '/t/p/w1280/');
     }
-    // Màn hình Mobile / Poster vừa: Dùng w780 (chỉ ~80KB) hoặc w500 (chỉ ~50KB)
-    if (width > 350) {
+    // Màn hình Tablet hoặc Backdrop vừa: Dùng w780 (~80KB)
+    if (width > 450) {
       return cleanTmdb.replace(/\/t\/p\/(original|w\d+)\//, '/t/p/w780/');
     }
-    return cleanTmdb.replace(/\/t\/p\/(original|w\d+)\//, '/t/p/w500/');
+    // Poster card thông thường (màn hình 2x Retina): Dùng w342 (chỉ ~35-45KB, nét gấp đôi màn hình)
+    if (width > 220) {
+      return cleanTmdb.replace(/\/t\/p\/(original|w\d+)\//, '/t/p/w342/');
+    }
+    // Card nhỏ / thumbnail mobile: Dùng w185 (chỉ ~14KB, siêu nhẹ)
+    return cleanTmdb.replace(/\/t\/p\/(original|w\d+)\//, '/t/p/w185/');
   }
 
   // 3. ĐỐI VỚI ẢNH NGUỒN KHÁC (phimimg.com / ophim):
-  // Dùng i0.wp.com để nén sang WebP 75% và giảm dung lượng
+  // Dùng i0.wp.com để nén sang WebP 70% và giảm dung lượng
   const cleanSrc = src
     .replace(/https:\/\/i0\.wp\.com\//g, "")
     .replace(/https:\/\/wsrv\.nl\/\?url=/g, "");
 
-  const finalQuality = quality || 75;
+  const finalQuality = quality || 70;
   let optimizedWidth = width;
-  if (width <= 320) optimizedWidth = 320;
-  else if (width <= 640) optimizedWidth = 640;
+  if (width <= 180) optimizedWidth = 180;
+  else if (width <= 320) optimizedWidth = 320;
+  else if (width <= 480) optimizedWidth = 480;
+  else if (width <= 720) optimizedWidth = 720;
   else if (width <= 1080) optimizedWidth = 1080;
   else optimizedWidth = 1920;
 

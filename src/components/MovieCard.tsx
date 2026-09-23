@@ -135,7 +135,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
             src={imgError ? fallbackImg : (displayThumb || fallbackImg)}
             alt={movie.name} 
             fill 
-            sizes="(max-width: 768px) 250px, 320px"
+            sizes="(max-width: 640px) 240px, (max-width: 1024px) 280px, 320px"
             quality={60}
             decoding="async"
             className={`object-cover ${imageZoomEffect}`}
@@ -177,7 +177,7 @@ const MovieCard = memo(({ movie, variant = 'vertical', index = 0, priority = fal
           src={imgError ? fallbackImg : (displayPoster || fallbackImg)}
           alt={movie.name} 
           fill 
-          sizes="(max-width: 768px) 240px, 450px"
+          sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
           quality={65}
           decoding="async"
           className={`object-cover ${imageZoomEffect}`}
