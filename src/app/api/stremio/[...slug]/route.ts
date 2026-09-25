@@ -6,7 +6,7 @@ import { fetchKKPhimDetail, searchMovies } from '@/lib/kkphim';
 import { fetchNguoncDetail } from '@/lib/nguonc';
 import { filterSmartByBlock } from '@/app/phim/[slug]/hls-filter';
 
-// Header CORS cho phép Stremio truy cập từ mọi thiết bị
+// Header CORS cho phép Stremio truy cập từ mọi thiết bị (Android TV, Web, Desktop, iOS)
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -17,7 +17,7 @@ const corsHeaders = {
 // 1. MANIFEST CHO STREMIO
 const MANIFEST = {
   id: 'community.ghienphim.addon',
-  version: '1.0.0',
+  version: '1.0.1',
   name: 'Ghiền Phim (Clean HLS)',
   description: 'Kho phim Vietsub, Thuyết minh từ ghienphim. Tự động lọc sạch 100% quảng cáo HLS.',
   logo: 'https://ghienphim.pages.dev/favicon11.ico',
@@ -79,16 +79,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       const upstreamRes = await fetch(targetUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Referer': 'https://phimapi.com/'
+          'Referer': 'https://player.phimapi.com/'
         }
       });
 
+      // Nếu server nước ngoài bị chặn Geo-IP (thường trả về 404 trang báo IP US), fallback chuyển hướng sang link gốc
       if (!upstreamRes.ok) {
-        return new NextResponse('Failed to fetch upstream m3u8', { status: 502, headers: corsHeaders });
+        return NextResponse.redirect(targetUrl, { status: 302, headers: corsHeaders });
       }
 
       let content = await upstreamRes.text();
       let actualMediaUrl = targetUrl;
+
+      // Kiểm tra nếu nội dung bị CDN trả về trang HTML chặn IP
+      if (content.includes('<html') || content.includes('<!DOCTYPE')) {
+        return NextResponse.redirect(targetUrl, { status: 302, headers: corsHeaders });
+      }
 
       // Nếu là Master Playlist (#EXT-X-STREAM-INF) -> Tự lấy variant bitrate cao nhất (1080p)
       if (content.includes('#EXT-X-STREAM-INF')) {
@@ -121,16 +127,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           const variantRes = await fetch(bestVariant, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-              'Referer': 'https://phimapi.com/'
+              'Referer': 'https://player.phimapi.com/'
             }
           });
           if (variantRes.ok) {
-            content = await variantRes.text();
+            const variantText = await variantRes.text();
+            if (!variantText.includes('<html')) {
+              content = variantText;
+            }
           }
         }
       }
 
-      // 🌟 GỌI CHÍNH HÀM LỌC SẠCH QUẢNG CÁO CỦA GHIENPHIM
+      // GỌI HÀM LỌC SẠCH QUẢNG CÁO CỦA GHIENPHIM
       const cleanContent = filterSmartByBlock(actualMediaUrl, content);
 
       return new NextResponse(cleanContent, {
@@ -140,12 +149,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           'Cache-Control': 'no-cache'
         }
       });
-    } catch (e: any) {
-      return new NextResponse('Error filtering stream: ' + e?.message, { status: 500, headers: corsHeaders });
+    } catch {
+      // Khi có lỗi phân giải, redirect trực tiếp về upstream URL để player tự chạy
+      return NextResponse.redirect(targetUrl, { status: 302, headers: corsHeaders });
     }
   }
 
-  // --- 3. CATALOG (Danh sách phim ngoài trang chủ Stremio) ---
+  // --- 3. CATALOG (Danh sách phim trang chủ Stremio) ---
   if (path.startsWith('catalog/')) {
     const parts = path.replace(/\.json$/, '').split('/');
     const type = parts[1] || 'movie';
@@ -180,8 +190,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     const parts = path.replace(/\.json$/, '').split('/');
     const type = parts[1];
     let id = parts[2];
-
     let targetSlug = id.replace(/^(kk:|gp:)/, '');
+
     if (id.startsWith('tt')) {
       const cinemeta = await getCinemetaTitle(type, id);
       if (cinemeta?.name) {
@@ -227,39 +237,53 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     }, { headers: corsHeaders });
   }
 
-  // --- 5. STREAM (Cung cấp link xem phim đã cạo sạch quảng cáo) ---
+  // --- 5. STREAM (Cung cấp link xem phim) ---
   if (path.startsWith('stream/')) {
     const parts = path.replace(/\.json$/, '').split('/');
     const type = parts[1];
     const fullId = parts[2] || '';
 
-    let id = fullId;
+    let targetSlug = '';
     let targetEpisode = 1;
-
-    if (fullId.includes(':')) {
-      const subParts = fullId.split(':');
-      if (subParts.length >= 3) {
-        id = subParts[0];
-        targetEpisode = parseInt(subParts[2], 10) || 1;
-      }
-    }
-
-    let targetSlug = id.replace(/^(kk:|gp:)/, '');
     let movieName = '';
     let movieOriginName = '';
 
-    if (id.startsWith('tt')) {
-      const cinemeta = await getCinemetaTitle(type, id);
+    // FIX LỖI TÁCH ID: Xử lý chính xác định dạng id của Stremio
+    if (fullId.startsWith('tt')) {
+      const idParts = fullId.split(':');
+      const imdbId = idParts[0];
+      if (idParts.length >= 3) {
+        targetEpisode = parseInt(idParts[2], 10) || 1;
+      }
+      const cinemeta = await getCinemetaTitle(type, imdbId);
       if (cinemeta?.name) {
         movieName = cinemeta.name;
         const searchRes = await searchMovies(cinemeta.name);
         if (searchRes.length > 0) targetSlug = searchRes[0].slug;
       }
+    } else {
+      // Dạng kk:slug-phim:1:2 hoặc kk:slug-phim
+      const idParts = fullId.split(':');
+      if (idParts[0] === 'kk' || idParts[0] === 'gp') {
+        targetSlug = idParts[1] || '';
+        if (idParts.length >= 4) {
+          targetEpisode = parseInt(idParts[3], 10) || 1;
+        }
+      } else {
+        targetSlug = idParts[0];
+        if (idParts.length >= 3) {
+          targetEpisode = parseInt(idParts[2], 10) || 1;
+        }
+      }
+    }
+
+    if (!targetSlug) {
+      return NextResponse.json({ streams: [] }, { headers: corsHeaders });
     }
 
     const streams: any[] = [];
 
-    // NGUỒN KKPHIM (Qua bộ lọc sạch hls-filter của ghienphim)
+    // NGUỒN 1: KKPHIM
     try {
       const detail = await fetchKKPhimDetail(targetSlug);
       if (detail && detail.servers && detail.servers.length > 0) {
@@ -275,12 +299,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           }) || epList[targetEpisode - 1] || epList[0];
 
           if (ep && ep.link) {
-            const cleanUrl = `${origin}/api/stremio/clean?url=${encodeURIComponent(ep.link)}`;
-            const isDub = sName.toLowerCase().includes('lồng tiếng') || sName.toLowerCase().includes('thuyết minh');
-
+            // Stream 1: Link Direct từ CDN gốc (kèm User-Agent và Referer để tránh 403)
             streams.push({
               name: `Ghiền Phim 🌟 [${sName.toUpperCase()}]`,
-              title: `${movieName} - Tập ${targetEpisode}\n🌟 Server VIP (${sName}) - Đã Lọc Sạch QC`,
+              title: `${movieName} - Tập ${targetEpisode}\n🌟 Nguồn KKPhim (${sName}) - Trực tiếp`,
+              url: ep.link,
+              behaviorHints: {
+                notWebReady: true,
+                proxyHeaders: {
+                  request: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Referer': 'https://player.phimapi.com/'
+                  }
+                }
+              }
+            });
+
+            // Stream 2: Link Clean HLS (tự động bypass về gốc nếu máy chủ cloud bị chặn IP)
+            const cleanUrl = `${origin}/api/stremio/clean?url=${encodeURIComponent(ep.link)}`;
+            streams.push({
+              name: `Ghiền Phim 🧹 [LỌC QC]`,
+              title: `${movieName} - Tập ${targetEpisode}\n🧹 Server Đã Lọc Sạch Quảng Cáo`,
               url: cleanUrl,
               behaviorHints: {
                 notWebReady: true
@@ -293,30 +332,68 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       console.warn('[Stremio] Lỗi lấy KKPhim stream:', e?.message);
     }
 
-    // NGUỒN NGUONC DỰ PHÒNG
+    // NGUỒN 2: NGUỒNC DỰ PHÒNG (Giải mã embed m3u8)
     try {
       const nguoncDetail = await fetchNguoncDetail(targetSlug, movieOriginName || movieName, movieName);
       if (nguoncDetail && nguoncDetail.servers && nguoncDetail.servers.length > 0) {
-        nguoncDetail.servers.forEach((s: any) => {
+        const resolverApi = process.env.NEXT_PUBLIC_NGUONC_RESOLVER_URL || "https://ghienphim-ktfd.onrender.com";
+
+        for (const s of nguoncDetail.servers) {
           const epList = s.episodes || [];
           const ep = epList.find((e: any) => {
             const num = parseInt(e.episode_num?.replace(/\D/g, '') || '', 10);
             return num === targetEpisode;
           }) || epList[targetEpisode - 1] || epList[0];
 
-          if (ep && ep.link_m3u8) {
-            streams.push({
-              name: `Ghiền Phim 🛡️ [${s.server_name}]`,
-              title: `${movieName} - Tập ${targetEpisode}\n🛡️ Server Dự Phòng (${s.server_name})`,
-              url: ep.link_m3u8,
-              behaviorHints: {
-                notWebReady: true
-              }
-            });
+          if (ep && (ep.link_m3u8 || ep.link)) {
+            const embedUrl = ep.link_m3u8 || ep.link;
+
+            // Nếu đã là link .m3u8 trực tiếp
+            if (embedUrl.includes('.m3u8')) {
+              streams.push({
+                name: `Ghiền Phim 🛡️ [${s.server_name}]`,
+                title: `${movieName} - Tập ${targetEpisode}\n🛡️ Server Dự Phòng (${s.server_name})`,
+                url: embedUrl,
+                behaviorHints: { notWebReady: true }
+              });
+            } else {
+              // Nếu là link embed streamc.xyz -> Gọi resolver để lấy luồng phát video thật
+              try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 3500);
+                const resolveRes = await fetch(`${resolverApi.replace(/\/$/, '')}/resolve?url=${encodeURIComponent(embedUrl)}`, {
+                  signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (resolveRes.ok) {
+                  const resolvedData = await resolveRes.json();
+                  const finalM3u8 = resolvedData?.playlistUrl || resolvedData?.m3u8;
+                  if (finalM3u8) {
+                    streams.push({
+                      name: `Ghiền Phim 🛡️ [${s.server_name}]`,
+                      title: `${movieName} - Tập ${targetEpisode}\n🛡️ Server Dự Phòng (${s.server_name})`,
+                      url: finalM3u8,
+                      behaviorHints: {
+                        notWebReady: true,
+                        proxyHeaders: {
+                          request: {
+                            'Referer': embedUrl,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                          }
+                        }
+                      }
+                    });
+                  }
+                }
+              } catch {}
+            }
           }
-        });
+        }
       }
-    } catch {}
+    } catch (e: any) {
+      console.warn('[Stremio] Lỗi lấy NguonC stream:', e?.message);
+    }
 
     return NextResponse.json({ streams }, { headers: corsHeaders });
   }
