@@ -127,6 +127,28 @@ export default function VideoPlayer({
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [useIframe, setUseIframe] = useState(false);
+  const [isShieldActive, setIsShieldActive] = useState(true);
+  const [shieldCountdown, setShieldCountdown] = useState(3);
+
+  useEffect(() => {
+    if (useIframe) {
+      setIsShieldActive(true);
+      setShieldCountdown(3);
+
+      const timer = setInterval(() => {
+        setShieldCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsShieldActive(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [useIframe, videoUrl]);
 
   const [volume, setVolume] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -672,6 +694,48 @@ export default function VideoPlayer({
               </svg>
             </button>
           </div>
+
+          {/* 🛡️ KHIÊN BẢO VỆ CHỐNG QUẢNG CÁO (Ad Shield Overlay) */}
+          {isShieldActive && (
+            <div className="absolute inset-0 z-[150] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-300">
+              <div className="relative mb-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 via-amber-500 to-yellow-400 p-0.5 shadow-[0_0_35px_rgba(220,38,38,0.5)]">
+                  <div className="w-full h-full bg-[#0a0a0a] rounded-2xl flex items-center justify-center">
+                    <svg className="w-8 h-8 text-amber-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] md:text-xs font-black uppercase tracking-wider mb-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                Khiên bảo vệ Server dự phòng
+              </div>
+
+              <h4 className="text-base md:text-xl font-black uppercase italic text-white tracking-tight mb-2">
+                Đang tự động bỏ qua quảng cáo đầu phim...
+              </h4>
+              <p className="text-white/60 text-xs md:text-sm max-w-md font-medium leading-relaxed mb-6">
+                Hệ thống đang bảo vệ bạn khỏi các quảng cáo và liên kết từ nguồn phim. Phim sẽ tự động bắt đầu ngay sau giây lát.
+              </p>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 text-xs font-bold">
+                  <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Vào phim sau {shieldCountdown}s</span>
+                </div>
+
+                <button
+                  onClick={() => setIsShieldActive(false)}
+                  className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all border border-white/20 hover:border-white/40"
+                >
+                  Vào phim ngay
+                </button>
+              </div>
+            </div>
+          )}
+
           <iframe
             src={videoUrl}
             className="w-full h-full border-0"
