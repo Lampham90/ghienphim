@@ -48,7 +48,7 @@ const formatServerLabel = (server: any) => {
     baseLabel = "Server dự phòng";
   }
 
-  return server.isNguonc ? `${baseLabel} (2)` : baseLabel;
+  return server.isNguonc ? `${baseLabel} (QC)` : baseLabel;
 };
 
 const sortServersByPriority = (rawServers: any[]) => {
@@ -57,9 +57,12 @@ const sortServersByPriority = (rawServers: any[]) => {
   return [...rawServers].sort((a, b) => {
     const getPriority = (s: any) => {
       const name = (s.server_name || "").toLowerCase();
+      // NguonC (chứa quảng cáo) luôn ưu tiên thấp nhất, xếp sau cùng
+      if (s.isNguonc || name.includes("nguonc") || name.includes("nguồn c") || name.includes("(qc)") || name.includes("(2)")) return 99;
+
+      // Ưu tiên KKPhim (Server sạch, không quảng cáo) lên đầu
       if (name.includes("lồng tiếng") || name.includes("lt")) return 1;
       if (name.includes("thuyết minh") || name.includes("tm")) return 2;
-      if (s.isNguonc) return 10;
       return 3; 
     };
     return getPriority(a) - getPriority(b);

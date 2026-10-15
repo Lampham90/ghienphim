@@ -41,7 +41,7 @@ function cleanVietnameseName(rawName: string): string {
  * Chuẩn hóa Tên Server đồng bộ với App Kotlin: "VIETSUB (2)", "THUYẾT MINH (2)"
  */
 function formatServerName(rawName: string): string {
-  if (!rawName) return 'NGUỒN 2';
+  if (!rawName) return 'NGUỒN DỰ PHÒNG (QC)';
 
   const upperName = rawName.toUpperCase();
 
@@ -60,7 +60,7 @@ function formatServerName(rawName: string): string {
     baseType = upperName.replace(/#\d+/g, '').trim();
   }
 
-  return `${baseType}${numberSuffix} (2)`;
+  return `${baseType}${numberSuffix} (QC)`;
 }
 
 export async function fetchNguoncDetail(
