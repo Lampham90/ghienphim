@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <script id="stream-bootstrap" type="application/json">{"api":"https://embed13.streamc.xyz/embed.php?hash=0fd818d3dc190f5932666818a1204f25","assets":{"cdn-start-messages-r25.js":"/assets/cdn-start-messages-r25.a68e59ca53a35043.js","player-messages-r25.js":"/assets/player-messages-r25.deba684b24e963cb.js","guard-messages-r25.js":"/assets/guard-messages-r25.7935ef4ddf515ec5.js","player-messages-r25.css":"/assets/player-messages-r25.f63294f08a4dabc4.css","guard-messages-r25.css":"/assets/guard-messages-r25.b10c9b9009d53057.css","ads.js":"/assets/ads.957adeab469d90c1.js"}}</script>
+            <script id="stream-page-ready" data-cfasync="false">
+    // Install before the links so even cached CSS load/error events are seen.
+    // Network startup can run now; layout/Guard/player wait for this barrier.
+    window.streamPageReady = new Promise(function (resolve, reject) {
+        var dom = document.readyState !== 'loading', pending = new Set(['stream-player-style', 'stream-guard-style']), settled = false;
+        var timeout = setTimeout(function () { finish(new Error('required_styles_timeout')); }, 15000);
+        function finish(error) {
+            if (settled || (!error && (!dom || pending.size))) return;
+            settled = true;
+            clearTimeout(timeout);
+            document.removeEventListener('load', styleDone, true);
+            document.removeEventListener('error', styleDone, true);
+            document.removeEventListener('DOMContentLoaded', domDone);
+            if (error) reject(error); else resolve();
+        }
+        function styleDone(event) {
+            if (event.target && pending.delete(event.target.id))
+                finish(event.type === 'error' ? new Error('required_styles_failed') : null);
+        }
+        function domDone() { dom = true; finish(); }
+        document.addEventListener('load', styleDone, true);
+        document.addEventListener('error', styleDone, true);
+        if (!dom) document.addEventListener('DOMContentLoaded', domDone, { once: true });
+        finish();
+    });
+    window.streamPageReady.catch(function () {});
+    </script>
+    <script src="/assets/cdn-start-messages-r25.a68e59ca53a35043.js" data-cfasync="false" async></script>
+    <link rel="preload" as="script" href="/assets/guard-messages-r25.7935ef4ddf515ec5.js">
+    <link rel="preload" as="script" href="/assets/player-messages-r25.deba684b24e963cb.js">
+    <link rel="preload" as="script" href="https://ssl.p.jwpcdn.com/player/v/8.51.3/jwplayer.js">
+        <link id="stream-player-style" rel="stylesheet" href="/assets/player-messages-r25.f63294f08a4dabc4.css">
+    <link id="stream-guard-style" rel="stylesheet" href="/assets/guard-messages-r25.b10c9b9009d53057.css">
+    <style>
+    html,body{margin:0;background:#000;width:100%;height:100%}
+    #verification{position:fixed;inset:0;z-index:1000000;display:flex;align-items:center;justify-content:center;background:#000;color:#eee;font:clamp(14px,1.8vw,16px)/1.5 system-ui;text-align:center;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));box-sizing:border-box;overflow:hidden}
+    /* r25-loader-scroll-fix: contain the rotating spinner during loading. */
+    #verification-card{position:relative;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:14px;width:min(100%,460px);min-width:0;min-height:0;max-height:100%;padding:8px;overflow:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+    #verification.is-interactive #verification-card,#verification.is-error #verification-card{padding:4px;overflow:auto}
+    #verification-card>*{flex:none;max-width:100%}
+    #verification-message{overflow-wrap:anywhere}
+    #turnstile-container:empty{display:none}
+    #verification[hidden]{display:none!important}
+    #verification-spinner{width:32px;height:32px;box-sizing:border-box;border:3px solid #292929;border-top-color:#eee;border-radius:50%;animation:stream-spin .85s linear infinite}
+    #verification:not(.is-interactive):not(.is-error) #verification-message{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    #verification.is-interactive #verification-spinner,#verification.is-error #verification-spinner{display:none}
+    #verification button{min-height:44px;max-width:100%;border:0;border-radius:7px;background:#e50914;color:#fff;font:600 14px/1.3 system-ui;padding:10px 18px;white-space:normal;cursor:pointer;touch-action:manipulation}
+    #verification button[hidden]{display:none!important}
+    #verification button:focus-visible{outline:2px solid #fbbf24;outline-offset:-3px}
+    #verification button:disabled{opacity:.7;cursor:wait;font-variant-numeric:tabular-nums}
+    @keyframes stream-spin{to{transform:rotate(360deg)}}
+    @media(max-height:280px){#verification{padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}#verification-card{gap:8px}}
+    @media(prefers-reduced-motion:reduce){#verification-spinner{animation:none}}
+    /* r25-ui-polish: release-scoped overrides for the published R25 skin. */
+    /* JW gives skip text height:1em; let its full line box align with the icon. */
+    .jwplayer.jw-skin-streamlite .jw-skip{height:auto;align-items:center;justify-content:center;gap:8px;padding:8px 10px}
+    .jwplayer.jw-skin-streamlite .jw-skip .jw-text{height:auto;flex:1 1 auto;overflow-wrap:anywhere}
+    .jwplayer.jw-skin-streamlite .jw-skip .jw-skip-icon{flex:0 0 24px;width:24px;height:24px;margin:0;padding:0}
+    .jwplayer.jw-skin-streamlite .jw-skip .jw-skip-icon .jw-svg-icon{width:24px;height:24px}
+    /* Keep the progress value centered; the secondary caption is not shown. */
+    .jwplayer.jw-skin-streamlite .stream-load-progress-caption{display:none}
+    /* Reserve both safe areas when the settings menu reaches its height limit. */
+    .jwplayer.jw-skin-streamlite .stream-settings-panel{max-height:calc(100% - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+    @media(max-width:520px){.jwplayer.jw-skin-streamlite .stream-settings-panel{max-height:calc(100% - 62px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}}
+    @media(max-height:280px){.stream-playback-recovery{bottom:calc(52px + env(safe-area-inset-bottom));max-height:calc(100% - 64px - env(safe-area-inset-bottom))}}
+    </style>
+</head>
+<body>
+        <div id="player"></div>
+    <div id="verification" role="status" aria-live="polite">
+      <div id="verification-card">
+        <div id="verification-spinner" aria-hidden="true"></div>
+        <div id="verification-message">Đang tải video…</div>
+        <div id="turnstile-container"></div>
+        <button id="verification-retry" type="button" hidden>Tải lại</button>
+      </div>
+    </div>
+        </body>
+</html>
