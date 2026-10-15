@@ -678,6 +678,7 @@ export default function VideoPlayer({
             title={movieName}
             allowFullScreen
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             scrolling="no"
           />
         </div>
