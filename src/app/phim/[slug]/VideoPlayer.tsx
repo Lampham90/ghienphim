@@ -541,19 +541,10 @@ export default function VideoPlayer({
       let nguoncOrigin = '';
 
       if (isNguoncStream) {
-        const resolved = await resolveNguoncLink(videoUrl);
-        if (isCanceled) return;
-
-        if (resolved && resolved.m3u8) {
-          // Tạo Blob URL từ nội dung m3u8 sạch
-          const blob = new Blob([resolved.m3u8], { type: 'application/vnd.apple.mpegurl' });
-          createdBlobUrl = URL.createObjectURL(blob);
-          directLink = createdBlobUrl;
-          nguoncOrigin = resolved.origin;
-        } else {
-          setUseIframe(true);
-          return;
-        }
+        // CDN NguonC (hihihoho/streamc) đã bật WAF chặn toàn bộ IP Cloudflare Worker (403 Forbidden).
+        // Chuyển trực tiếp sang Iframe chính thức giúp xem mượt mà 100%, không bị Cloudflare chặn.
+        setUseIframe(true);
+        return;
       }
 
       if (!video || isCanceled) return;
@@ -686,8 +677,8 @@ export default function VideoPlayer({
             className="w-full h-full border-0"
             title={movieName}
             allowFullScreen
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             scrolling="no"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
           />
         </div>
       ) : errorMessage ? (
